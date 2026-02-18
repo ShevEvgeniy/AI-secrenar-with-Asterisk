@@ -37,3 +37,7 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# runtime artifacts
+data/storage/artifacts/
+zvonki_base/
