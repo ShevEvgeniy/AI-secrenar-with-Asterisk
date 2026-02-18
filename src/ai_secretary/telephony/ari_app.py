@@ -1,4 +1,4 @@
-﻿"""ARI app listener entry point."""
+"""ARI app listener entry point."""
 
 from __future__ import annotations
 
@@ -8,13 +8,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from ..config.settings import Settings
 from ..core.runner import run_pipeline
 from ..storage.files import save_bytes
-from .publish_to_asterisk import publish_wav_to_asterisk
 from ..tts.silero import SileroTTS
 from .ari_client import AriClient
-import httpx
+from .publish_to_asterisk import publish_wav_to_asterisk
 
 
 async def handle_call(
@@ -98,8 +99,19 @@ async def handle_call(
 
     remote_rel_path = f"{settings.asterisk_sounds_subdir}/{call_id}/reply.wav"
     try:
-        media_id = publish_wav_to_asterisk(reply_path, remote_rel_path, settings)
-        print("PUBLISH_OK", call_id, remote_rel_path, media_id)
+        publish_result = publish_wav_to_asterisk(reply_path, remote_rel_path, settings)
+        if not publish_result.get("ok"):
+            print(
+                "PUBLISH_ERROR",
+                call_id,
+                remote_rel_path,
+                publish_result.get("error"),
+                publish_result.get("details"),
+            )
+            raise RuntimeError(str(publish_result.get("error")))
+
+        media_id = str(publish_result.get("sound_id"))
+        print("PUBLISH_OK", call_id, publish_result.get("remote_path"), media_id)
     except Exception as exc:
         print("PUBLISH_ERROR", call_id, remote_rel_path, repr(exc))
         raise
@@ -181,3 +193,4 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
