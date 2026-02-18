@@ -1,0 +1,39 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+
+# Environments
+.env
+.env.*
+.venv/
+venv/
+ENV/
+
+# Logs
+*.log
+logs/
+
+# Audio and models
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.pt
+*.onnx
+models/
+
+# Build
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

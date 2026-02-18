@@ -1,0 +1,7 @@
+﻿# Core runtime dependencies
+fastapi>=0.110
+uvicorn>=0.24
+sentence-transformers>=2.2.0
+httpx>=0.23.0
+websockets>=12.0
+paramiko>=3.4.0

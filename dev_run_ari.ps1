@@ -1,0 +1,10 @@
+$env:ARI_URL="http://92.118.85.117:8088/ari"
+$env:ARI_USER="ai_secretary2"
+$env:ARI_PASSWORD="AiSec2_2026"
+$env:ARI_APP_NAME="ai_secretary"
+
+$env:ASTERISK_SSH_HOST="92.118.85.117"
+$env:ASTERISK_SSH_USER="tulauser"
+$env:ASTERISK_SSH_KEY="$env:USERPROFILE\.ssh\selectel_gpu"
+$env:ASTERISK_SOUNDS_DIR="/var/lib/asterisk/sounds"
+$env:ASTERISK_SOUNDS_SUBDIR="ai_secretary"

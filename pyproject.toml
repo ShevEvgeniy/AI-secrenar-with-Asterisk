@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "ai-secretary"
+version = "0.1.0"
+description = "AI secretary with optional Asterisk ARI integration."
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{ include = "ai_secretary", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.11"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
