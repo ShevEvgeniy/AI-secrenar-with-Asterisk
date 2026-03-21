@@ -1,0 +1,33 @@
+# ElevenLabs voices (from API)
+
+Источник: GET /v2/voices?page_size=50 (premade)
+
+| Name | voice_id | category |
+|---|---|---|
+| Bella - Professional, Bright, Warm | hpp4J3VqNfWAUOO0d1Us | premade |
+| Roger - Laid-Back, Casual, Resonant | CwhRBWXzGAHq8TQ4Fs17 | premade |
+| Sarah - Mature, Reassuring, Confident | EXAVITQu4vr4xnSDxMaL | premade |
+| Laura - Enthusiast, Quirky Attitude | FGY2WhTYpPnrIDTdsKH5 | premade |
+| Charlie - Deep, Confident, Energetic | IKne3meq5aSn9XLyUdCD | premade |
+| George - Warm, Captivating Storyteller | JBFqnCBsd6RMkjVDRZzb | premade |
+| Callum - Husky Trickster | N2lVS1w4EtoT3dr4eOWO | premade |
+| River - Relaxed, Neutral, Informative | SAz9YHcvj6GT2YYXdXww | premade |
+| Harry - Fierce Warrior | SOYHLrjzK2X1ezoPC6cr | premade |
+| Liam - Energetic, Social Media Creator | TX3LPaxmHKxFdv7VOQHJ | premade |
+| Alice - Clear, Engaging Educator | Xb7hH8MSUJpSbSDYk0k2 | premade |
+| Matilda - Knowledgable, Professional | XrExE9yKIg1WjnnlVkGX | premade |
+| Will - Relaxed Optimist | bIHbv24MWmeRgasZH58o | premade |
+| Jessica - Playful, Bright, Warm | cgSgspJ2msm6clMCkdW9 | premade |
+| Eric - Smooth, Trustworthy | cjVigY5qzO86Huf0OWal | premade |
+| Chris - Charming, Down-to-Earth | iP95p4xoKVk53GoZ742B | premade |
+| Brian - Deep, Resonant and Comforting | nPczCjzI2devNBz1zQrb | premade |
+| Daniel - Steady Broadcaster | onwK4e9ZLuTAKqWW03F9 | premade |
+| Lily - Velvety Actress | pFZP5JQG7iQjIQuC4Bku | premade |
+| Adam - Dominant, Firm | pNInz6obpgDQGcFmaJgB | premade |
+| Bill - Wise, Mature, Balanced | pqHfZKP75CvOlQylNhV4 | premade |
+
+Рекомендация для “женский секретарь RU”:
+- Matilda: XrExE9yKIg1WjnnlVkGX
+Альтернативы:
+- Sarah: EXAVITQu4vr4xnSDxMaL
+- Bella: hpp4J3VqNfWAUOO0d1Us
