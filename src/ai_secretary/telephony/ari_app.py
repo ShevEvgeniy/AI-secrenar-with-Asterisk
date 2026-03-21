@@ -10,6 +10,7 @@ from typing import Any
 
 from ..config.settings import Settings
 from ..core.runner import run_pipeline
+from ..rag.embeddings import warmup_embeddings
 from ..storage.files import save_bytes
 from ..tts.silero import SileroTTS
 from .ari_client import AriClient
@@ -222,6 +223,12 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
 async def main() -> None:
     """Run ARI event listener."""
     settings = Settings.from_env()
+    if os.getenv("WARMUP", "0") == "1":
+        try:
+            warmup_embeddings()
+            print("WARMUP_EMBEDDINGS_OK")
+        except Exception as exc:
+            print("WARMUP_EMBEDDINGS_FAIL", repr(exc))
     base_url = os.getenv("ARI_URL", "http://localhost:8088/ari")
     username = os.getenv("ARI_USER", "")
     password = os.getenv("ARI_PASSWORD", "")

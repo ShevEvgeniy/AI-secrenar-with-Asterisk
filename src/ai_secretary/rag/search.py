@@ -4,17 +4,7 @@ from __future__ import annotations
 
 from typing import List, Tuple
 
-
-_model = None
-
-
-def _get_model():
-    global _model
-    if _model is None:
-        from sentence_transformers import SentenceTransformer
-
-        _model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-    return _model
+from .embeddings import get_embedder
 
 
 def search_top_k(query_text: str, chunks: List[str], k: int) -> Tuple[List[str], List[float]]:
@@ -22,11 +12,11 @@ def search_top_k(query_text: str, chunks: List[str], k: int) -> Tuple[List[str],
     if not chunks:
         return [], []
 
-    model = _get_model()
-    query_emb = model.encode([query_text], normalize_embeddings=True)
-    chunk_embs = model.encode(chunks, normalize_embeddings=True)
+    embedder = get_embedder()
+    query_emb = embedder.embed([query_text])[0]
+    chunk_embs = embedder.embed(chunks)
 
-    scores = (chunk_embs @ query_emb[0]).tolist()
+    scores = [float(sum(float(a) * float(b) for a, b in zip(chunk_emb, query_emb))) for chunk_emb in chunk_embs]
     indexed = list(enumerate(scores))
     indexed.sort(key=lambda x: x[1], reverse=True)
 
