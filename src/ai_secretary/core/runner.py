@@ -312,3 +312,88 @@ def run_pipeline(
         },
     )
     return result.to_dict()
+
+
+def run_pipeline_from_transcript(
+    mode: str,
+    settings: Settings,
+    transcript_text: str,
+    profile_override: dict[str, Any] | None = None,
+    call_id_override: str | None = None,
+    artifact_dir_override: Path | None = None,
+    events_path_override: Path | None = None,
+    channel_id: str | None = None,
+) -> dict[str, Any]:
+    """Run pipeline steps from existing transcript/profile without STT pass."""
+    if call_id_override is not None:
+        call_id = call_id_override
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        call_id = f"{mode}_{timestamp}"
+
+    artifact_dir_path = (
+        artifact_dir_override
+        if artifact_dir_override is not None
+        else settings.storage_dir / "artifacts" / call_id
+    )
+    events_path = events_path_override if events_path_override is not None else artifact_dir_path / "events.jsonl"
+    event_channel_id = channel_id if channel_id is not None else call_id
+    _append_event(events_path, call_id, event_channel_id, "INIT", "pipeline_start", "start")
+    _append_event(events_path, call_id, event_channel_id, "THINKING", "transcribe", "ok")
+
+    parsed_profile = parse_update_profile_fields(transcript_text)
+    profile = dict(parsed_profile)
+    if profile_override:
+        profile.update(profile_override)
+    summary_text = _build_summary(transcript_text, profile)
+
+    kb_text = load_kb_text(settings.kb_path)
+    chunks = chunk_by_paragraphs(kb_text)
+    selected_chunks, scores = search_top_k(summary_text, chunks, settings.rag_top_k)
+
+    response_text = _build_response(summary_text, selected_chunks)
+    tts_text = normalize_text(response_text, profile.get("inn_digits"))
+    _append_event(events_path, call_id, event_channel_id, "RESPONDING", "build_response", "ok")
+
+    chunks_payload = {
+        "kb_path": str(settings.kb_path.as_posix()),
+        "chunks_total": len(chunks),
+        "top_k": settings.rag_top_k,
+        "selected": [
+            {"rank": idx + 1, "score": float(scores[idx]), "text": selected_chunks[idx]}
+            for idx in range(len(selected_chunks))
+        ],
+    }
+
+    paths = _save_artifacts(
+        artifact_dir_path,
+        profile,
+        transcript_text,
+        summary_text,
+        response_text,
+        tts_text,
+        chunks_payload,
+    )
+    paths["events"] = str(events_path.as_posix())
+    _append_event(events_path, call_id, event_channel_id, "DONE", "save_artifacts", "ok")
+
+    checks: dict[str, Any] = {}
+    if mode == "real":
+        expected = settings.expected_real_phone
+        actual = profile.get("phone_digits")
+        checks["phone_check_real"] = "OK" if actual == expected else f"FAIL expected={expected} actual={actual}"
+
+    return PipelineResult(
+        call_id=call_id,
+        mode=mode,
+        checks=checks,
+        profile=profile,
+        selected_chunks=selected_chunks,
+        artifact_dir=str(artifact_dir_path.as_posix()),
+        paths=paths,
+        rag={
+            "chunks_total": len(chunks),
+            "top_k": settings.rag_top_k,
+            "scores": scores,
+        },
+    ).to_dict()

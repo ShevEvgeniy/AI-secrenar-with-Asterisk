@@ -23,6 +23,26 @@ class CallState(str, Enum):
     FAILED = "FAILED"
 
 
+class DialogStage(str, Enum):
+    """Dialog slot-filling stages."""
+
+    ISSUE = "ISSUE"
+    NAME = "NAME"
+    CITY = "CITY"
+    PHONE = "PHONE"
+    DONE = "DONE"
+
+
+@dataclass(slots=True)
+class DialogState:
+    """Mutable per-call dialog data."""
+
+    stage: DialogStage = DialogStage.ISSUE
+    profile: dict[str, Any] = field(default_factory=dict)
+    transcripts: list[str] = field(default_factory=list)
+    turns_done: int = 0
+
+
 @dataclass(slots=True)
 class CallSession:
     """Represents a single call session with persisted JSONL events."""
@@ -31,6 +51,7 @@ class CallSession:
     channel_id: str
     artifact_dir: Path
     state: CallState = CallState.INIT
+    dialog: DialogState = field(default_factory=DialogState)
     started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self) -> None:

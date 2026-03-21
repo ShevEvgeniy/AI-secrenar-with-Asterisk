@@ -3,18 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import time
 from pathlib import Path
 from typing import Any
 
 from ..config.settings import Settings
-from ..core.runner import run_pipeline
+from ..core.runner import run_pipeline, run_pipeline_from_transcript
 from ..rag.embeddings import warmup_embeddings
-from ..storage.files import save_bytes
+from ..storage.files import save_bytes, save_json
 from ..tts.silero import SileroTTS
 from .ari_client import AriClient
-from .call_session import CallSession, CallState
+from .call_session import CallSession, CallState, DialogStage
+from .dialog import apply_turn, build_turn_record, next_prompt, should_stop_dialog
 from .publish_to_asterisk import publish_wav_to_asterisk
 
 
@@ -36,6 +38,72 @@ async def _maybe_stop_moh(client: AriClient, session: CallSession, started: bool
             details=result.get("details"),
         )
     return False
+
+
+def _append_turn(artifact_dir: Path, payload: dict[str, Any]) -> None:
+    turns_path = artifact_dir / "turns.jsonl"
+    with turns_path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def _save_profile(artifact_dir: Path, profile: dict[str, Any]) -> None:
+    save_json(artifact_dir / "profile.json", profile)
+
+
+def _transcribe_placeholder(stage: DialogStage) -> str:
+    if stage == DialogStage.ISSUE:
+        return "Хочу уточнить условия поставки оборудования."
+    if stage == DialogStage.NAME:
+        return "Меня зовут Иван Петров."
+    if stage == DialogStage.CITY:
+        return "Я из Казани."
+    return "Мой телефон 9 903 678 46 53."
+
+
+async def _play_prompt(
+    client: AriClient,
+    settings: Settings,
+    session: CallSession,
+    turn_index: int,
+    prompt_text: str,
+) -> bool:
+    tts = SileroTTS()
+    prompt_wav = tts.synthesize(prompt_text)
+    prompt_path = session.artifact_dir / f"prompt_{turn_index}.wav"
+    save_bytes(prompt_path, prompt_wav)
+
+    remote_rel_path = f"{settings.asterisk_sounds_subdir}/{session.call_id}/prompt_{turn_index}.wav"
+    publish_result = publish_wav_to_asterisk(prompt_path, remote_rel_path, settings)
+    if not publish_result.get("ok"):
+        session.transition(
+            CallState.FAILED,
+            action="publish_prompt",
+            status="fail",
+            reason="publish_failed",
+            details=publish_result,
+        )
+        return False
+
+    media_id = str(publish_result.get("sound_id"))
+    play_result = await client.play_safe(session.channel_id, media_id)
+    if not play_result["ok"]:
+        if play_result.get("reason") == "channel_gone":
+            session.transition(CallState.DONE, action="channel_gone", status="ok")
+            return False
+        session.transition(
+            CallState.FAILED,
+            action="prompt_playback",
+            status="fail",
+            reason=play_result.get("reason"),
+            http_status=play_result.get("http_status"),
+            media=media_id,
+            sound_id=media_id,
+            details=play_result.get("details"),
+        )
+        return False
+
+    session.log_event(action="prompt_played", status="ok", media=media_id, sound_id=media_id)
+    return True
 
 
 async def handle_call(client: AriClient, settings: Settings, app_name: str, session: CallSession) -> None:
@@ -75,46 +143,116 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
             print("PLAY_TEST_DISABLED", call_id)
             session.log_event(action="play_test_disabled", status="ok")
 
-        session.transition(CallState.RECORDING, action="record_start", status="start")
-        record_name = f"{call_id}_utt1"
-        record_start = time.perf_counter()
-        record_result = await client.record_safe(channel_id, record_name, max_duration_seconds=10)
-        if not record_result["ok"]:
-            print("RECORD_FAILED", call_id, record_result.get("reason"))
-            session.transition(
-                CallState.FAILED,
-                action="record_start",
-                status="fail",
-                reason=record_result.get("reason"),
-                http_status=record_result.get("http_status"),
-                details=record_result.get("details"),
-            )
-            return
-
-        event = await client.wait_for_recording_finished(app_name, record_name, timeout=30)
-        dur_ms = int((time.perf_counter() - record_start) * 1000)
-        if event.get("type") != "RecordingFinished":
-            reason = event.get("type") or "recording_event_missing"
-            print("RECORD_FAILED", call_id, reason)
-            session.transition(
-                CallState.FAILED,
-                action="record_wait",
-                status="fail",
-                reason=reason,
-                dur_ms=dur_ms,
-            )
-            return
-
-        print("RECORD_DONE", call_id)
-        session.log_event(action="record_done", status="ok", dur_ms=dur_ms)
-
         artifact_dir = session.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
-        input_path = artifact_dir / "input.wav"
 
-        await client.download_recording(record_name, input_path.as_posix())
-        print("DOWNLOAD_OK", call_id)
-        session.log_event(action="download_recording", status="ok")
+        if settings.demo_mode == "synth":
+            session.transition(CallState.RECORDING, action="record_start", status="start")
+            record_name = f"{call_id}_utt1"
+            record_start = time.perf_counter()
+            record_result = await client.record_safe(channel_id, record_name, max_duration_seconds=10)
+            if not record_result["ok"]:
+                print("RECORD_FAILED", call_id, record_result.get("reason"))
+                session.transition(
+                    CallState.FAILED,
+                    action="record_start",
+                    status="fail",
+                    reason=record_result.get("reason"),
+                    http_status=record_result.get("http_status"),
+                    details=record_result.get("details"),
+                )
+                return
+
+            event = await client.wait_for_recording_finished(app_name, record_name, timeout=30)
+            dur_ms = int((time.perf_counter() - record_start) * 1000)
+            if event.get("type") != "RecordingFinished":
+                reason = event.get("type") or "recording_event_missing"
+                print("RECORD_FAILED", call_id, reason)
+                session.transition(
+                    CallState.FAILED,
+                    action="record_wait",
+                    status="fail",
+                    reason=reason,
+                    dur_ms=dur_ms,
+                )
+                return
+
+            print("RECORD_DONE", call_id)
+            session.log_event(action="record_done", status="ok", dur_ms=dur_ms)
+
+            input_path = artifact_dir / "input.wav"
+            await client.download_recording(record_name, input_path.as_posix())
+            print("DOWNLOAD_OK", call_id)
+            session.log_event(action="download_recording", status="ok")
+            transcript_for_pipeline = ""
+            profile_for_pipeline: dict[str, Any] = {}
+        else:
+            dialogue_lines: list[str] = []
+            max_turns = 4
+            while not should_stop_dialog(session.dialog.stage, session.dialog.turns_done, max_turns):
+                prompt_text = next_prompt(session.dialog.stage, session.dialog.profile)
+                turn_idx = session.dialog.turns_done + 1
+                if not await _play_prompt(client, settings, session, turn_idx, prompt_text):
+                    return
+
+                session.transition(CallState.RECORDING, action="record_start", status="start")
+                record_name = f"{call_id}_utt{turn_idx}"
+                record_start = time.perf_counter()
+                record_result = await client.record_safe(channel_id, record_name, max_duration_seconds=10)
+                if not record_result["ok"]:
+                    if record_result.get("reason") == "channel_gone":
+                        session.transition(CallState.DONE, action="channel_gone", status="ok")
+                        return
+                    session.transition(
+                        CallState.FAILED,
+                        action="record_start",
+                        status="fail",
+                        reason=record_result.get("reason"),
+                        http_status=record_result.get("http_status"),
+                        details=record_result.get("details"),
+                    )
+                    return
+
+                event = await client.wait_for_recording_finished(app_name, record_name, timeout=30)
+                dur_ms = int((time.perf_counter() - record_start) * 1000)
+                if event.get("type") != "RecordingFinished":
+                    reason = event.get("type") or "recording_event_missing"
+                    session.transition(
+                        CallState.FAILED,
+                        action="record_wait",
+                        status="fail",
+                        reason=reason,
+                        dur_ms=dur_ms,
+                    )
+                    return
+                session.log_event(action="record_done", status="ok", dur_ms=dur_ms)
+
+                turn_audio = artifact_dir / f"turn_{turn_idx}.wav"
+                await client.download_recording(record_name, turn_audio.as_posix())
+                session.log_event(action="download_recording", status="ok")
+
+                transcript_text = _transcribe_placeholder(session.dialog.stage)
+                session.log_event(
+                    action="user_transcribed",
+                    status="ok",
+                    details={"state": session.dialog.stage.value, "text": transcript_text},
+                )
+
+                turn_record = build_turn_record(session.dialog.stage, prompt_text, transcript_text).to_dict()
+                _append_turn(artifact_dir, turn_record)
+
+                new_stage, new_profile = apply_turn(session.dialog.stage, session.dialog.profile, transcript_text)
+                session.dialog.stage = new_stage
+                session.dialog.profile = new_profile
+                session.dialog.turns_done += 1
+                session.dialog.transcripts.append(transcript_text)
+                _save_profile(artifact_dir, session.dialog.profile)
+
+                dialogue_lines.append(f"Секретарь: {prompt_text}")
+                dialogue_lines.append(f"Клиент: {transcript_text}")
+
+            transcript_for_pipeline = "\n".join(dialogue_lines)
+            profile_for_pipeline = dict(session.dialog.profile)
 
         session.transition(CallState.THINKING, action="pipeline_start", status="start")
         moh_started = False
@@ -135,15 +273,27 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
                 )
 
             pipeline_start = time.perf_counter()
-            result = run_pipeline(
-                "real",
-                settings,
-                audio_path_override=input_path,
-                call_id_override=session.call_id,
-                artifact_dir_override=session.artifact_dir,
-                events_path_override=session.events_path,
-                channel_id=session.channel_id,
-            )
+            if settings.demo_mode == "synth":
+                result = run_pipeline(
+                    "real",
+                    settings,
+                    audio_path_override=input_path,
+                    call_id_override=session.call_id,
+                    artifact_dir_override=session.artifact_dir,
+                    events_path_override=session.events_path,
+                    channel_id=session.channel_id,
+                )
+            else:
+                result = run_pipeline_from_transcript(
+                    "real",
+                    settings,
+                    transcript_text=transcript_for_pipeline,
+                    profile_override=profile_for_pipeline,
+                    call_id_override=session.call_id,
+                    artifact_dir_override=session.artifact_dir,
+                    events_path_override=session.events_path,
+                    channel_id=session.channel_id,
+                )
             pipeline_ms = int((time.perf_counter() - pipeline_start) * 1000)
             print("PIPELINE_OK", call_id)
             session.log_event(action="pipeline_done", status="ok", dur_ms=pipeline_ms)
