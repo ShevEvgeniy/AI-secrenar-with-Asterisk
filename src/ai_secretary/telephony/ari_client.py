@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, AsyncIterator, Awaitable, Callable
 
@@ -28,6 +29,16 @@ class AriClient:
     base_url: str
     username: str
     password: str
+    _ws_task: asyncio.Task[None] | None = field(default=None, init=False, repr=False)
+    _ws_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
+    _ws_app_name: str | None = field(default=None, init=False, repr=False)
+    _ws_subscribe_all: bool | None = field(default=None, init=False, repr=False)
+    _ws_subscribers: set[asyncio.Queue[dict[str, Any]]] = field(default_factory=set, init=False, repr=False)
+    _ws_last_error: Exception | None = field(default=None, init=False, repr=False)
+
+    @staticmethod
+    def _ws_closed_event() -> dict[str, Any]:
+        return {"type": "__ws_closed__"}
 
     def _http_url(self, path: str) -> str:
         base = self.base_url.rstrip("/")
@@ -267,15 +278,22 @@ class AriClient:
         """Wait for RecordingFinished or RecordingFailed event for a recording name."""
 
         async def _wait() -> dict[str, Any]:
-            async for event in self.ws_events(app_name=app_name, subscribe_all=True):
-                event_type = event.get("type")
-                recording = event.get("recording", {})
-                if recording.get("name") != name:
-                    continue
-                if event_type in {"RecordingFinished", "RecordingFailed"}:
-                    return event
-            return {}
-
+            queue = await self._subscribe_ws(app_name=app_name, subscribe_all=True)
+            try:
+                while True:
+                    event = await queue.get()
+                    if event.get("type") == "__ws_closed__":
+                        if self._ws_last_error is not None:
+                            raise self._ws_last_error
+                        return {}
+                    event_type = event.get("type")
+                    recording = event.get("recording", {})
+                    if recording.get("name") != name:
+                        continue
+                    if event_type in {"RecordingFinished", "RecordingFailed"}:
+                        return event
+            finally:
+                self._unsubscribe_ws(queue)
         return await asyncio.wait_for(_wait(), timeout=timeout)
 
     async def download_recording(self, name: str, dest_path: str) -> None:
@@ -286,11 +304,42 @@ class AriClient:
             response.raise_for_status()
             Path(dest_path).write_bytes(response.content)
 
-    async def ws_events(self, app_name: str, subscribe_all: bool = True) -> AsyncIterator[dict[str, Any]]:
-        """Yield events from ARI WebSocket."""
+    async def _ensure_ws_reader(self, app_name: str, subscribe_all: bool) -> None:
+        async with self._ws_lock:
+            if self._ws_task is not None and not self._ws_task.done():
+                if self._ws_app_name != app_name or self._ws_subscribe_all != subscribe_all:
+                    raise RuntimeError("ARI websocket already initialized with different subscription parameters")
+                return
+
+            self._ws_app_name = app_name
+            self._ws_subscribe_all = subscribe_all
+            self._ws_last_error = None
+            self._ws_task = asyncio.create_task(self._ws_reader(), name="ari-ws-reader")
+            self._ws_task.add_done_callback(self._consume_ws_task_result)
+
+    def _consume_ws_task_result(self, task: asyncio.Task[None]) -> None:
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            _ = task.exception()
+
+    async def _subscribe_ws(self, app_name: str, subscribe_all: bool) -> asyncio.Queue[dict[str, Any]]:
+        await self._ensure_ws_reader(app_name=app_name, subscribe_all=subscribe_all)
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._ws_subscribers.add(queue)
+        return queue
+
+    def _unsubscribe_ws(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
+        self._ws_subscribers.discard(queue)
+
+    async def _fan_out_event(self, payload: dict[str, Any]) -> None:
+        for queue in list(self._ws_subscribers):
+            queue.put_nowait(payload)
+
+    async def _ws_reader(self) -> None:
+        if self._ws_app_name is None or self._ws_subscribe_all is None:
+            return
         ws_base = self._ws_base()
-        subscribe = "true" if subscribe_all else "false"
-        ws_url = f"{ws_base}/events?app={app_name}&subscribeAll={subscribe}"
+        subscribe = "true" if self._ws_subscribe_all else "false"
+        ws_url = f"{ws_base}/events?app={self._ws_app_name}&subscribeAll={subscribe}"
         headers = {"Authorization": self._auth_header()}
 
         print(f"websockets_version {websockets.__version__}")
@@ -305,7 +354,37 @@ class AriClient:
                     except json.JSONDecodeError:
                         continue
                     if isinstance(payload, dict):
-                        yield payload
+                        await self._fan_out_event(payload)
         except Exception as exc:
             print("ARI_WS_CONNECT_ERROR", repr(exc))
+            self._ws_last_error = exc
             raise
+        finally:
+            await self._fan_out_event(self._ws_closed_event())
+            async with self._ws_lock:
+                self._ws_task = None
+
+    async def close_ws(self) -> None:
+        """Close shared ARI websocket reader task."""
+        async with self._ws_lock:
+            task = self._ws_task
+            self._ws_task = None
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        await self._fan_out_event(self._ws_closed_event())
+
+    async def ws_events(self, app_name: str, subscribe_all: bool = True) -> AsyncIterator[dict[str, Any]]:
+        """Yield events from shared ARI WebSocket connection."""
+        queue = await self._subscribe_ws(app_name=app_name, subscribe_all=subscribe_all)
+        try:
+            while True:
+                event = await queue.get()
+                if event.get("type") == "__ws_closed__":
+                    if self._ws_last_error is not None:
+                        raise self._ws_last_error
+                    return
+                yield event
+        finally:
+            self._unsubscribe_ws(queue)
