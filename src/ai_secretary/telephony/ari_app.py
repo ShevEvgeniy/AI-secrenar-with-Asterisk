@@ -107,7 +107,7 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
         print("RECORD_DONE", call_id)
         session.log_event(action="record_done", status="ok", dur_ms=dur_ms)
 
-        artifact_dir = settings.storage_dir / "artifacts" / call_id
+        artifact_dir = session.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
         input_path = artifact_dir / "input.wav"
 
@@ -134,7 +134,15 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
                 )
 
             pipeline_start = time.perf_counter()
-            result = run_pipeline("real", settings, audio_path_override=input_path)
+            result = run_pipeline(
+                "real",
+                settings,
+                audio_path_override=input_path,
+                call_id_override=session.call_id,
+                artifact_dir_override=session.artifact_dir,
+                events_path_override=session.events_path,
+                channel_id=session.channel_id,
+            )
             pipeline_ms = int((time.perf_counter() - pipeline_start) * 1000)
             print("PIPELINE_OK", call_id)
             session.log_event(action="pipeline_done", status="ok", dur_ms=pipeline_ms)

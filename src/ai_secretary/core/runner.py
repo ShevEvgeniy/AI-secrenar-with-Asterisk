@@ -100,8 +100,7 @@ def _build_response(summary_text: str, selected_chunks: list[str]) -> str:
 
 
 def _save_artifacts(
-    storage_dir: Path,
-    call_id: str,
+    artifact_dir: Path,
     profile: dict[str, Any],
     transcript_text: str,
     summary_text: str,
@@ -109,25 +108,24 @@ def _save_artifacts(
     tts_text: str,
     chunks_payload: dict[str, Any],
 ) -> dict[str, str]:
-    out_dir = storage_dir / "artifacts" / call_id
-    ensure_dirs(out_dir)
+    ensure_dirs(artifact_dir)
 
-    profile_path = out_dir / "profile.json"
+    profile_path = artifact_dir / "profile.json"
     save_json(profile_path, profile)
 
-    transcript_path = out_dir / "transcript.txt"
+    transcript_path = artifact_dir / "transcript.txt"
     save_text(transcript_path, transcript_text)
 
-    summary_path = out_dir / "summary.txt"
+    summary_path = artifact_dir / "summary.txt"
     save_text(summary_path, summary_text)
 
-    response_path = out_dir / "response.txt"
+    response_path = artifact_dir / "response.txt"
     save_text(response_path, response_text)
 
-    response_tts_path = out_dir / "response_for_tts.txt"
+    response_tts_path = artifact_dir / "response_for_tts.txt"
     save_text(response_tts_path, tts_text)
 
-    chunks_path = out_dir / "chunks.json"
+    chunks_path = artifact_dir / "chunks.json"
     save_json(chunks_path, chunks_payload)
 
     return {
@@ -143,6 +141,7 @@ def _save_artifacts(
 def _append_event(
     events_path: Path,
     call_id: str,
+    channel_id: str,
     state: str,
     action: str,
     status: str,
@@ -156,7 +155,7 @@ def _append_event(
     payload = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "call_id": call_id,
-        "channel_id": call_id,
+        "channel_id": channel_id,
         "state": state,
         "action": action,
         "status": status,
@@ -176,13 +175,26 @@ def run_pipeline(
     mode: str,
     settings: Settings,
     audio_path_override: Path | None = None,
+    call_id_override: str | None = None,
+    artifact_dir_override: Path | None = None,
+    events_path_override: Path | None = None,
+    channel_id: str | None = None,
 ) -> dict[str, Any]:
     """Run a single pipeline pass and return a structured result."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    call_id = f"{mode}_{timestamp}"
-    artifact_dir_path = settings.storage_dir / "artifacts" / call_id
-    events_path = artifact_dir_path / "events.jsonl"
-    _append_event(events_path, call_id, "INIT", "pipeline_start", "start")
+    if call_id_override is not None:
+        call_id = call_id_override
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        call_id = f"{mode}_{timestamp}"
+
+    artifact_dir_path = (
+        artifact_dir_override
+        if artifact_dir_override is not None
+        else settings.storage_dir / "artifacts" / call_id
+    )
+    events_path = events_path_override if events_path_override is not None else artifact_dir_path / "events.jsonl"
+    event_channel_id = channel_id if channel_id is not None else call_id
+    _append_event(events_path, call_id, event_channel_id, "INIT", "pipeline_start", "start")
 
     audio_path = (
         audio_path_override
@@ -195,13 +207,14 @@ def run_pipeline(
         _ensure_synth_audio(audio_path)
         if audio_path.exists():
             checks["synth_audio_ready"] = str(audio_path.as_posix())
-            _append_event(events_path, call_id, "ASKING", "synth_audio_ready", "ok")
+            _append_event(events_path, call_id, event_channel_id, "ASKING", "synth_audio_ready", "ok")
 
     if not audio_path.exists():
         checks["audio_missing"] = str(audio_path.as_posix())
         _append_event(
             events_path,
             call_id,
+            event_channel_id,
             "FAILED",
             "audio_missing",
             "fail",
@@ -220,9 +233,9 @@ def run_pipeline(
         return result.to_dict()
 
     audio_bytes = _load_audio(audio_path)
-    _append_event(events_path, call_id, "RECORDING", "audio_loaded", "ok")
+    _append_event(events_path, call_id, event_channel_id, "RECORDING", "audio_loaded", "ok")
     transcript_text = _demo_transcribe(mode, audio_bytes)
-    _append_event(events_path, call_id, "THINKING", "transcribe", "ok")
+    _append_event(events_path, call_id, event_channel_id, "THINKING", "transcribe", "ok")
 
     profile = parse_update_profile_fields(transcript_text)
     summary_text = _build_summary(transcript_text, profile)
@@ -233,7 +246,7 @@ def run_pipeline(
 
     response_text = _build_response(summary_text, selected_chunks)
     tts_text = normalize_text(response_text, profile.get("inn_digits"))
-    _append_event(events_path, call_id, "RESPONDING", "build_response", "ok")
+    _append_event(events_path, call_id, event_channel_id, "RESPONDING", "build_response", "ok")
 
     chunks_payload = {
         "kb_path": str(settings.kb_path.as_posix()),
@@ -246,8 +259,7 @@ def run_pipeline(
     }
 
     paths = _save_artifacts(
-        settings.storage_dir,
-        call_id,
+        artifact_dir_path,
         profile,
         transcript_text,
         summary_text,
@@ -256,7 +268,7 @@ def run_pipeline(
         chunks_payload,
     )
     paths["events"] = str(events_path.as_posix())
-    _append_event(events_path, call_id, "DONE", "save_artifacts", "ok")
+    _append_event(events_path, call_id, event_channel_id, "DONE", "save_artifacts", "ok")
 
     if mode == "real":
         expected = settings.expected_real_phone
