@@ -60,6 +60,11 @@ ssh.exe -i "$env:ASTERISK_SSH_KEY" -o BatchMode=yes -o IdentitiesOnly=yes `
 
 2) Запуск ARI listener
 
+$env:WARMUP="1"
+$env:PYTHONPATH="src"
+python -m ai_secretary.telephony.ari_app
+
+
 Рекомендуемый запуск (обходит возможные проблемы скриптов):
 
 $env:PYTHONPATH="src"
