@@ -114,10 +114,9 @@ def test_call_uses_system_prompt_without_per_call_publish(monkeypatch, tmp_path)
     response_for_tts.parent.mkdir(parents=True, exist_ok=True)
     response_for_tts.write_text("ok", encoding="utf-8")
 
-    async def fake_ensure_ok(*_args, **_kwargs):
-        return {sid: True for sid in ari_app._SYSTEM_SOUND_TEXTS}
-
-    monkeypatch.setattr(ari_app, "ensure_system_sounds", fake_ensure_ok)
+    for sid in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sid] = True
+    ari_app._system_sounds_checked = True
     monkeypatch.setattr(
         ari_app,
         "run_pipeline_from_transcript",
@@ -158,10 +157,9 @@ def test_prompt_fail_uses_builtin_fallback_and_no_immediate_hangup(monkeypatch, 
     response_for_tts.write_text("ok", encoding="utf-8")
 
     # No remote system sounds available -> fallback should use builtin media.
-    async def fake_ensure_fail(*_args, **_kwargs):
-        return {sid: False for sid in ari_app._SYSTEM_SOUND_TEXTS}
-
-    monkeypatch.setattr(ari_app, "ensure_system_sounds", fake_ensure_fail)
+    for sid in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sid] = False
+    ari_app._system_sounds_checked = True
     monkeypatch.setattr(
         ari_app,
         "run_pipeline_from_transcript",
@@ -185,5 +183,5 @@ def test_prompt_fail_uses_builtin_fallback_and_no_immediate_hangup(monkeypatch, 
 
     assert any(call == "play:sound:demo-congrats" for call in client.calls)
     assert not any(e["action"] == "hangup_after_prompt_fail" for e in events)
-    assert any(e["action"] == "fallback_play" for e in events)
+    assert any(e["action"] == "play_fallback" for e in events)
     assert any(e["action"] == "record_start" for e in events)

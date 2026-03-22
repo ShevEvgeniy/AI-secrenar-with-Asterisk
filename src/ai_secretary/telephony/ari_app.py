@@ -22,16 +22,19 @@ from .publish_to_asterisk import publish_wav_to_asterisk
 FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback"
 PROMPT_1_SOUND_ID = "sound:ai_secretary/_system/prompt_1"
 PROMPT_2_SOUND_ID = "sound:ai_secretary/_system/prompt_2"
+TRANSFER_SOUND_ID = "sound:ai_secretary/_system/transfer"
 FALLBACK_TEXT = "Одну секунду, пожалуйста."
 BUILTIN_FALLBACK_MEDIA = ("sound:demo-congrats", "sound:tt-weasels")
 _SYSTEM_SOUND_TEXTS: dict[str, str] = {
     PROMPT_1_SOUND_ID: PROMPTS[DialogStage.ISSUE],
     PROMPT_2_SOUND_ID: PROMPTS[DialogStage.NAME],
     FALLBACK_SOUND_ID: FALLBACK_TEXT,
+    TRANSFER_SOUND_ID: PROMPTS[DialogStage.DONE],
 }
 _system_sound_status: dict[str, bool] = {sound_id: False for sound_id in _SYSTEM_SOUND_TEXTS}
 _system_sounds_checked = False
 _system_sounds_lock: asyncio.Lock | None = None
+_system_sounds_task: asyncio.Task[None] | None = None
 
 
 def _env_int(name: str, default: int) -> int:
@@ -89,6 +92,13 @@ def _system_sound_rel_path(sound_id: str) -> str:
     return sound_id.replace("sound:", "") + ".wav"
 
 
+def _append_system_diag(payload: dict[str, Any]) -> None:
+    path = Path("tmp/diag/system_sounds_publish.jsonl")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
 async def ensure_system_sounds(settings: Settings, session: CallSession | None = None) -> dict[str, bool]:
     """Generate/publish static system sounds once and cache availability in memory."""
     global _system_sounds_checked
@@ -107,6 +117,7 @@ async def ensure_system_sounds(settings: Settings, session: CallSession | None =
         if _system_sounds_checked:
             return dict(_system_sound_status)
 
+        print("SYSTEM_SOUNDS_START")
         started = time.perf_counter()
         local_dir = settings.storage_dir / "_system"
         local_dir.mkdir(parents=True, exist_ok=True)
@@ -134,6 +145,7 @@ async def ensure_system_sounds(settings: Settings, session: CallSession | None =
                     "dur_ms": int((time.perf_counter() - item_start) * 1000),
                     "error": publish_result.get("error"),
                 }
+                print("SYSTEM_SOUNDS_ITEM", sound_id, "ok" if ok else "fail")
             except asyncio.TimeoutError:
                 _system_sound_status[sound_id] = False
                 details[sound_id] = {
@@ -141,6 +153,7 @@ async def ensure_system_sounds(settings: Settings, session: CallSession | None =
                     "dur_ms": int((time.perf_counter() - item_start) * 1000),
                     "error": "publish_timeout",
                 }
+                print("SYSTEM_SOUNDS_ITEM_TIMEOUT", sound_id)
             except Exception as exc:
                 _system_sound_status[sound_id] = False
                 details[sound_id] = {
@@ -148,9 +161,17 @@ async def ensure_system_sounds(settings: Settings, session: CallSession | None =
                     "dur_ms": int((time.perf_counter() - item_start) * 1000),
                     "error": repr(exc),
                 }
+                print("SYSTEM_SOUNDS_ITEM_FAIL", sound_id, repr(exc))
 
         total_ms = int((time.perf_counter() - started) * 1000)
         status = "ok" if all(_system_sound_status.values()) else "fail"
+        payload = {
+            "action": "system_sounds_publish_total",
+            "status": status,
+            "dur_ms": total_ms,
+            "details": {"sounds": dict(_system_sound_status), "items": details},
+        }
+        _append_system_diag(payload)
         if session is not None:
             session.log_event(
                 action="system_sounds_publish_total",
@@ -158,10 +179,15 @@ async def ensure_system_sounds(settings: Settings, session: CallSession | None =
                 dur_ms=total_ms,
                 details={"sounds": dict(_system_sound_status), "items": details},
             )
-        else:
-            print("SYSTEM_SOUNDS_READY", status, total_ms, dict(_system_sound_status))
+        print("SYSTEM_SOUNDS_DONE", status, total_ms, dict(_system_sound_status))
         _system_sounds_checked = True
         return dict(_system_sound_status)
+
+
+def _start_system_sounds_task(settings: Settings) -> None:
+    global _system_sounds_task
+    if _system_sounds_task is None or _system_sounds_task.done():
+        _system_sounds_task = asyncio.create_task(ensure_system_sounds(settings), name="system-sounds-publish")
 
 
 async def _maybe_start_moh(client: AriClient, session: CallSession, started: bool, action: str) -> bool:
@@ -200,10 +226,10 @@ async def _play_fallback_if_possible(
         play_result = await client.play_safe(session.channel_id, media_id)
         dur_ms = int((time.perf_counter() - start) * 1000)
         if play_result["ok"]:
-            session.log_event(action="fallback_play", status="ok", media=media_id, sound_id=media_id, dur_ms=dur_ms)
+            session.log_event(action="play_fallback", status="ok", media=media_id, sound_id=media_id, dur_ms=dur_ms)
             return moh_started
         session.log_event(
-            action="fallback_play",
+            action="play_fallback",
             status="fail",
             reason=play_result.get("reason"),
             http_status=play_result.get("http_status"),
@@ -215,7 +241,7 @@ async def _play_fallback_if_possible(
         if play_result.get("reason") != "channel_gone":
             moh_started = await _maybe_start_moh(client, session, moh_started, action="moh_start_after_fallback_fail")
 
-    session.log_event(action="fallback_play", status="fail", reason="fallback_unavailable")
+    session.log_event(action="play_fallback", status="fail", reason="fallback_unavailable")
     return await _maybe_start_moh(client, session, moh_started, action="moh_start_after_fallback_unavailable")
 
 
@@ -271,7 +297,7 @@ async def _play_prompt(
             session.transition(CallState.DONE, action="channel_gone", status="ok")
             return False, moh_started
         session.log_event(
-            action="prompt_play",
+            action="play_prompt",
             status="fail",
             reason=play_result.get("reason"),
             http_status=play_result.get("http_status"),
@@ -284,11 +310,17 @@ async def _play_prompt(
         moh_started = await _play_fallback_if_possible(client, session, system_sounds, moh_started)
         return True, moh_started
 
-    session.log_event(action="prompt_play", status="ok", media=media_id, sound_id=media_id, dur_ms=dur_ms)
+    session.log_event(action="play_prompt", status="ok", media=media_id, sound_id=media_id, dur_ms=dur_ms)
     return True, moh_started
 
 
-async def handle_call(client: AriClient, settings: Settings, app_name: str, session: CallSession) -> None:
+async def handle_call(
+    client: AriClient,
+    settings: Settings,
+    app_name: str,
+    session: CallSession,
+    moh_started: bool = False,
+) -> None:
     """Handle a single call lifecycle."""
     call_id = session.call_id
     channel_id = session.channel_id
@@ -299,7 +331,6 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
 
     try:
         session.transition(CallState.ASKING, action="call_flow_started", status="ok")
-        moh_started = False
 
         if play_test:
             play_test_media = "sound:demo-congrats"
@@ -329,8 +360,7 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
             print("PLAY_TEST_DISABLED", call_id)
             session.log_event(action="play_test_disabled", status="ok")
 
-        moh_started = await _maybe_start_moh(client, session, moh_started, action="moh_start_after_answer")
-        system_sounds = await ensure_system_sounds(settings, session)
+        system_sounds = dict(_system_sound_status)
 
         artifact_dir = session.artifact_dir
         artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -596,6 +626,8 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
     except Exception as exc:
         session.transition(CallState.FAILED, action="call_flow_exception", status="fail", reason=repr(exc))
         raise
+    finally:
+        await _maybe_stop_moh(client, session, moh_started)
 
 
 async def main() -> None:
@@ -615,7 +647,7 @@ async def main() -> None:
     if not app_name:
         print("ARI_APP_NAME is required")
         return
-    await ensure_system_sounds(settings)
+    _start_system_sounds_task(settings)
 
     client = AriClient(base_url=base_url, username=username, password=password)
     sessions: dict[str, CallSession] = {}
@@ -650,14 +682,15 @@ async def main() -> None:
 
                 print("ANSWERED", channel_id)
                 session.transition(CallState.ANSWERED, action="answer", status="ok")
+                moh_started = await _maybe_start_moh(client, session, False, action="moh_start_after_answer")
 
-                async def _run_call(sess: CallSession) -> None:
+                async def _run_call(sess: CallSession, started: bool) -> None:
                     try:
-                        await handle_call(client, settings, app_name, sess)
+                        await handle_call(client, settings, app_name, sess, moh_started=started)
                     except Exception as exc:
                         print("CALL_FLOW_ERROR", sess.channel_id, repr(exc))
 
-                task = asyncio.create_task(_run_call(session), name=f"call-{channel_id}")
+                task = asyncio.create_task(_run_call(session, moh_started), name=f"call-{channel_id}")
                 call_tasks[channel_id] = task
 
                 def _on_call_done(done_task: asyncio.Task[None], ch_id: str = channel_id) -> None:
@@ -680,6 +713,8 @@ async def main() -> None:
     finally:
         if call_tasks:
             await asyncio.gather(*call_tasks.values(), return_exceptions=True)
+        if _system_sounds_task is not None:
+            await asyncio.gather(_system_sounds_task, return_exceptions=True)
 
 
 if __name__ == "__main__":
