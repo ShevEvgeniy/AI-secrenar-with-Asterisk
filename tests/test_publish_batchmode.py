@@ -97,3 +97,22 @@ def test_publish_returns_structured_error(monkeypatch, tmp_path):
     assert result["ok"] is False
     assert result["sound_id"] == ""
     assert result["error"]
+
+
+def test_publish_subprocess_timeout(monkeypatch, tmp_path):
+    key_path = tmp_path / "id_rsa"
+    key_path.write_text("dummy", encoding="utf-8")
+    local_wav = tmp_path / "reply.wav"
+    local_wav.write_bytes(b"RIFF")
+
+    def fake_run(*args, **kwargs):
+        raise pub.subprocess.TimeoutExpired(cmd=args[0], timeout=1)
+
+    monkeypatch.setenv("PUBLISH_CMD_TIMEOUT_SEC", "1")
+    monkeypatch.setattr(pub.subprocess, "run", fake_run)
+    monkeypatch.setattr(pub, "_ensure_wav_8k_mono", lambda p: p)
+
+    result = pub.publish_wav_to_asterisk(local_wav, "ai_secretary/call/reply.wav", _settings(tmp_path))
+
+    assert result["ok"] is False
+    assert "timed out" in result["error"].lower()

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
+import time
 import wave
 from pathlib import Path, PurePosixPath
 from typing import Any, Sequence
@@ -39,6 +41,10 @@ def _ssh_base_args(key_path: Path) -> list[str]:
         "StrictHostKeyChecking=accept-new",
         "-o",
         "ConnectTimeout=5",
+        "-o",
+        "ServerAliveInterval=3",
+        "-o",
+        "ServerAliveCountMax=1",
     ]
 
 
@@ -66,12 +72,31 @@ def _handle_ssh_error(cmd: Sequence[str], rc: int, stderr: str, stdout: str) -> 
     raise RuntimeError("ssh/scp failed: " + combined)
 
 
+def _cmd_timeout_sec() -> int:
+    raw = os.getenv("PUBLISH_CMD_TIMEOUT_SEC", "6").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return 6
+    return value if value > 0 else 6
+
+
 def _run_cmd(cmd: Sequence[str], label: str) -> subprocess.CompletedProcess[str]:
     _log_cmd(label, cmd)
+    timeout_sec = _cmd_timeout_sec()
     try:
-        result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+        )
     except FileNotFoundError as exc:
         raise RuntimeError("OpenSSH client not installed or key missing: " + str(exc)) from exc
+    except subprocess.TimeoutExpired as exc:
+        rendered = " ".join(str(part) for part in cmd)
+        raise RuntimeError(f"Command timed out after {timeout_sec}s: {rendered}") from exc
     if result.returncode != 0:
         _handle_ssh_error(cmd, result.returncode, result.stderr, result.stdout)
     return result
@@ -194,6 +219,15 @@ def publish_wav_to_asterisk(
 ) -> dict[str, Any]:
     """Publish WAV to Asterisk and return structured result."""
     remote_wav = ""
+    timings_ms: dict[str, int | None] = {
+        "mkdir_ms": None,
+        "scp_ms": None,
+        "docker_mkdir_ms": None,
+        "docker_cp_ms": None,
+        "stat_ms": None,
+        "total_ms": None,
+    }
+    total_start = time.perf_counter()
     try:
         if not settings.asterisk_ssh_key:
             return {
@@ -229,12 +263,16 @@ def publish_wav_to_asterisk(
 
         converted_wav = _ensure_wav_8k_mono(local_wav_path)
 
+        step_start = time.perf_counter()
         ensure_remote_dir(
             settings.asterisk_ssh_host,
             settings.asterisk_ssh_user,
             key_path,
             remote_dir.as_posix(),
         )
+        timings_ms["mkdir_ms"] = int((time.perf_counter() - step_start) * 1000)
+
+        step_start = time.perf_counter()
         scp_upload(
             settings.asterisk_ssh_host,
             settings.asterisk_ssh_user,
@@ -242,8 +280,10 @@ def publish_wav_to_asterisk(
             converted_wav,
             remote_wav,
         )
+        timings_ms["scp_ms"] = int((time.perf_counter() - step_start) * 1000)
 
         if settings.asterisk_docker_container:
+            step_start = time.perf_counter()
             docker_exec_mkdir(
                 settings.asterisk_ssh_host,
                 settings.asterisk_ssh_user,
@@ -251,6 +291,8 @@ def publish_wav_to_asterisk(
                 settings.asterisk_docker_container,
                 remote_dir.as_posix(),
             )
+            timings_ms["docker_mkdir_ms"] = int((time.perf_counter() - step_start) * 1000)
+            step_start = time.perf_counter()
             docker_cp_to_container(
                 settings.asterisk_ssh_host,
                 settings.asterisk_ssh_user,
@@ -259,6 +301,8 @@ def publish_wav_to_asterisk(
                 remote_wav,
                 remote_wav,
             )
+            timings_ms["docker_cp_ms"] = int((time.perf_counter() - step_start) * 1000)
+            step_start = time.perf_counter()
             _remote_stat_container(
                 settings.asterisk_ssh_host,
                 settings.asterisk_ssh_user,
@@ -266,15 +310,19 @@ def publish_wav_to_asterisk(
                 settings.asterisk_docker_container,
                 remote_wav,
             )
+            timings_ms["stat_ms"] = int((time.perf_counter() - step_start) * 1000)
         else:
+            step_start = time.perf_counter()
             _remote_stat_host(
                 settings.asterisk_ssh_host,
                 settings.asterisk_ssh_user,
                 key_path,
                 remote_wav,
             )
+            timings_ms["stat_ms"] = int((time.perf_counter() - step_start) * 1000)
 
         sound_id = build_remote_sound_id(remote_rel.as_posix())
+        timings_ms["total_ms"] = int((time.perf_counter() - total_start) * 1000)
         return {
             "ok": True,
             "sound_id": sound_id,
@@ -283,13 +331,15 @@ def publish_wav_to_asterisk(
             "details": {
                 "docker_container": settings.asterisk_docker_container or None,
                 "remote_rel_path": remote_rel.as_posix(),
+                **timings_ms,
             },
         }
     except Exception as exc:
+        timings_ms["total_ms"] = int((time.perf_counter() - total_start) * 1000)
         return {
             "ok": False,
             "sound_id": "",
             "remote_path": remote_wav,
             "error": str(exc),
-            "details": {"exception": type(exc).__name__},
+            "details": {"exception": type(exc).__name__, **timings_ms},
         }
