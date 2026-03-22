@@ -7,6 +7,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 $allOk = $true
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$OutputEncoding = $utf8NoBom
+[Console]::OutputEncoding = $utf8NoBom
 
 function Write-Info([string]$Message) {
   Write-Host "[INFO] $Message"
@@ -78,9 +81,9 @@ function Require-Command([string]$CommandName) {
   return $true
 }
 
-function Run-External([string]$Exe, [string[]]$Args) {
-  Write-DebugLog ("Run: {0} {1}" -f $Exe, ($Args -join " "))
-  $output = & $Exe @Args 2>&1
+function Run-External([string]$Exe, [string[]]$ArgList) {
+  Write-DebugLog ("Run: " + $Exe + " " + ($ArgList -join " "))
+  $output = & $Exe @ArgList 2>&1
   $exitCode = $LASTEXITCODE
   return [PSCustomObject]@{
     ExitCode = $exitCode
@@ -123,12 +126,30 @@ function Resolve-RepoRoot {
 
   try {
     $rootRaw = & git rev-parse --show-toplevel 2>$null
-    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rootRaw)) {
-      return $rootRaw.Trim()
+    $rootCandidate = "$rootRaw".Trim()
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rootCandidate) -and (Test-Path -LiteralPath $rootCandidate)) {
+      return $rootCandidate
     }
   } catch {
   }
   return $fallback
+}
+
+function Normalize-KeyPath([string]$PathValue) {
+  if ([string]::IsNullOrWhiteSpace($PathValue)) {
+    return $PathValue
+  }
+
+  $normalized = $PathValue.Trim()
+  if ($normalized.Length -ge 2) {
+    if (($normalized.StartsWith('"') -and $normalized.EndsWith('"')) -or ($normalized.StartsWith("'") -and $normalized.EndsWith("'"))) {
+      $normalized = $normalized.Substring(1, $normalized.Length - 2)
+    }
+  }
+  while ($normalized.Contains("\\")) {
+    $normalized = $normalized.Replace("\\", "\")
+  }
+  return $normalized
 }
 
 $repoRoot = Resolve-RepoRoot
@@ -174,7 +195,8 @@ Write-Info "Output directory: $resolvedOutDir"
 
 $sshHost = [Environment]::GetEnvironmentVariable("ASTERISK_SSH_HOST", "Process")
 $sshUser = [Environment]::GetEnvironmentVariable("ASTERISK_SSH_USER", "Process")
-$sshKey = [Environment]::GetEnvironmentVariable("ASTERISK_SSH_KEY", "Process")
+$sshKey = Normalize-KeyPath ([Environment]::GetEnvironmentVariable("ASTERISK_SSH_KEY", "Process"))
+[Environment]::SetEnvironmentVariable("ASTERISK_SSH_KEY", $sshKey, "Process")
 $ariUrl = [Environment]::GetEnvironmentVariable("ARI_URL", "Process")
 $ariUser = [Environment]::GetEnvironmentVariable("ARI_USER", "Process")
 $ariPassword = [Environment]::GetEnvironmentVariable("ARI_PASSWORD", "Process")
@@ -203,9 +225,16 @@ foreach ($req in @("ASTERISK_SSH_HOST", "ASTERISK_SSH_USER", "ASTERISK_SSH_KEY")
     $hasSshBasics = $false
   }
 }
-if ($hasSshBasics -and -not (Test-Path -LiteralPath $sshKey)) {
-  Write-Fail "SSH key not found: $sshKey"
-  $hasSshBasics = $false
+if ($hasSshBasics) {
+  try {
+    if (-not (Test-Path -LiteralPath $sshKey)) {
+      Write-Fail "SSH key not found: $sshKey"
+      $hasSshBasics = $false
+    }
+  } catch {
+    Write-Fail "SSH key check failed: $sshKey ($($_.Exception.Message))"
+    $hasSshBasics = $false
+  }
 }
 
 Write-Host ""
@@ -226,7 +255,7 @@ if ((Require-Command "curl.exe") -and -not [string]::IsNullOrWhiteSpace($ariUrl)
     "-w", "%{http_code}",
     ("{0}/asterisk/info" -f $ariUrl.TrimEnd("/"))
   )
-  $curlRes = Run-External -Exe "curl.exe" -Args $curlArgs
+  $curlRes = Run-External -Exe "curl.exe" -ArgList $curlArgs
   $ariHttpCode = $curlRes.Text.Trim()
   Write-Host "ARI /asterisk/info HTTP=$ariHttpCode"
   if ($curlRes.ExitCode -eq 0 -and $ariHttpCode -eq "200") {
@@ -248,7 +277,7 @@ if ((Require-Command "ssh.exe") -and $hasSshBasics) {
   Write-Host "SSH MKDIR PROBE"
   $mkdirCmd = "mkdir -p $baseRemoteSounds/_probe && echo OK"
   $sshArgsMkdir = @($sshOptions + @("$sshUser@$sshHost", $mkdirCmd))
-  $mkdirRes = Run-External -Exe "ssh.exe" -Args $sshArgsMkdir
+  $mkdirRes = Run-External -Exe "ssh.exe" -ArgList $sshArgsMkdir
   $mkdirLogPath = Join-Path $resolvedOutDir "ssh_mkdir_probe.txt"
   $mkdirRes.Output | Set-Content -Path $mkdirLogPath -Encoding UTF8
   if ($mkdirRes.ExitCode -eq 0 -and $mkdirRes.Text -match "(?m)^OK\s*$") {
@@ -267,13 +296,13 @@ if ((Require-Command "ssh.exe") -and $hasSshBasics) {
     "diag-probe $stamp" | Set-Content -Path $localProbe -Encoding UTF8
 
     $scpArgs = @($sshOptions + @($localProbe, ("{0}@{1}:{2}" -f $sshUser, $sshHost, $remoteProbe)))
-    $scpRes = Run-External -Exe "scp.exe" -Args $scpArgs
+    $scpRes = Run-External -Exe "scp.exe" -ArgList $scpArgs
     $scpLogPath = Join-Path $resolvedOutDir "scp_probe_upload.txt"
     $scpRes.Output | Set-Content -Path $scpLogPath -Encoding UTF8
 
     $verifyCmd = "test -f $remoteProbe && head -c 80 $remoteProbe && echo OK"
     $sshArgsVerify = @($sshOptions + @("$sshUser@$sshHost", $verifyCmd))
-    $verifyRes = Run-External -Exe "ssh.exe" -Args $sshArgsVerify
+    $verifyRes = Run-External -Exe "ssh.exe" -ArgList $sshArgsVerify
     $verifyLogPath = Join-Path $resolvedOutDir "scp_probe_verify.txt"
     $verifyRes.Output | Set-Content -Path $verifyLogPath -Encoding UTF8
 
@@ -291,7 +320,7 @@ if ((Require-Command "ssh.exe") -and $hasSshBasics) {
   Write-Host "DOCKER PROBE"
   $dockerNamesCmd = "docker ps --format '{{.Names}}' | head -n 5"
   $dockerNamesArgs = @($sshOptions + @("$sshUser@$sshHost", $dockerNamesCmd))
-  $dockerNamesRes = Run-External -Exe "ssh.exe" -Args $dockerNamesArgs
+  $dockerNamesRes = Run-External -Exe "ssh.exe" -ArgList $dockerNamesArgs
   $dockerNamesLog = Join-Path $resolvedOutDir "docker_ps.txt"
   $dockerNamesRes.Output | Set-Content -Path $dockerNamesLog -Encoding UTF8
   $dockerNames = @($dockerNamesRes.Output | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
@@ -306,7 +335,7 @@ if ((Require-Command "ssh.exe") -and $hasSshBasics) {
   if ($dockerConfigured) {
     $dockerExecCmd = "docker exec $dockerContainer sh -lc 'id; ls -la /etc/asterisk | head -n 5'"
     $dockerExecArgs = @($sshOptions + @("$sshUser@$sshHost", $dockerExecCmd))
-    $dockerExecRes = Run-External -Exe "ssh.exe" -Args $dockerExecArgs
+    $dockerExecRes = Run-External -Exe "ssh.exe" -ArgList $dockerExecArgs
     $dockerExecLog = Join-Path $resolvedOutDir "docker_exec_probe.txt"
     $dockerExecRes.Output | Set-Content -Path $dockerExecLog -Encoding UTF8
     if ($dockerExecRes.ExitCode -eq 0) {
@@ -337,7 +366,7 @@ if (-not [string]::IsNullOrWhiteSpace($CallId)) {
     $remoteCallDir = "$baseRemoteSounds/$CallId"
     $remoteCallCmd = "test -d $remoteCallDir && echo OK"
     $remoteCallArgs = @($sshOptions + @("$sshUser@$sshHost", $remoteCallCmd))
-    $remoteCallRes = Run-External -Exe "ssh.exe" -Args $remoteCallArgs
+    $remoteCallRes = Run-External -Exe "ssh.exe" -ArgList $remoteCallArgs
     $remoteCallLog = Join-Path $resolvedOutDir "remote_callid_host.txt"
     $remoteCallRes.Output | Set-Content -Path $remoteCallLog -Encoding UTF8
     if ($remoteCallRes.ExitCode -eq 0 -and $remoteCallRes.Text -match "(?m)^OK\s*$") {
@@ -349,7 +378,7 @@ if (-not [string]::IsNullOrWhiteSpace($CallId)) {
     if ($dockerConfigured) {
       $dockerCallCmd = "docker exec $dockerContainer sh -lc 'test -d $remoteCallDir && ls -la $remoteCallDir | head -n 20 && echo OK'"
       $dockerCallArgs = @($sshOptions + @("$sshUser@$sshHost", $dockerCallCmd))
-      $dockerCallRes = Run-External -Exe "ssh.exe" -Args $dockerCallArgs
+      $dockerCallRes = Run-External -Exe "ssh.exe" -ArgList $dockerCallArgs
       $dockerCallLog = Join-Path $resolvedOutDir "remote_callid_docker.txt"
       $dockerCallRes.Output | Set-Content -Path $dockerCallLog -Encoding UTF8
       if ($dockerCallRes.ExitCode -eq 0 -and $dockerCallRes.Text -match "(?m)^OK\s*$") {
