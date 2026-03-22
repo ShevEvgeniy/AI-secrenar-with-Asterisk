@@ -1,4 +1,4 @@
-"""Dialog flow helpers for multi-turn telephony MVP."""
+﻿"""Dialog flow helpers for multi-turn telephony MVP."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ PROMPTS: dict[DialogStage, str] = {
     DialogStage.NAME: "Как я могу к вам обращаться?",
     DialogStage.CITY: "Из какого города или региона вы звоните?",
     DialogStage.PHONE: "Подскажите номер телефона для связи.",
-    DialogStage.DONE: "Спасибо! Я зафиксировала информацию и передам коллеге.",
+    DialogStage.DONE: "хорошо я соединяю вас с отделом продаж.",
 }
 
 

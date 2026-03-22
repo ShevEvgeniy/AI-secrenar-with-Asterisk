@@ -346,7 +346,9 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
         session.log_event(action="tts_done", status="ok", dur_ms=int((time.perf_counter() - tts_start) * 1000))
 
         remote_rel_path = f"{settings.asterisk_sounds_subdir}/{call_id}/reply.wav"
+        publish_start = time.perf_counter()
         publish_result = publish_wav_to_asterisk(reply_path, remote_rel_path, settings)
+        publish_ms = int((time.perf_counter() - publish_start) * 1000)
         if not publish_result.get("ok"):
             print("PUBLISH_ERROR", call_id, remote_rel_path, publish_result.get("error"))
             session.transition(
@@ -354,6 +356,7 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
                 action="publish",
                 status="fail",
                 reason="publish_failed",
+                dur_ms=publish_ms,
                 details=publish_result,
             )
             return
@@ -365,6 +368,7 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
             status="ok",
             sound_id=media_id,
             remote_path=str(publish_result.get("remote_path") or ""),
+            dur_ms=publish_ms,
             details=publish_result.get("details"),
         )
 

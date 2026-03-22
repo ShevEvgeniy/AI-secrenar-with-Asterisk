@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ai_secretary.telephony.call_session import DialogStage
-from ai_secretary.telephony.dialog import apply_turn, should_stop_dialog
+from ai_secretary.telephony.dialog import apply_turn, next_prompt, should_stop_dialog
 
 
 def test_dialog_state_transitions_typical_inputs() -> None:
@@ -43,3 +43,7 @@ def test_dialog_max_turns_stops_loop() -> None:
 
     assert turns_done == max_turns
     assert state != DialogStage.DONE
+
+
+def test_dialog_done_prompt_exact_transfer_phrase() -> None:
+    assert next_prompt(DialogStage.DONE, {}) == "хорошо я соединяю вас с отделом продаж."
