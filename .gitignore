@@ -46,3 +46,6 @@ zvonki_base/
 /silero_*.py
 /ssh_key_check_out*.txt
 /tmp/diag/
+
+# local TTS stress dict
+data/tts/stress_dict.txt
