@@ -89,10 +89,13 @@ function Run-External([string]$Exe, [string[]]$Args) {
   }
 }
 
-function Test-NetPort([string]$Host, [int]$Port) {
-  $target = "{0}:{1}" -f $Host, $Port
+function Test-NetPort(
+  [Alias("Host")][string]$HostName,
+  [int]$Port
+) {
+  $target = "{0}:{1}" -f $HostName, $Port
   try {
-    $tnc = Test-NetConnection -ComputerName $Host -Port $Port -WarningAction SilentlyContinue
+    $tnc = Test-NetConnection -ComputerName $HostName -Port $Port -WarningAction SilentlyContinue
     if ($tnc.TcpTestSucceeded) {
       Write-Ok "TCP $target reachable"
       return $true
@@ -208,8 +211,8 @@ if ($hasSshBasics -and -not (Test-Path -LiteralPath $sshKey)) {
 Write-Host ""
 Write-Host "CONNECTIVITY"
 if (-not [string]::IsNullOrWhiteSpace($sshHost)) {
-  Test-NetPort -Host $sshHost -Port 22 | Out-Null
-  Test-NetPort -Host $sshHost -Port 8088 | Out-Null
+  Test-NetPort -HostName $sshHost -Port 22 | Out-Null
+  Test-NetPort -HostName $sshHost -Port 8088 | Out-Null
 } else {
   Write-Fail "ASTERISK_SSH_HOST is empty, cannot run port checks"
 }
