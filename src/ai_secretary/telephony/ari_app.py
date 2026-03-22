@@ -204,18 +204,35 @@ async def _play_prompt(
     prompt_text: str,
 ) -> bool:
     tts = SileroTTS()
-    prompt_wav = tts.synthesize(prompt_text)
+    prompt_wav = await asyncio.to_thread(tts.synthesize, prompt_text)
     prompt_path = session.artifact_dir / f"prompt_{turn_index}.wav"
     save_bytes(prompt_path, prompt_wav)
 
     remote_rel_path = f"{settings.asterisk_sounds_subdir}/{session.call_id}/prompt_{turn_index}.wav"
-    publish_result = publish_wav_to_asterisk(prompt_path, remote_rel_path, settings)
+    publish_start = time.perf_counter()
+    try:
+        publish_result = await asyncio.wait_for(
+            asyncio.to_thread(publish_wav_to_asterisk, prompt_path, remote_rel_path, settings),
+            timeout=_publish_total_timeout_sec(),
+        )
+    except asyncio.TimeoutError:
+        print("PUBLISH_PROMPT_TIMEOUT", session.call_id, remote_rel_path)
+        session.transition(
+            CallState.FAILED,
+            action="publish_prompt",
+            status="fail",
+            reason="publish_timeout",
+            dur_ms=int((time.perf_counter() - publish_start) * 1000),
+        )
+        return False
     if not publish_result.get("ok"):
+        print("PUBLISH_PROMPT_FAIL", session.call_id, remote_rel_path, publish_result.get("error"))
         session.transition(
             CallState.FAILED,
             action="publish_prompt",
             status="fail",
             reason="publish_failed",
+            dur_ms=int((time.perf_counter() - publish_start) * 1000),
             details=publish_result,
         )
         return False
@@ -338,6 +355,8 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
                 prompt_text = next_prompt(session.dialog.stage, session.dialog.profile)
                 turn_idx = session.dialog.turns_done + 1
                 if not await _play_prompt(client, settings, session, turn_idx, prompt_text):
+                    await client.hangup_safe(channel_id)
+                    session.log_event(action="hangup_after_prompt_fail", status="ok")
                     return
 
                 session.transition(CallState.RECORDING, action="record_start", status="start")
@@ -572,6 +591,7 @@ async def main() -> None:
 
     client = AriClient(base_url=base_url, username=username, password=password)
     sessions: dict[str, CallSession] = {}
+    call_tasks: dict[str, asyncio.Task[None]] = {}
 
     print("ARI_LISTENING", base_url, app_name)
     try:
@@ -603,10 +623,23 @@ async def main() -> None:
                 print("ANSWERED", channel_id)
                 session.transition(CallState.ANSWERED, action="answer", status="ok")
 
-                try:
-                    await handle_call(client, settings, app_name, session)
-                except Exception as exc:
-                    print("CALL_FLOW_ERROR", channel_id, repr(exc))
+                async def _run_call(sess: CallSession) -> None:
+                    try:
+                        await handle_call(client, settings, app_name, sess)
+                    except Exception as exc:
+                        print("CALL_FLOW_ERROR", sess.channel_id, repr(exc))
+
+                task = asyncio.create_task(_run_call(session), name=f"call-{channel_id}")
+                call_tasks[channel_id] = task
+
+                def _on_call_done(done_task: asyncio.Task[None], ch_id: str = channel_id) -> None:
+                    call_tasks.pop(ch_id, None)
+                    try:
+                        done_task.result()
+                    except Exception as exc:
+                        print("CALL_TASK_ERROR", ch_id, repr(exc))
+
+                task.add_done_callback(_on_call_done)
 
             elif event_type in {"StasisEnd", "ChannelDestroyed"} and channel_id:
                 session = sessions.pop(channel_id, None)
@@ -616,6 +649,9 @@ async def main() -> None:
 
     except Exception as exc:
         print("ARI_APP_ERROR", repr(exc))
+    finally:
+        if call_tasks:
+            await asyncio.gather(*call_tasks.values(), return_exceptions=True)
 
 
 if __name__ == "__main__":
