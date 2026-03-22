@@ -212,6 +212,39 @@ def _remote_stat_container(host: str, user: str, key_path: Path, container: str,
     _run_cmd(cmd, "PUBLISH_STAT_CMD:")
 
 
+def remote_file_exists(settings: Settings, remote_abs_path: str) -> bool:
+    """Best-effort remote file existence check. Never raises, returns False on any error."""
+    try:
+        if not settings.asterisk_ssh_key:
+            return False
+        key_path = Path(settings.asterisk_ssh_key)
+        if not key_path.exists():
+            return False
+        if not settings.asterisk_ssh_host or not settings.asterisk_ssh_user:
+            return False
+
+        if settings.asterisk_docker_container:
+            cmd = [
+                "ssh",
+                *_ssh_base_args(key_path),
+                f"{settings.asterisk_ssh_user}@{settings.asterisk_ssh_host}",
+                f"docker exec {settings.asterisk_docker_container} test -f {remote_abs_path}",
+            ]
+            result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=_cmd_timeout_sec())
+            return result.returncode == 0
+
+        cmd = [
+            "ssh",
+            *_ssh_base_args(key_path),
+            f"{settings.asterisk_ssh_user}@{settings.asterisk_ssh_host}",
+            f"test -f {remote_abs_path}",
+        ]
+        result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=_cmd_timeout_sec())
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
 def publish_wav_to_asterisk(
     local_wav_path: Path,
     remote_rel_path: str,

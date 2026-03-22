@@ -93,6 +93,7 @@ def test_system_sounds_publish_once_with_cache(monkeypatch, tmp_path):
 
     monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
     monkeypatch.setattr(ari_app, "publish_wav_to_asterisk", fake_publish)
+    monkeypatch.setattr(ari_app, "remote_file_exists", lambda *_args, **_kwargs: True)
 
     first = asyncio.run(ari_app.ensure_system_sounds(settings))
     second = asyncio.run(ari_app.ensure_system_sounds(settings))
@@ -116,7 +117,7 @@ def test_call_uses_system_prompt_without_per_call_publish(monkeypatch, tmp_path)
 
     for sid in ari_app._SYSTEM_SOUND_TEXTS:
         ari_app._system_sound_status[sid] = True
-    ari_app._system_sounds_checked = True
+    ari_app._system_sounds_ready = True
     monkeypatch.setattr(
         ari_app,
         "run_pipeline_from_transcript",
@@ -159,7 +160,7 @@ def test_prompt_fail_uses_builtin_fallback_and_no_immediate_hangup(monkeypatch, 
     # No remote system sounds available -> fallback should use builtin media.
     for sid in ari_app._SYSTEM_SOUND_TEXTS:
         ari_app._system_sound_status[sid] = False
-    ari_app._system_sounds_checked = True
+    ari_app._system_sounds_ready = False
     monkeypatch.setattr(
         ari_app,
         "run_pipeline_from_transcript",
@@ -185,3 +186,93 @@ def test_prompt_fail_uses_builtin_fallback_and_no_immediate_hangup(monkeypatch, 
     assert not any(e["action"] == "hangup_after_prompt_fail" for e in events)
     assert any(e["action"] == "play_fallback" for e in events)
     assert any(e["action"] == "record_start" for e in events)
+
+
+def test_prompt_and_fallback_fail_calls_hangup(monkeypatch, tmp_path):
+    ari_app._reset_fallback_cache_for_tests()
+    monkeypatch.setenv("PLAY_TEST", "0")
+    settings = _settings(tmp_path)
+    artifact_dir = tmp_path / "artifacts" / "call-fallback-hardfail"
+    session = CallSession(call_id="call-fallback-hardfail", channel_id="ch-3", artifact_dir=artifact_dir)
+    # Fail prompt and both builtin fallbacks.
+    client = _FakeClient(
+        fail_media={
+            "sound:demo-congrats",
+            "sound:tt-weasels",
+        }
+    )
+
+    response_for_tts = artifact_dir / "response_for_tts.txt"
+    response_for_tts.parent.mkdir(parents=True, exist_ok=True)
+    response_for_tts.write_text("ok", encoding="utf-8")
+
+    for sid in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sid] = False
+    ari_app._system_sounds_ready = False
+    monkeypatch.setattr(
+        ari_app,
+        "run_pipeline_from_transcript",
+        lambda *_args, **_kwargs: {"paths": {"response_for_tts": str(response_for_tts)}},
+    )
+    monkeypatch.setattr(ari_app, "should_stop_dialog", lambda _state, turns_done, _max_turns: turns_done >= 1)
+
+    class _FakeTTS:
+        def synthesize(self, _text: str) -> bytes:
+            return b"RIFFreply"
+
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: {"ok": True, "sound_id": "sound:ai_secretary/call-fallback-hardfail/reply", "remote_path": "/tmp/reply.wav", "error": None, "details": {}},
+    )
+
+    asyncio.run(ari_app.handle_call(client, settings, "app", session))
+    events = _read_events(session)
+
+    assert "hangup" in client.calls
+    assert any(e["action"] == "hangup_after_prompt_and_fallback_fail" for e in events)
+
+
+def test_system_sounds_soft_fail_does_not_raise(monkeypatch, tmp_path):
+    ari_app._reset_fallback_cache_for_tests()
+    settings = _settings(tmp_path)
+
+    class _FakeTTS:
+        def synthesize(self, _text: str) -> bytes:
+            return b"RIFFfake"
+
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: {"ok": False, "sound_id": "", "remote_path": "", "error": "boom", "details": {}},
+    )
+    monkeypatch.setattr(ari_app, "remote_file_exists", lambda *_args, **_kwargs: False)
+
+    status = asyncio.run(ari_app.ensure_system_sounds(settings))
+    assert isinstance(status, dict)
+    assert ari_app._system_sounds_ready is False
+    assert ari_app._system_sounds_last_error is not None
+
+
+def test_lazy_retry_trigger_uses_create_task(monkeypatch, tmp_path):
+    ari_app._reset_fallback_cache_for_tests()
+    settings = _settings(tmp_path)
+    monkeypatch.setenv("SYSTEM_SOUNDS_ENABLE", "1")
+    monkeypatch.setenv("SYSTEM_SOUNDS_LAZY_RETRY_SEC", "60")
+    ari_app._system_sounds_ready = False
+    ari_app._system_sounds_last_attempt_ts = time.time() - 120
+
+    calls = {"n": 0}
+
+    def fake_start(_settings: Settings):
+        calls["n"] += 1
+
+    monkeypatch.setattr(ari_app, "_start_system_sounds_task", fake_start)
+    ari_app._maybe_trigger_system_sounds_lazy(settings, "call-lazy-1")
+    assert calls["n"] == 1
+
+    ari_app._system_sounds_last_attempt_ts = time.time()
+    ari_app._maybe_trigger_system_sounds_lazy(settings, "call-lazy-2")
+    assert calls["n"] == 1
