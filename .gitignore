@@ -45,3 +45,4 @@ zvonki_base/
 # local scratch/debug files
 /silero_*.py
 /ssh_key_check_out*.txt
+/tmp/diag/
