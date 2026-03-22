@@ -11,6 +11,8 @@ from typing import Any
 import numpy as np
 import torch
 
+from .normalize_for_tts import apply_stress_overrides
+
 
 _MODEL_CACHE: tuple[Any, str] | None = None
 _MODEL_LOCK = threading.Lock()
@@ -82,8 +84,9 @@ class SileroTTS:
     def synthesize(self, text: str) -> bytes:
         """Synthesize speech and return WAV bytes."""
         model, _ = _load_model(self.language, self.speaker_model)
+        tts_text = apply_stress_overrides(text)
         kwargs: dict[str, Any] = {
-            "text": text,
+            "text": tts_text,
             "sample_rate": self.sample_rate,
             "put_accent": True,
             "put_yo": True,

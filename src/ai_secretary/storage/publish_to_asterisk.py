@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import wave
 from pathlib import Path, PurePosixPath
 from typing import Any, Sequence
 
@@ -77,7 +78,19 @@ def _run_cmd(cmd: Sequence[str], label: str) -> subprocess.CompletedProcess[str]
 
 
 def _ensure_wav_8k_mono(local_wav_path: Path) -> Path:
-    """Convert WAV to 8kHz mono pcm_s16le using ffmpeg."""
+    """Convert WAV to 8kHz mono pcm_s16le using ffmpeg if needed."""
+    try:
+        with wave.open(str(local_wav_path), "rb") as wav:
+            if (
+                wav.getnchannels() == 1
+                and wav.getframerate() == 8000
+                and wav.getsampwidth() == 2
+                and wav.getcomptype() == "NONE"
+            ):
+                return local_wav_path
+    except wave.Error:
+        pass
+
     out_path = local_wav_path.with_name(local_wav_path.stem + "_8k.wav")
     cmd = [
         "ffmpeg",

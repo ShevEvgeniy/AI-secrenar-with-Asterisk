@@ -229,6 +229,7 @@ class AriClient:
         name: str,
         format: str = "wav",
         max_duration_seconds: int = 10,
+        max_silence_seconds: int | None = None,
         beep: bool = False,
         if_exists: str = "overwrite",
     ) -> dict[str, Any]:
@@ -241,6 +242,8 @@ class AriClient:
             "beep": str(beep).lower(),
             "ifExists": if_exists,
         }
+        if max_silence_seconds is not None:
+            params["maxSilenceSeconds"] = str(max_silence_seconds)
         async with httpx.AsyncClient(auth=(self.username, self.password), timeout=10.0) as client:
             response = await client.post(url, params=params)
             response.raise_for_status()
@@ -252,6 +255,7 @@ class AriClient:
         name: str,
         format: str = "wav",
         max_duration_seconds: int = 10,
+        max_silence_seconds: int | None = None,
         beep: bool = False,
         if_exists: str = "overwrite",
     ) -> dict[str, Any]:
@@ -264,6 +268,7 @@ class AriClient:
                 name,
                 format=format,
                 max_duration_seconds=max_duration_seconds,
+                max_silence_seconds=max_silence_seconds,
                 beep=beep,
                 if_exists=if_exists,
             ),

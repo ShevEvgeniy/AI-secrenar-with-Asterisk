@@ -20,6 +20,20 @@ from .dialog import apply_turn, build_turn_record, next_prompt, should_stop_dial
 from .publish_to_asterisk import publish_wav_to_asterisk
 
 
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value >= 0 else default
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name, "1" if default else "0").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
 async def _maybe_stop_moh(client: AriClient, session: CallSession, started: bool) -> bool:
     """Stop MOH if started and log result to events."""
     if not started:
@@ -111,6 +125,9 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
     call_id = session.call_id
     channel_id = session.channel_id
     play_test = os.getenv("PLAY_TEST", "0") == "1"
+    record_max_duration_seconds = _env_int("RECORD_MAX_DURATION_SECONDS", 6)
+    record_max_silence_seconds = _env_int("RECORD_MAX_SILENCE_SECONDS", 2)
+    record_beep = _env_bool("RECORD_BEEP", default=False)
 
     try:
         session.transition(CallState.ASKING, action="call_flow_started", status="ok")
@@ -150,7 +167,13 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
             session.transition(CallState.RECORDING, action="record_start", status="start")
             record_name = f"{call_id}_utt1"
             record_start = time.perf_counter()
-            record_result = await client.record_safe(channel_id, record_name, max_duration_seconds=10)
+            record_result = await client.record_safe(
+                channel_id,
+                record_name,
+                max_duration_seconds=record_max_duration_seconds,
+                max_silence_seconds=record_max_silence_seconds,
+                beep=record_beep,
+            )
             if not record_result["ok"]:
                 print("RECORD_FAILED", call_id, record_result.get("reason"))
                 session.transition(
@@ -198,7 +221,13 @@ async def handle_call(client: AriClient, settings: Settings, app_name: str, sess
                 session.transition(CallState.RECORDING, action="record_start", status="start")
                 record_name = f"{call_id}_utt{turn_idx}"
                 record_start = time.perf_counter()
-                record_result = await client.record_safe(channel_id, record_name, max_duration_seconds=10)
+                record_result = await client.record_safe(
+                    channel_id,
+                    record_name,
+                    max_duration_seconds=record_max_duration_seconds,
+                    max_silence_seconds=record_max_silence_seconds,
+                    beep=record_beep,
+                )
                 if not record_result["ok"]:
                     if record_result.get("reason") == "channel_gone":
                         session.transition(CallState.DONE, action="channel_gone", status="ok")
