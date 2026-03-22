@@ -29,13 +29,14 @@ if (Test-Path $envPath) {
       $value = $parts[1].Trim()
       if ([string]::IsNullOrWhiteSpace($key)) { continue }
 
-      if (($value.StartsWith("\"") -and $value.EndsWith("\"")) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+      if (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
         $value = $value.Substring(1, $value.Length - 2)
       }
       $value = $value.Trim()
 
-      if ([string]::IsNullOrWhiteSpace($env:$key)) {
-        $env:$key = $value
+      $current = [Environment]::GetEnvironmentVariable($key, "Process")
+      if ([string]::IsNullOrWhiteSpace($current)) {
+        [Environment]::SetEnvironmentVariable($key, $value, "Process")
       }
     }
     Write-Host ".env loaded"
@@ -60,8 +61,9 @@ Write-Host "[run_ari] Activating venv..."
 $env:PYTHONPATH = "src"
 
 function Ensure-EnvDefault($name, $value) {
-  if ([string]::IsNullOrWhiteSpace($env:$name)) {
-    $env:$name = $value
+  $current = [Environment]::GetEnvironmentVariable($name, "Process")
+  if ([string]::IsNullOrWhiteSpace($current)) {
+    [Environment]::SetEnvironmentVariable($name, $value, "Process")
   }
 }
 
