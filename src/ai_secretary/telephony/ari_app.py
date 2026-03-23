@@ -48,8 +48,8 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _publish_total_timeout_sec() -> int:
-    value = _env_int("PUBLISH_TOTAL_TIMEOUT_SEC", 20)
-    return value if value > 0 else 20
+    value = _env_int("PUBLISH_TOTAL_TIMEOUT_SEC", 35)
+    return value if value > 0 else 35
 
 
 def _system_sounds_publish_timeout_sec() -> int:
@@ -599,8 +599,11 @@ async def handle_call(
                 },
             )
             _played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
-            await client.hangup_safe(channel_id)
-            session.transition(CallState.FAILED, action="hangup_after_publish_fail", status="ok")
+            session.transition(
+                CallState.FAILED,
+                action="publish_timeout_fallback_no_immediate_hangup",
+                status="ok",
+            )
             return
 
         publish_ms = int((time.perf_counter() - publish_start) * 1000)
