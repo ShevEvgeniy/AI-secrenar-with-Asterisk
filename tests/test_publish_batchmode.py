@@ -48,11 +48,11 @@ def test_scp_permission_denied(monkeypatch):
 def test_scp_ok(monkeypatch, tmp_path):
     calls = []
 
-    def fake_run(*args, **kwargs):
-        calls.append(args[0])
+    def fake_run_cmd(cmd, _label, cmd_timeout_sec=None):
+        calls.append(list(cmd))
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(pub.subprocess, "run", fake_run)
+    monkeypatch.setattr(pub, "_run_cmd", fake_run_cmd)
 
     pub.ensure_remote_dir("host", "user", tmp_path / "k", "/var/lib/asterisk/sounds/x")
     pub.scp_upload("host", "user", tmp_path / "k", tmp_path / "a.wav", "/var/lib/asterisk/sounds/x/a.wav")
@@ -105,11 +105,12 @@ def test_publish_subprocess_timeout(monkeypatch, tmp_path):
     local_wav = tmp_path / "reply.wav"
     local_wav.write_bytes(b"RIFF")
 
-    def fake_run(*args, **kwargs):
-        raise pub.subprocess.TimeoutExpired(cmd=args[0], timeout=1)
-
     monkeypatch.setenv("PUBLISH_CMD_TIMEOUT_SEC", "1")
-    monkeypatch.setattr(pub.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        pub,
+        "ensure_remote_dir",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("Command timed out after 1s: ssh ...")),
+    )
     monkeypatch.setattr(pub, "_ensure_wav_8k_mono", lambda p: p)
 
     result = pub.publish_wav_to_asterisk(local_wav, "ai_secretary/call/reply.wav", _settings(tmp_path))

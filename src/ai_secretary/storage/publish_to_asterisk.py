@@ -6,6 +6,7 @@ import os
 import subprocess
 import time
 import wave
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Sequence
 
@@ -52,6 +53,36 @@ def _log_cmd(prefix: str, cmd: Sequence[str]) -> None:
     print(prefix, " ".join(cmd))
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _log_cmd_lifecycle(
+    stage: str,
+    cmd: Sequence[str],
+    *,
+    pid: int | None = None,
+    timeout_sec: int | None = None,
+    returncode: int | None = None,
+    timed_out: bool | None = None,
+    dur_ms: int | None = None,
+    stderr: str | None = None,
+) -> None:
+    payload: dict[str, Any] = {
+        "ts": _utc_now_iso(),
+        "stage": stage.rstrip(":"),
+        "argv": [str(part) for part in cmd],
+        "pid": pid,
+        "timeout_sec": timeout_sec,
+        "returncode": returncode,
+        "timed_out": timed_out,
+        "dur_ms": dur_ms,
+    }
+    if stderr:
+        payload["stderr_snippet"] = stderr[:240]
+    print("PUBLISH_CMD_TRACE", payload)
+
+
 def _handle_ssh_error(cmd: Sequence[str], rc: int, stderr: str, stdout: str) -> None:
     err = (stderr or "").strip()
     out = (stdout or "").strip()
@@ -84,19 +115,51 @@ def _cmd_timeout_sec() -> int:
 def _run_cmd(cmd: Sequence[str], label: str, cmd_timeout_sec: int | None = None) -> subprocess.CompletedProcess[str]:
     _log_cmd(label, cmd)
     timeout_sec = cmd_timeout_sec if (cmd_timeout_sec is not None and cmd_timeout_sec > 0) else _cmd_timeout_sec()
+    started = time.perf_counter()
+    proc: subprocess.Popen[str] | None = None
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
-            check=False,
-            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout_sec,
         )
+        _log_cmd_lifecycle(label, cmd, pid=proc.pid, timeout_sec=timeout_sec, timed_out=False)
+        stdout, stderr = proc.communicate(timeout=timeout_sec)
+        result = subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
     except FileNotFoundError as exc:
         raise RuntimeError("OpenSSH client not installed or key missing: " + str(exc)) from exc
-    except subprocess.TimeoutExpired as exc:
+    except subprocess.TimeoutExpired:
+        if proc is not None:
+            proc.kill()
+            out_tail, err_tail = proc.communicate()
+        else:
+            out_tail, err_tail = "", ""
+        _log_cmd_lifecycle(
+            label,
+            cmd,
+            pid=(proc.pid if proc is not None else None),
+            timeout_sec=timeout_sec,
+            timed_out=True,
+            dur_ms=int((time.perf_counter() - started) * 1000),
+            stderr=err_tail,
+        )
         rendered = " ".join(str(part) for part in cmd)
-        raise RuntimeError(f"Command timed out after {timeout_sec}s: {rendered}") from exc
+        err = (err_tail or out_tail or "").strip()
+        if err:
+            raise RuntimeError(f"Command timed out after {timeout_sec}s: {rendered}. stderr={err[:240]}")
+        raise RuntimeError(f"Command timed out after {timeout_sec}s: {rendered}")
+    _log_cmd_lifecycle(
+        label,
+        cmd,
+        pid=(proc.pid if proc is not None else None),
+        timeout_sec=timeout_sec,
+        returncode=result.returncode,
+        timed_out=False,
+        dur_ms=int((time.perf_counter() - started) * 1000),
+        stderr=result.stderr,
+    )
     if result.returncode != 0:
         _handle_ssh_error(cmd, result.returncode, result.stderr, result.stdout)
     return result
