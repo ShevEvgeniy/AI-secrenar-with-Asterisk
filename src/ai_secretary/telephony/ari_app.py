@@ -22,6 +22,8 @@ from .publish_to_asterisk import publish_wav_to_asterisk
 
 PROMPT_1_SOUND_ID = "sound:ai_secretary/_system/prompt_1"
 PROMPT_2_SOUND_ID = "sound:ai_secretary/_system/prompt_2"
+PROMPT_3_SOUND_ID = "sound:ai_secretary/_system/prompt_3"
+PROMPT_4_SOUND_ID = "sound:ai_secretary/_system/prompt_4"
 FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback"
 TRANSFER_SOUND_ID = "sound:ai_secretary/_system/transfer"
 BUILTIN_FALLBACK_MEDIA = ("sound:demo-congrats", "sound:tt-weasels")
@@ -29,6 +31,8 @@ BUILTIN_FALLBACK_MEDIA = ("sound:demo-congrats", "sound:tt-weasels")
 _SYSTEM_SOUND_TEXTS: dict[str, str] = {
     PROMPT_1_SOUND_ID: PROMPTS[DialogStage.ISSUE],
     PROMPT_2_SOUND_ID: PROMPTS[DialogStage.NAME],
+    PROMPT_3_SOUND_ID: PROMPTS[DialogStage.CITY],
+    PROMPT_4_SOUND_ID: PROMPTS[DialogStage.PHONE],
     FALLBACK_SOUND_ID: "Одну секунду, пожалуйста.",
     TRANSFER_SOUND_ID: PROMPTS[DialogStage.DONE],
 }
@@ -318,9 +322,71 @@ async def _play_fallback(
 def _prompt_media_for_stage(stage: DialogStage, system_sounds: dict[str, bool]) -> str:
     if stage == DialogStage.ISSUE and system_sounds.get(PROMPT_1_SOUND_ID, False):
         return PROMPT_1_SOUND_ID
-    if stage in {DialogStage.NAME, DialogStage.CITY, DialogStage.PHONE} and system_sounds.get(PROMPT_2_SOUND_ID, False):
+    if stage == DialogStage.NAME and system_sounds.get(PROMPT_2_SOUND_ID, False):
         return PROMPT_2_SOUND_ID
+    if stage == DialogStage.CITY and system_sounds.get(PROMPT_3_SOUND_ID, False):
+        return PROMPT_3_SOUND_ID
+    if stage == DialogStage.PHONE and system_sounds.get(PROMPT_4_SOUND_ID, False):
+        return PROMPT_4_SOUND_ID
     return BUILTIN_FALLBACK_MEDIA[0]
+
+
+async def _play_transfer_and_continue(
+    client: AriClient,
+    session: CallSession,
+    system_sounds: dict[str, bool],
+    moh_started: bool,
+) -> tuple[bool, bool]:
+    media = TRANSFER_SOUND_ID if system_sounds.get(TRANSFER_SOUND_ID, False) else BUILTIN_FALLBACK_MEDIA[0]
+    started = time.perf_counter()
+    moh_started = await _maybe_stop_moh(client, session, moh_started)
+    play_result = await client.play_safe(session.channel_id, media)
+    dur_ms = int((time.perf_counter() - started) * 1000)
+    if not play_result["ok"]:
+        session.log_event(
+            action="play_transfer_phrase",
+            status="fail",
+            reason=play_result.get("reason"),
+            http_status=play_result.get("http_status"),
+            media=media,
+            sound_id=media,
+            dur_ms=dur_ms,
+            details=play_result.get("details"),
+        )
+        return False, moh_started
+
+    session.log_event(action="play_transfer_phrase", status="ok", media=media, sound_id=media, dur_ms=dur_ms)
+    transfer_context = os.getenv("TRANSFER_CONTEXT", "from-internal").strip() or "from-internal"
+    transfer_exten = os.getenv("TRANSFER_EXTEN", "sales").strip() or "sales"
+    transfer_priority = _env_int("TRANSFER_PRIORITY", 1)
+    cont_result = await client.continue_safe(
+        session.channel_id,
+        context=transfer_context,
+        extension=transfer_exten,
+        priority=transfer_priority,
+    )
+    if cont_result["ok"]:
+        session.transition(
+            CallState.DONE,
+            action="transfer",
+            status="ok",
+            details={
+                "context": transfer_context,
+                "extension": transfer_exten,
+                "priority": transfer_priority,
+            },
+        )
+        return True, moh_started
+
+    session.transition(
+        CallState.FAILED,
+        action="transfer",
+        status="fail",
+        reason=cont_result.get("reason"),
+        http_status=cont_result.get("http_status"),
+        details=cont_result.get("details"),
+    )
+    return False, moh_started
 
 
 async def _play_prompt(
@@ -529,6 +595,13 @@ async def handle_call(
 
             transcript_for_pipeline = "\n".join(dialogue_lines)
             profile_for_pipeline = dict(session.dialog.profile)
+            if session.dialog.stage == DialogStage.DONE:
+                transferred, moh_started = await _play_transfer_and_continue(client, session, system_sounds, moh_started)
+                if transferred:
+                    return
+                _played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
+                await client.hangup_safe(channel_id)
+                return
 
         session.transition(CallState.THINKING, action="pipeline_start", status="start")
         moh_started = await _maybe_start_moh(client, session, moh_started, action="moh_start_thinking")

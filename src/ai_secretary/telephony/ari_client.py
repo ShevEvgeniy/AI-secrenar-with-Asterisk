@@ -274,6 +274,47 @@ class AriClient:
             ),
         )
 
+    async def continue_in_dialplan(
+        self,
+        channel_id: str,
+        context: str,
+        extension: str,
+        priority: int = 1,
+    ) -> dict[str, Any]:
+        """Continue channel in dialplan for transfer flow."""
+        url = self._http_url(f"/channels/{channel_id}/continue")
+        params = {
+            "context": context,
+            "extension": extension,
+            "priority": str(priority),
+        }
+        async with httpx.AsyncClient(auth=(self.username, self.password), timeout=10.0) as client:
+            response = await client.post(url, params=params)
+            response.raise_for_status()
+            try:
+                return response.json()
+            except Exception:
+                return {}
+
+    async def continue_safe(
+        self,
+        channel_id: str,
+        context: str,
+        extension: str,
+        priority: int = 1,
+    ) -> dict[str, Any]:
+        """Continue in dialplan with structured non-throwing result."""
+        return await self._safe_call(
+            "continue",
+            channel_id,
+            lambda: self.continue_in_dialplan(
+                channel_id,
+                context=context,
+                extension=extension,
+                priority=priority,
+            ),
+        )
+
     async def wait_for_recording_finished(
         self,
         app_name: str,
