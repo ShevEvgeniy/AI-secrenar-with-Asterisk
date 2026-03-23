@@ -48,8 +48,8 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _publish_total_timeout_sec() -> int:
-    value = _env_int("PUBLISH_TOTAL_TIMEOUT_SEC", 8)
-    return value if value > 0 else 8
+    value = _env_int("PUBLISH_TOTAL_TIMEOUT_SEC", 20)
+    return value if value > 0 else 20
 
 
 def _system_sounds_publish_timeout_sec() -> int:
@@ -572,13 +572,32 @@ async def handle_call(
 
         remote_rel_path = f"{settings.asterisk_sounds_subdir}/{call_id}/reply.wav"
         publish_start = time.perf_counter()
+        publish_timeout_sec = _publish_total_timeout_sec()
+        publish_cmd_timeout_sec = _env_int("PUBLISH_CMD_TIMEOUT_SEC", 6)
         try:
             publish_result = await asyncio.wait_for(
-                asyncio.to_thread(publish_wav_to_asterisk, reply_path, remote_rel_path, settings),
-                timeout=_publish_total_timeout_sec(),
+                asyncio.to_thread(
+                    publish_wav_to_asterisk,
+                    reply_path,
+                    remote_rel_path,
+                    settings,
+                    cmd_timeout_sec=publish_cmd_timeout_sec,
+                ),
+                timeout=publish_timeout_sec,
             )
         except asyncio.TimeoutError:
-            session.log_event(action="publish", status="fail", reason="publish_timeout", dur_ms=int((time.perf_counter() - publish_start) * 1000))
+            session.log_event(
+                action="publish",
+                status="fail",
+                reason="publish_timeout",
+                dur_ms=int((time.perf_counter() - publish_start) * 1000),
+                details={
+                    "remote_rel_path": remote_rel_path,
+                    "publish_timeout_sec": publish_timeout_sec,
+                    "publish_cmd_timeout_sec": publish_cmd_timeout_sec,
+                    "docker_container": bool(settings.asterisk_docker_container),
+                },
+            )
             _played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
             await client.hangup_safe(channel_id)
             session.transition(CallState.FAILED, action="hangup_after_publish_fail", status="ok")
