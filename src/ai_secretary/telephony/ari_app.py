@@ -53,8 +53,8 @@ def _publish_total_timeout_sec() -> int:
 
 
 def _system_sounds_publish_timeout_sec() -> int:
-    value = _env_int("SYSTEM_SOUNDS_PUBLISH_TIMEOUT_SEC", 20)
-    return value if value > 0 else 20
+    value = _env_int("SYSTEM_SOUNDS_PUBLISH_TIMEOUT_SEC", 45)
+    return value if value > 0 else 45
 
 
 def _system_lock_get() -> asyncio.Lock:
@@ -112,7 +112,7 @@ async def ensure_system_sounds(settings: Settings) -> dict[str, bool]:
         tts = SileroTTS()
         timeout_sec = _system_sounds_publish_timeout_sec()
 
-        cmd_timeout_sec = max(1, timeout_sec - 2)
+        cmd_timeout_sec = max(1, timeout_sec - 5)
         for sound_id, text in _SYSTEM_SOUND_TEXTS.items():
             item_start = time.perf_counter()
             file_name = sound_id.split("/")[-1] + ".wav"
@@ -573,7 +573,7 @@ async def handle_call(
         remote_rel_path = f"{settings.asterisk_sounds_subdir}/{call_id}/reply.wav"
         publish_start = time.perf_counter()
         publish_timeout_sec = _publish_total_timeout_sec()
-        publish_cmd_timeout_sec = _env_int("PUBLISH_CMD_TIMEOUT_SEC", 6)
+        publish_cmd_timeout_sec = _env_int("PUBLISH_CMD_TIMEOUT_SEC", 15)
         try:
             publish_result = await asyncio.wait_for(
                 asyncio.to_thread(
