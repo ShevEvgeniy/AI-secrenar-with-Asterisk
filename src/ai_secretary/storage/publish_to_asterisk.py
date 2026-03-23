@@ -81,9 +81,9 @@ def _cmd_timeout_sec() -> int:
     return value if value > 0 else 6
 
 
-def _run_cmd(cmd: Sequence[str], label: str) -> subprocess.CompletedProcess[str]:
+def _run_cmd(cmd: Sequence[str], label: str, cmd_timeout_sec: int | None = None) -> subprocess.CompletedProcess[str]:
     _log_cmd(label, cmd)
-    timeout_sec = _cmd_timeout_sec()
+    timeout_sec = cmd_timeout_sec if (cmd_timeout_sec is not None and cmd_timeout_sec > 0) else _cmd_timeout_sec()
     try:
         result = subprocess.run(
             cmd,
@@ -141,7 +141,13 @@ def _ensure_wav_8k_mono(local_wav_path: Path) -> Path:
     return out_path
 
 
-def ensure_remote_dir(host: str, user: str, key_path: Path, remote_dir: str) -> None:
+def ensure_remote_dir(
+    host: str,
+    user: str,
+    key_path: Path,
+    remote_dir: str,
+    cmd_timeout_sec: int | None = None,
+) -> None:
     """Ensure remote directory exists via ssh mkdir -p."""
     cmd = [
         "ssh",
@@ -149,10 +155,17 @@ def ensure_remote_dir(host: str, user: str, key_path: Path, remote_dir: str) -> 
         f"{user}@{host}",
         f"mkdir -p {remote_dir}",
     ]
-    _run_cmd(cmd, "PUBLISH_SSH_CMD:")
+    _run_cmd(cmd, "PUBLISH_SSH_CMD:", cmd_timeout_sec=cmd_timeout_sec)
 
 
-def scp_upload(host: str, user: str, key_path: Path, local_path: Path, remote_path: str) -> None:
+def scp_upload(
+    host: str,
+    user: str,
+    key_path: Path,
+    local_path: Path,
+    remote_path: str,
+    cmd_timeout_sec: int | None = None,
+) -> None:
     """Upload file via scp."""
     cmd = [
         "scp",
@@ -160,10 +173,17 @@ def scp_upload(host: str, user: str, key_path: Path, local_path: Path, remote_pa
         str(local_path),
         f"{user}@{host}:{remote_path}",
     ]
-    _run_cmd(cmd, "PUBLISH_SCP_CMD:")
+    _run_cmd(cmd, "PUBLISH_SCP_CMD:", cmd_timeout_sec=cmd_timeout_sec)
 
 
-def docker_exec_mkdir(host: str, user: str, key_path: Path, container: str, remote_dir: str) -> None:
+def docker_exec_mkdir(
+    host: str,
+    user: str,
+    key_path: Path,
+    container: str,
+    remote_dir: str,
+    cmd_timeout_sec: int | None = None,
+) -> None:
     """Ensure directory exists inside Asterisk container."""
     cmd = [
         "ssh",
@@ -171,7 +191,7 @@ def docker_exec_mkdir(host: str, user: str, key_path: Path, container: str, remo
         f"{user}@{host}",
         f"docker exec {container} mkdir -p {remote_dir}",
     ]
-    _run_cmd(cmd, "PUBLISH_DOCKER_CMD:")
+    _run_cmd(cmd, "PUBLISH_DOCKER_CMD:", cmd_timeout_sec=cmd_timeout_sec)
 
 
 def docker_cp_to_container(
@@ -181,6 +201,7 @@ def docker_cp_to_container(
     container: str,
     host_path: str,
     container_path: str,
+    cmd_timeout_sec: int | None = None,
 ) -> None:
     """Copy file from host to container using docker cp via ssh."""
     cmd = [
@@ -189,33 +210,48 @@ def docker_cp_to_container(
         f"{user}@{host}",
         f"docker cp {host_path} {container}:{container_path}",
     ]
-    _run_cmd(cmd, "PUBLISH_DOCKER_CMD:")
+    _run_cmd(cmd, "PUBLISH_DOCKER_CMD:", cmd_timeout_sec=cmd_timeout_sec)
 
 
-def _remote_stat_host(host: str, user: str, key_path: Path, remote_path: str) -> None:
+def _remote_stat_host(
+    host: str,
+    user: str,
+    key_path: Path,
+    remote_path: str,
+    cmd_timeout_sec: int | None = None,
+) -> None:
     cmd = [
         "ssh",
         *_ssh_base_args(key_path),
         f"{user}@{host}",
         f"test -f {remote_path}",
     ]
-    _run_cmd(cmd, "PUBLISH_STAT_CMD:")
+    _run_cmd(cmd, "PUBLISH_STAT_CMD:", cmd_timeout_sec=cmd_timeout_sec)
 
 
-def _remote_stat_container(host: str, user: str, key_path: Path, container: str, remote_path: str) -> None:
+def _remote_stat_container(
+    host: str,
+    user: str,
+    key_path: Path,
+    container: str,
+    remote_path: str,
+    cmd_timeout_sec: int | None = None,
+) -> None:
     cmd = [
         "ssh",
         *_ssh_base_args(key_path),
         f"{user}@{host}",
         f"docker exec {container} test -f {remote_path}",
     ]
-    _run_cmd(cmd, "PUBLISH_STAT_CMD:")
+    _run_cmd(cmd, "PUBLISH_STAT_CMD:", cmd_timeout_sec=cmd_timeout_sec)
 
 
 def publish_wav_to_asterisk(
     local_wav_path: Path,
     remote_rel_path: str,
     settings: Settings,
+    *,
+    cmd_timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Publish WAV to Asterisk and return structured result."""
     remote_wav = ""
@@ -269,6 +305,7 @@ def publish_wav_to_asterisk(
             settings.asterisk_ssh_user,
             key_path,
             remote_dir.as_posix(),
+            cmd_timeout_sec=cmd_timeout_sec,
         )
         timings_ms["mkdir_ms"] = int((time.perf_counter() - step_start) * 1000)
 
@@ -279,17 +316,20 @@ def publish_wav_to_asterisk(
             key_path,
             converted_wav,
             remote_wav,
+            cmd_timeout_sec=cmd_timeout_sec,
         )
         timings_ms["scp_ms"] = int((time.perf_counter() - step_start) * 1000)
 
-        if settings.asterisk_docker_container:
+        docker_container = (settings.asterisk_docker_container or "").strip().strip('"').strip("'")
+        if docker_container:
             step_start = time.perf_counter()
             docker_exec_mkdir(
                 settings.asterisk_ssh_host,
                 settings.asterisk_ssh_user,
                 key_path,
-                settings.asterisk_docker_container,
+                docker_container,
                 remote_dir.as_posix(),
+                cmd_timeout_sec=cmd_timeout_sec,
             )
             timings_ms["docker_mkdir_ms"] = int((time.perf_counter() - step_start) * 1000)
             step_start = time.perf_counter()
@@ -297,9 +337,10 @@ def publish_wav_to_asterisk(
                 settings.asterisk_ssh_host,
                 settings.asterisk_ssh_user,
                 key_path,
-                settings.asterisk_docker_container,
+                docker_container,
                 remote_wav,
                 remote_wav,
+                cmd_timeout_sec=cmd_timeout_sec,
             )
             timings_ms["docker_cp_ms"] = int((time.perf_counter() - step_start) * 1000)
             step_start = time.perf_counter()
@@ -307,8 +348,9 @@ def publish_wav_to_asterisk(
                 settings.asterisk_ssh_host,
                 settings.asterisk_ssh_user,
                 key_path,
-                settings.asterisk_docker_container,
+                docker_container,
                 remote_wav,
+                cmd_timeout_sec=cmd_timeout_sec,
             )
             timings_ms["stat_ms"] = int((time.perf_counter() - step_start) * 1000)
         else:
@@ -318,6 +360,7 @@ def publish_wav_to_asterisk(
                 settings.asterisk_ssh_user,
                 key_path,
                 remote_wav,
+                cmd_timeout_sec=cmd_timeout_sec,
             )
             timings_ms["stat_ms"] = int((time.perf_counter() - step_start) * 1000)
 
@@ -329,17 +372,24 @@ def publish_wav_to_asterisk(
             "remote_path": remote_wav,
             "error": None,
             "details": {
-                "docker_container": settings.asterisk_docker_container or None,
+                "docker_container": docker_container or None,
                 "remote_rel_path": remote_rel.as_posix(),
+                "cmd_timeout_sec": cmd_timeout_sec if (cmd_timeout_sec is not None and cmd_timeout_sec > 0) else _cmd_timeout_sec(),
                 **timings_ms,
             },
         }
     except Exception as exc:
         timings_ms["total_ms"] = int((time.perf_counter() - total_start) * 1000)
+        error_message = str(exc)
         return {
             "ok": False,
             "sound_id": "",
             "remote_path": remote_wav,
-            "error": str(exc),
-            "details": {"exception": type(exc).__name__, **timings_ms},
+            "error": error_message,
+            "details": {
+                "exception": type(exc).__name__,
+                "stderr_snippet": error_message[:400],
+                "cmd_timeout_sec": cmd_timeout_sec if (cmd_timeout_sec is not None and cmd_timeout_sec > 0) else _cmd_timeout_sec(),
+                **timings_ms,
+            },
         }

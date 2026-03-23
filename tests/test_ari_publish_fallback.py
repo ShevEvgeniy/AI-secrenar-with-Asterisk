@@ -86,7 +86,7 @@ def test_system_sounds_publish_once_with_cache(monkeypatch, tmp_path):
         def synthesize(self, _text: str) -> bytes:
             return b"RIFFfake"
 
-    def fake_publish(_path: Path, remote_rel: str, _settings: Settings):
+    def fake_publish(_path: Path, remote_rel: str, _settings: Settings, **_kwargs):
         time.sleep(0.03)
         publishes.append(remote_rel)
         return {"ok": True, "sound_id": "sound:" + remote_rel.removesuffix(".wav"), "remote_path": remote_rel, "error": None, "details": {}}
@@ -130,7 +130,7 @@ def test_call_uses_system_prompt_without_per_call_publish(monkeypatch, tmp_path)
 
     publish_calls: list[str] = []
 
-    def fake_publish(_path: Path, remote_rel: str, _settings: Settings):
+    def fake_publish(_path: Path, remote_rel: str, _settings: Settings, **_kwargs):
         publish_calls.append(remote_rel)
         return {"ok": True, "sound_id": "sound:" + remote_rel.removesuffix(".wav"), "remote_path": remote_rel, "error": None, "details": {}}
 

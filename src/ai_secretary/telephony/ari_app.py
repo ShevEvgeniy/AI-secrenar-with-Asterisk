@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +35,7 @@ _SYSTEM_SOUND_TEXTS: dict[str, str] = {
 _system_sound_status: dict[str, bool] = {sound_id: False for sound_id in _SYSTEM_SOUND_TEXTS}
 _system_sounds_done = False
 _system_sounds_lock: asyncio.Lock | None = None
-_system_sounds_task: asyncio.Task[None] | None = None
+_system_sounds_task: asyncio.Task[dict[str, bool]] | None = None
 
 
 def _env_int(name: str, default: int) -> int:
@@ -74,6 +75,24 @@ def _append_system_diag(payload: dict[str, Any]) -> None:
         handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
+def _append_system_event(payload: dict[str, Any]) -> None:
+    path = Path("tmp/diag/events.jsonl")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _publish_fail_reason(message: str) -> str:
+    lowered = (message or "").lower()
+    if "timed out" in lowered or "timeout" in lowered:
+        return "timeout"
+    return "publish_failed"
+
+
 async def ensure_system_sounds(settings: Settings) -> dict[str, bool]:
     """Generate and publish static system sounds once per process."""
     global _system_sounds_done
@@ -93,6 +112,7 @@ async def ensure_system_sounds(settings: Settings) -> dict[str, bool]:
         tts = SileroTTS()
         timeout_sec = _system_sounds_publish_timeout_sec()
 
+        cmd_timeout_sec = max(1, timeout_sec - 2)
         for sound_id, text in _SYSTEM_SOUND_TEXTS.items():
             item_start = time.perf_counter()
             file_name = sound_id.split("/")[-1] + ".wav"
@@ -103,33 +123,85 @@ async def ensure_system_sounds(settings: Settings) -> dict[str, bool]:
                     save_bytes(local_path, wav)
                 remote_rel = _system_rel_path(sound_id)
                 result = await asyncio.wait_for(
-                    asyncio.to_thread(publish_wav_to_asterisk, local_path, remote_rel, settings),
+                    asyncio.to_thread(
+                        publish_wav_to_asterisk,
+                        local_path,
+                        remote_rel,
+                        settings,
+                        cmd_timeout_sec=cmd_timeout_sec,
+                    ),
                     timeout=timeout_sec,
                 )
                 ok = bool(result.get("ok"))
+                dur_ms = int((time.perf_counter() - item_start) * 1000)
                 _system_sound_status[sound_id] = ok
+                reason = None if ok else _publish_fail_reason(str(result.get("error") or ""))
                 details[sound_id] = {
                     "ok": ok,
-                    "dur_ms": int((time.perf_counter() - item_start) * 1000),
+                    "dur_ms": dur_ms,
                     "error": result.get("error"),
+                    "publish_result": result,
                 }
-                print("SYSTEM_SOUNDS_ITEM", sound_id, "ok" if ok else "fail")
+                event_payload = {
+                    "ts": _now_iso(),
+                    "action": "system_sound_publish",
+                    "status": "ok" if ok else "fail",
+                    "sound_id": sound_id,
+                    "remote_path": str(result.get("remote_path") or ""),
+                    "dur_ms": dur_ms,
+                    "reason": reason,
+                    "details": result.get("details") or {},
+                }
+                if not ok:
+                    event_payload["details"] = {
+                        **event_payload["details"],
+                        "error": result.get("error"),
+                        "stderr_snippet": str(result.get("error") or "")[:400],
+                    }
+                _append_system_event(event_payload)
+                print("SYSTEM_SOUNDS_ITEM", sound_id, "ok" if ok else "fail", json.dumps(result, ensure_ascii=False))
             except asyncio.TimeoutError:
+                dur_ms = int((time.perf_counter() - item_start) * 1000)
                 _system_sound_status[sound_id] = False
                 details[sound_id] = {
                     "ok": False,
-                    "dur_ms": int((time.perf_counter() - item_start) * 1000),
+                    "dur_ms": dur_ms,
                     "error": "publish_timeout",
                 }
                 print("SYSTEM_SOUNDS_ITEM_TIMEOUT", sound_id)
+                _append_system_event(
+                    {
+                        "ts": _now_iso(),
+                        "action": "system_sound_publish",
+                        "status": "fail",
+                        "sound_id": sound_id,
+                        "remote_path": _system_rel_path(sound_id),
+                        "dur_ms": dur_ms,
+                        "reason": "timeout",
+                        "details": {"stderr_snippet": "outer_timeout", "timeout_sec": timeout_sec},
+                    }
+                )
             except Exception as exc:
+                dur_ms = int((time.perf_counter() - item_start) * 1000)
                 _system_sound_status[sound_id] = False
                 details[sound_id] = {
                     "ok": False,
-                    "dur_ms": int((time.perf_counter() - item_start) * 1000),
+                    "dur_ms": dur_ms,
                     "error": repr(exc),
                 }
                 print("SYSTEM_SOUNDS_ITEM_FAIL", sound_id, repr(exc))
+                _append_system_event(
+                    {
+                        "ts": _now_iso(),
+                        "action": "system_sound_publish",
+                        "status": "fail",
+                        "sound_id": sound_id,
+                        "remote_path": _system_rel_path(sound_id),
+                        "dur_ms": dur_ms,
+                        "reason": _publish_fail_reason(str(exc)),
+                        "details": {"stderr_snippet": str(exc)[:400]},
+                    }
+                )
 
         total_ms = int((time.perf_counter() - started) * 1000)
         _system_sounds_done = True
@@ -140,6 +212,7 @@ async def ensure_system_sounds(settings: Settings) -> dict[str, bool]:
             "details": {"sounds": dict(_system_sound_status), "items": details},
         }
         _append_system_diag(payload)
+        _append_system_event({"ts": _now_iso(), **payload})
         print("SYSTEM_SOUNDS_DONE", payload["status"], total_ms, dict(_system_sound_status))
         return dict(_system_sound_status)
 
@@ -147,7 +220,18 @@ async def ensure_system_sounds(settings: Settings) -> dict[str, bool]:
 def _start_system_sounds_task(settings: Settings) -> None:
     global _system_sounds_task
     if _system_sounds_task is None or _system_sounds_task.done():
+        print("SYSTEM_SOUNDS_BG_START")
         _system_sounds_task = asyncio.create_task(ensure_system_sounds(settings), name="system-sounds-publish")
+        def _on_done(task: asyncio.Task[dict[str, bool]]) -> None:
+            try:
+                status = task.result()
+                print("SYSTEM_SOUNDS_BG_OK", status)
+            except Exception as exc:
+                print("SYSTEM_SOUNDS_BG_FAIL", repr(exc))
+            finally:
+                print("READY_WAITING_FOR_CALLS")
+
+        _system_sounds_task.add_done_callback(_on_done)
 
 
 def _system_sounds_snapshot() -> dict[str, bool]:
