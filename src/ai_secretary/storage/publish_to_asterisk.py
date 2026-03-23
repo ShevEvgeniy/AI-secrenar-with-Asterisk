@@ -275,7 +275,13 @@ def publish_wav_to_asterisk(
             }
 
         key_path = Path(settings.asterisk_ssh_key)
-        if not key_path.exists():
+        try:
+            key_exists = key_path.exists()
+        except PermissionError as exc:
+            # On Windows, ACLs may block Python stat() for key path; let ssh/scp validate access.
+            key_exists = True
+            print("PUBLISH_KEY_PATH_STAT_WARN", key_path.as_posix(), type(exc).__name__)
+        if not key_exists:
             return {
                 "ok": False,
                 "sound_id": "",
