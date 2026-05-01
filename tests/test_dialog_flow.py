@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ai_secretary.telephony.call_session import DialogStage
-from ai_secretary.telephony.dialog import apply_turn, next_prompt, should_stop_dialog
+from ai_secretary.telephony.dialog import PHONE_RETRY_PROMPTS, apply_turn, next_prompt, should_stop_dialog
 
 
 def test_dialog_state_transitions_typical_inputs() -> None:
@@ -100,9 +100,36 @@ def test_phone_reasks_until_complete_digit_floor() -> None:
     state, profile = apply_turn(DialogStage.PHONE, {}, "920 032")
 
     assert state == DialogStage.PHONE
-    assert profile == {}
+    assert profile["phone_retry_reason"] == "incomplete"
+    assert next_prompt(state, profile) == PHONE_RETRY_PROMPTS["incomplete"][0]
 
     state, profile = apply_turn(DialogStage.PHONE, {}, "920 032 03 55")
 
     assert state == DialogStage.PHONE_CONFIRM
     assert profile["phone_digits"] == "9200320355"
+    assert "phone_retry_prompt" not in profile
+
+
+def test_phone_retry_prompts_vary_by_reason_without_immediate_repeat() -> None:
+    state, profile = apply_turn(DialogStage.PHONE, {}, "не расслышал")
+
+    assert state == DialogStage.PHONE
+    assert profile["phone_retry_reason"] == "unclear"
+    assert next_prompt(state, profile) == PHONE_RETRY_PROMPTS["unclear"][0]
+
+    state, profile = apply_turn(state, profile, "снова без цифр")
+
+    assert state == DialogStage.PHONE
+    assert profile["phone_retry_reason"] == "unclear"
+    assert next_prompt(state, profile) == PHONE_RETRY_PROMPTS["unclear"][1]
+
+
+def test_negative_phone_confirmation_uses_rejected_retry_prompt() -> None:
+    state, profile = apply_turn(DialogStage.PHONE, {}, "920.032.0355")
+    assert state == DialogStage.PHONE_CONFIRM
+
+    state, profile = apply_turn(state, profile, "нет")
+
+    assert state == DialogStage.PHONE
+    assert profile["phone_retry_reason"] == "rejected"
+    assert next_prompt(state, profile) == PHONE_RETRY_PROMPTS["rejected"][0]

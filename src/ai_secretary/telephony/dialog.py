@@ -11,6 +11,20 @@ from .call_session import DialogStage
 
 MIN_CITY_LETTERS = 4
 PHONE_DIGIT_LENGTHS = {10, 11}
+PHONE_RETRY_PROMPTS: dict[str, tuple[str, ...]] = {
+    "unclear": (
+        "Возможно, я плохо расслышала. Продиктуйте, пожалуйста, номер ещё раз.",
+        "Продиктуйте, пожалуйста, ещё раз ваш номер телефона.",
+    ),
+    "incomplete": (
+        "Похоже, номер записался не полностью. Назовите его, пожалуйста, ещё раз.",
+        "Не совсем корректно я записала номер. Будьте добры, продиктуйте его ещё раз.",
+    ),
+    "rejected": (
+        "Спасибо, тогда продиктуйте номер ещё раз полностью.",
+        "Хорошо, продиктуйте, пожалуйста, номер ещё раз.",
+    ),
+}
 
 PROMPTS: dict[DialogStage, str] = {
     DialogStage.ISSUE: "Здравствуйте! Я Анна, виртуальный секретарь. По какому вопросу вы обращаетесь?",
@@ -42,6 +56,10 @@ class TurnRecord:
 
 def next_prompt(state: DialogStage, profile: dict[str, Any]) -> str:
     """Return prompt text for current state."""
+    if state == DialogStage.PHONE:
+        retry_prompt = profile.get("phone_retry_prompt")
+        if isinstance(retry_prompt, str) and retry_prompt:
+            return retry_prompt
     if state == DialogStage.PHONE_CONFIRM:
         formatted_phone = profile.get("phone_formatted") or profile.get("phone_digits") or ""
         if formatted_phone:
@@ -82,6 +100,27 @@ def _digits_only_phone(text: str) -> str | None:
     if not digits or len(digits) not in PHONE_DIGIT_LENGTHS:
         return None
     return digits
+
+
+def _phone_retry_reason(text: str) -> str:
+    digits = "".join(ch for ch in text if ch.isdigit())
+    return "incomplete" if digits else "unclear"
+
+
+def _set_phone_retry_prompt(profile: dict[str, Any], reason: str) -> None:
+    prompts = PHONE_RETRY_PROMPTS[reason]
+    previous = profile.get("phone_last_retry_prompt")
+    prompt = prompts[0]
+    if prompt == previous and len(prompts) > 1:
+        prompt = prompts[1]
+    profile["phone_retry_reason"] = reason
+    profile["phone_retry_prompt"] = prompt
+    profile["phone_last_retry_prompt"] = prompt
+
+
+def _clear_phone_retry_prompt(profile: dict[str, Any]) -> None:
+    profile.pop("phone_retry_reason", None)
+    profile.pop("phone_retry_prompt", None)
 
 
 def _format_phone_for_confirmation(digits: str) -> str:
@@ -139,7 +178,9 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             updated["phone_digits"] = digits
             updated["phone_formatted"] = formatted
             updated["phone_confirmed"] = False
+            _clear_phone_retry_prompt(updated)
             return DialogStage.PHONE_CONFIRM, updated
+        _set_phone_retry_prompt(updated, _phone_retry_reason(text))
         return DialogStage.PHONE, updated
     if state == DialogStage.PHONE_CONFIRM:
         phone = _extract_phone(text)
@@ -148,9 +189,11 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             updated["phone_digits"] = digits
             updated["phone_formatted"] = formatted
             updated["phone_confirmed"] = False
+            _clear_phone_retry_prompt(updated)
             return DialogStage.PHONE_CONFIRM, updated
         if _is_negative_confirmation(text):
             updated["phone_confirmed"] = False
+            _set_phone_retry_prompt(updated, "rejected")
             return DialogStage.PHONE, updated
         if _is_positive_confirmation(text) and updated.get("phone_digits"):
             updated["phone_confirmed"] = True

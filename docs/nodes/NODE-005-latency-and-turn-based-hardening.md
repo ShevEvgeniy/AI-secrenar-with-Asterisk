@@ -41,6 +41,16 @@ Patch 3 turn-taking guardrails:
 - Generic `reply.wav` remains blocked while structured collection is incomplete or PHONE is unconfirmed.
 - Live smoke noted poor TTS stress/pronunciation on the phone prompt; this is recorded as a secondary issue and is not part of the NODE-005 acceptance gate unless prompt wording is changed later.
 
+Patch 4 adds polite PHONE-only retry variation:
+
+- PHONE retry prompts are selected from small controlled phrase sets.
+- The same PHONE retry phrase is not repeated twice in a row for the same call profile.
+- Retry wording depends on repair reason:
+  - `unclear`: no usable digits were captured.
+  - `incomplete`: some digits were captured, but not a complete 10- or 11-digit phone.
+  - `rejected`: caller rejected the number during PHONE_CONFIRM.
+- This applies only to PHONE retry/repair behavior. ISSUE, NAME, CITY, and transfer behavior are unchanged.
+
 Patch 2 adds explicit confirmation only for PHONE:
 
 ```text
@@ -116,6 +126,7 @@ Added focused coverage proving:
 - CITY and PHONE use relaxed end-of-speech profiles.
 - CITY has a minimum speech floor before advancing.
 - PHONE has a complete digit floor before PHONE_CONFIRM.
+- PHONE retry prompts vary by unclear, incomplete, and rejected-confirmation reasons without immediate repetition.
 - Recording wait timeouts track the stage profile instead of fixed `30s`.
 - The successful PHONE path transfers only after positive PHONE confirmation.
 - Rejected/unconfirmed PHONE does not run the generic pipeline.
