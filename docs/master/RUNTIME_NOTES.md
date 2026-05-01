@@ -9,6 +9,9 @@
 - ARI continue is the established transfer mechanism.
 - Partial publish failures are now classified with `reason` and `failed_step`.
 - Startup can remain resilient when system-sounds prepublish partially fails.
+- `user_transcribed` is tied to real downloaded caller audio artifacts instead of canned placeholder text.
+- Missing stage and transfer media use controlled meaningful fallback phrases instead of `demo-congrats`.
+- Real live transcription requires `TELEPHONY_STT_BACKEND` to be explicitly configured, for example `openai` or `whisper_api`.
 
 ## Transfer Route Target
 
@@ -82,7 +85,9 @@ extension=sales_real
 priority=1
 ```
 
-## Open Runtime Follow-Ups
+## NODE-003 Runtime Notes
 
 - NODE-003 replaced `demo-congrats` fallback use with controlled prompt/transfer fallbacks and non-demo built-ins.
 - NODE-003 removed canned `user_transcribed` content from the live dialog path. Transcription events now identify the exact call id, stage, recording name, local audio path, byte size, and SHA-256. If no STT backend is configured, the event is logged as unavailable instead of fabricated.
+- NODE-003 fixed the previously observed integrity problem where runtime logs showed transcribed text that did not match what the caller says they actually spoke.
+- Next runtime validation should run one live smoke with a real STT backend configured.

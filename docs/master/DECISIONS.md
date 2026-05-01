@@ -50,3 +50,19 @@ Accepted runtime behavior:
 - Existing transfer behavior must continue when fallback media is used.
 
 NODE-002 validation observed SSH timeout to `92.118.85.117:22` while publishing `prompt_3` and transfer system sounds. The listener still reached `READY_WAITING_FOR_CALLS`, and transfer completed to `from-internal,sales_real,1`.
+
+## Transcription Integrity And Fallback Phrases
+
+NODE-003 completed transcription integrity and meaningful fallback phrase handling.
+
+Accepted runtime behavior:
+
+- `user_transcribed` must not be sourced from canned placeholder text.
+- Transcription must be tied to the real downloaded caller audio artifact.
+- Artifact identity must be traceable through `call_id`, `stage`, `turn_idx`, `audio_path`, `audio_size_bytes`, and `audio_sha256`.
+- Stale local turn artifacts must be explicitly discarded and logged.
+- If no STT backend is configured, transcription must be logged as unavailable instead of fabricated.
+- Fallback media must not degrade to `demo-congrats`.
+- Stage and transfer fallback paths must use controlled meaningful fallback phrases.
+
+Real live transcription depends on `TELEPHONY_STT_BACKEND` being explicitly configured, for example `openai` or `whisper_api`.

@@ -67,3 +67,30 @@ feat/node-003-transcription-integrity-and-fallback-phrases
 - Runtime STT can be enabled with `TELEPHONY_STT_BACKEND=openai` or `TELEPHONY_STT_BACKEND=whisper_api`; test fixtures use `TELEPHONY_STT_BACKEND=fixture`.
 - Missing stage prompts prefer controlled `fallback_prompt_N` media, then the controlled generic fallback, then non-demo built-ins.
 - Missing transfer phrase prefers controlled `fallback_transfer` media, then non-demo transfer built-ins.
+
+## Validated Result
+
+- `user_transcribed` is no longer sourced from canned placeholder text.
+- Transcription is now tied to the real downloaded caller audio artifact.
+- Artifact identity is traceable through `call_id`, `stage`, `turn_idx`, `audio_path`, `audio_size_bytes`, and `audio_sha256`.
+- Stale local turn artifacts are explicitly discarded and logged.
+- Fallback media no longer degrades to `demo-congrats`.
+- Stage and transfer fallback paths now use controlled meaningful fallback phrases.
+
+## Validation Note
+
+NODE-003 fixed the previously observed integrity problem where runtime logs showed transcribed text that did not match what the caller says they actually spoke.
+
+If no STT backend is configured, transcription is now logged as unavailable instead of fabricated.
+
+Real live transcription depends on `TELEPHONY_STT_BACKEND` being explicitly configured, for example `openai` or `whisper_api`.
+
+## Validated Commit
+
+```text
+b5a315cb6fa41dc97c1dfb42cb6891f420ab55ad
+```
+
+## Next Recommendation
+
+Run one live smoke with a real STT backend configured.

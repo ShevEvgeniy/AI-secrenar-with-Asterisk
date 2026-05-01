@@ -30,6 +30,12 @@ NODE-002 completed and validated publish hardening:
 partial publish failure -> classified failure -> resilient startup and diagnosable per-call behavior
 ```
 
+NODE-003 completed and validated transcription integrity plus meaningful fallback phrases:
+
+```text
+real downloaded caller audio artifact -> traceable transcription metadata -> no fabricated user_transcribed text
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -42,7 +48,7 @@ partial publish failure -> classified failure -> resilient startup and diagnosab
 
 ## Current Action Plan
 
-1. Treat NODE-001 and NODE-002 as complete and merged into `master`.
+1. Treat NODE-001, NODE-002, and NODE-003 as complete and merged into `master`.
 2. Preserve the validated runtime transfer target:
 
 ```text
@@ -59,19 +65,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 
 4. Preserve NODE-002 publish failure classification with `reason` and `failed_step`.
 5. Keep the MicroSIP input-device false negative documented for future live smoke testing.
-6. Start NODE-003 for transcription integrity and meaningful fallback phrases.
+6. Preserve NODE-003 transcription artifact traceability through `call_id`, `stage`, `turn_idx`, `audio_path`, `audio_size_bytes`, and `audio_sha256`.
+7. Preserve controlled meaningful fallback phrases for stage and transfer fallback paths.
+8. Run one live smoke with a real STT backend configured.
 
-## Next Recommended Node
+## Next Recommended Step
 
 ```text
-NODE-003 / transcription-integrity-and-meaningful-fallback-phrases
-branch: feat/node-003-transcription-integrity-and-fallback-phrases
+Run one live smoke with TELEPHONY_STT_BACKEND configured, for example openai or whisper_api.
 ```
 
-NODE-003 should address:
-
-1. Fallback media currently degrades to `demo-congrats`, which is not meaningful UX.
-2. `user_transcribed` content in runtime logs did not match what the caller says they actually spoke.
+The smoke should confirm live transcription uses the configured backend and remains tied to the downloaded caller audio artifact.
 
 ## Node Completion Report Format
 
