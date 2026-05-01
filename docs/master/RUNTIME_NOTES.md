@@ -13,7 +13,7 @@
 The current target route is:
 
 ```text
-sales_real -> 78007074193 via thermo-trunk-endpoint -> DTMF 52144
+sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 ```
 
 The AI secretary ARI handoff target is:
@@ -37,8 +37,16 @@ Required Asterisk dialplan route:
 ```asterisk
 [from-internal]
 exten => sales_real,1,NoOp(AI secretary sales real transfer)
- same => n,Dial(PJSIP/78007074193@thermo-trunk-endpoint,60,D(52144))
+ same => n,Dial(PJSIP/78007074193@thermo-trunk-endpoint,60,D(ww52144))
  same => n,Hangup()
+```
+
+NODE-001 live validation completed successfully with ARI continue to:
+
+```text
+context=from-internal
+extension=sales_real
+priority=1
 ```
 
 ## Observability Requirements
@@ -55,4 +63,6 @@ Preserve existing tracing and logging. The transfer route node should leave enou
 
 ## Validation Notes
 
-The next validation pass should be narrow and practical. Prefer a focused smoke test or log-backed manual validation over a broad refactor or unrelated integration sweep.
+- During live validation, MicroSIP using the wrong Windows input device produced a false negative for dialog capture.
+- Selecting the correct Windows microphone fixed live ISSUE / NAME / CITY / PHONE capture.
+- The validated transfer path is ready for master handoff.

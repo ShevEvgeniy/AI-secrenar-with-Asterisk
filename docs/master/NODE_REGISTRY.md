@@ -12,7 +12,7 @@
 
 | Node | Node Doc | Branch | Status | Purpose | Result |
 | --- | --- | --- | --- | --- | --- |
-| `NODE-001-sales-real-transfer` | `docs/nodes/NODE-001-sales-real-transfer.md` | `feat/node-001-sales-real-transfer` | Recommended next | Implement and validate the real transfer route `sales_real -> 78007074193 via thermo-trunk-endpoint -> DTMF 52144`. | Pending |
+| `NODE-001-sales-real-transfer` | `docs/nodes/NODE-001-sales-real-transfer.md` | `feat/node-001-sales-real-transfer` | Done | Implement and validate the real transfer route `sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144`. | Live smoke passed at `598843d0fc00caa40c935f39dec123acc1b7a6c4`; ready for ff-merge. |
 
 ## Node Completion Requirements
 

@@ -7,6 +7,8 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
+- Latest completed node branch: `feat/node-001-sales-real-transfer`
+- Latest completed node commit: `598843d0fc00caa40c935f39dec123acc1b7a6c4`
 
 ## Confirmed Working
 
@@ -14,24 +16,22 @@
 - Publish/playback pipeline works.
 - Stage-specific prompts are already in `master`.
 - Transfer flow via ARI continue is already in `master`.
+- NODE-001 live smoke validation passed:
+  - stage prompts progressed correctly;
+  - user speech was transcribed for ISSUE / NAME / CITY / PHONE;
+  - transfer phrase played;
+  - transfer completed with `status=ok` to `from-internal,sales_real,1`.
 
-## Open Gap
+## Completed Node
 
-The real sales transfer route is not yet confirmed end to end:
+NODE-001 completed the real sales transfer route:
 
 ```text
-sales_real -> 78007074193 via thermo-trunk-endpoint -> DTMF 52144
+sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 ```
 
-## Active Recommendation
+## Validation Notes
 
-Start the next focused node for the real transfer route through dialplan and trunk DTMF behavior.
-
-## Validation Posture
-
-The next node should preserve existing tracing/logging and validate the route through logs or a smoke test that proves:
-
-- the transfer decision reaches `sales_real`;
-- ARI continue hands control to the expected dialplan location;
-- the outbound leg uses `thermo-trunk-endpoint`;
-- DTMF `52144` is emitted after the call is connected or at the intended dialplan step.
+- A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
+- Selecting the correct Windows microphone fixed live dialog capture.
+- NODE-001 is ready for fast-forward merge into `master`.
