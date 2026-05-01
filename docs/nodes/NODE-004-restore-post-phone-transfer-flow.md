@@ -12,12 +12,21 @@ The generic reply pipeline must not run once PHONE has been successfully capture
 
 ## Root Cause
 
-The ARI dialog loop only made the transfer decision after leaving the dialog loop. That left the post-PHONE path dependent on generic loop termination behavior, so current master could fall through to the normal response pipeline after the PHONE turn instead of treating PHONE completion as an immediate transfer boundary.
+The first NODE-004 patch made the transfer decision explicit only after the dialog parser reported `PHONE -> DONE` with `phone_digits`. Live smoke `1777640788.40` showed the missing runtime case: Whisper transcribed the caller's phone as `920.032.0355`. That is a valid 10-digit Russian mobile number shape, but the dialog phone regex accepted spaces, hyphens, and parentheses only, not dots.
+
+Because the dotted phone was rejected:
+
+```text
+user_transcribed(PHONE, ok) -> no phone_digits -> max_turns reached -> pipeline_start -> build_response
+```
+
+So STT succeeded, but PHONE collection did not complete from the dialog state machine's point of view.
 
 ## Implementation
 
 - Added an explicit successful-PHONE predicate in `src/ai_secretary/telephony/ari_app.py`.
 - After `apply_turn()` moves `PHONE` to `DONE` and `phone_digits` is present, the handler now immediately plays the transfer phrase and calls ARI `continue`.
+- Updated the PHONE parser in `src/ai_secretary/telephony/dialog.py` to accept dotted numeric separators emitted by STT, for example `920.032.0355`.
 - Kept the existing post-loop DONE transfer check as a defensive backstop.
 - Preserved the existing transfer target:
 
@@ -32,6 +41,7 @@ priority: 1
 Added a focused handle-call regression test proving:
 
 - the fourth turn is PHONE;
+- the exact live-smoke dotted PHONE transcription `920.032.0355` is accepted;
 - `phone_digits` is saved;
 - `play_transfer_phrase` is logged;
 - ARI `continue` targets `from-internal,sales_real,1`;

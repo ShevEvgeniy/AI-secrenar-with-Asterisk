@@ -95,6 +95,7 @@ priority=1
 ## NODE-004 Runtime Notes
 
 - Successful PHONE capture is now an immediate transfer boundary in the ARI dialog loop.
+- Live smoke `1777640788.40` exposed an STT formatting case where the phone was transcribed as `920.032.0355`; PHONE parsing now accepts dotted numeric separators and normalizes that to `79200320355`.
 - Expected event order after a valid PHONE transcript:
 
 ```text

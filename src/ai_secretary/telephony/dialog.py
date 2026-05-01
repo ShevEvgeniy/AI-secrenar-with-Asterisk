@@ -64,7 +64,7 @@ def _extract_city(text: str) -> str | None:
 
 
 def _extract_phone(text: str) -> str | None:
-    m = re.search(r"(\+?\d[\d\s()\-]{8,}\d)", text)
+    m = re.search(r"(\+?\d[\d\s().\-]{8,}\d)", text)
     if not m:
         return None
     normalized = normalize_ru_phone(m.group(1))

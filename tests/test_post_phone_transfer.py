@@ -94,7 +94,7 @@ def test_successful_phone_capture_transfers_without_generic_pipeline(monkeypatch
         DialogStage.ISSUE: "Need cylinders",
         DialogStage.NAME: "Ivan Petrov",
         DialogStage.CITY: "from Moscow",
-        DialogStage.PHONE: "8 903 678 46 53",
+        DialogStage.PHONE: "920.032.0355",
     }
 
     def fake_transcribe(_settings: Settings, artifact: ari_app.TranscriptionArtifact) -> tuple[str, dict[str, Any]]:
@@ -123,7 +123,7 @@ def test_successful_phone_capture_transfers_without_generic_pipeline(monkeypatch
         }
     ]
     profile = json.loads((session.artifact_dir / "profile.json").read_text(encoding="utf-8"))
-    assert profile["phone_digits"] == "79036784653"
+    assert profile["phone_digits"] == "79200320355"
     assert any(event["action"] == "play_transfer_phrase" and event["status"] == "ok" for event in events)
     assert any(event["action"] == "transfer" and event["status"] == "ok" for event in events)
     assert not any(event["action"] in {"pipeline_start", "build_response", "publish", "playback"} for event in events)

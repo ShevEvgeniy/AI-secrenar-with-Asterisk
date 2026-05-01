@@ -54,3 +54,10 @@ def test_empty_issue_transcript_does_not_complete_dialog() -> None:
 
 def test_dialog_done_prompt_exact_transfer_phrase() -> None:
     assert next_prompt(DialogStage.DONE, {}) == "хорошо я соединяю вас с отделом продаж."
+
+
+def test_phone_stage_accepts_dotted_mobile_transcription() -> None:
+    state, profile = apply_turn(DialogStage.PHONE, {}, "920.032.0355")
+
+    assert state == DialogStage.DONE
+    assert profile["phone_digits"] == "79200320355"
