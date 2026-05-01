@@ -91,3 +91,14 @@ priority=1
 - NODE-003 removed canned `user_transcribed` content from the live dialog path. Transcription events now identify the exact call id, stage, recording name, local audio path, byte size, and SHA-256. If no STT backend is configured, the event is logged as unavailable instead of fabricated.
 - NODE-003 fixed the previously observed integrity problem where runtime logs showed transcribed text that did not match what the caller says they actually spoke.
 - Next runtime validation should run one live smoke with a real STT backend configured.
+
+## NODE-004 Runtime Notes
+
+- Successful PHONE capture is now an immediate transfer boundary in the ARI dialog loop.
+- Expected event order after a valid PHONE transcript:
+
+```text
+user_transcribed(PHONE) -> play_transfer_phrase -> transfer(context=from-internal, extension=sales_real, priority=1)
+```
+
+- The generic response path must not run on that successful PHONE path, so `pipeline_start`, `build_response`, `publish`, and generic `playback` should be absent after valid PHONE collection.

@@ -528,6 +528,14 @@ def _save_profile(artifact_dir: Path, profile: dict[str, Any]) -> None:
     save_json(artifact_dir / "profile.json", profile)
 
 
+def _is_successful_phone_capture(
+    previous_stage: DialogStage,
+    next_stage: DialogStage,
+    profile: dict[str, Any],
+) -> bool:
+    return previous_stage == DialogStage.PHONE and next_stage == DialogStage.DONE and bool(profile.get("phone_digits"))
+
+
 def _file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -781,6 +789,19 @@ async def handle_call(
                 _save_profile(artifact_dir, session.dialog.profile)
                 dialogue_lines.append(f"Секретарь: {prompt_text}")
                 dialogue_lines.append(f"Клиент: {transcript_text}")
+
+                if _is_successful_phone_capture(stage, new_stage, session.dialog.profile):
+                    transferred, moh_started = await _play_transfer_and_continue(
+                        client,
+                        session,
+                        system_sounds,
+                        moh_started,
+                    )
+                    if transferred:
+                        return
+                    _played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
+                    await client.hangup_safe(channel_id)
+                    return
 
             transcript_for_pipeline = "\n".join(dialogue_lines)
             profile_for_pipeline = dict(session.dialog.profile)

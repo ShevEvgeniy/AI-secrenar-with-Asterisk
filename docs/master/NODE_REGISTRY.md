@@ -15,6 +15,7 @@
 | `NODE-001-sales-real-transfer` | `docs/nodes/NODE-001-sales-real-transfer.md` | `feat/node-001-sales-real-transfer` | Done, merged | Implement and validate the real transfer route `sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144`. | Live smoke passed at `598843d0fc00caa40c935f39dec123acc1b7a6c4`; merged into `master` via `e5d1cb6892a2319fb6ebbc05e52ec2d06f98e0fd`. |
 | `NODE-002-publish-hardening` | `docs/nodes/NODE-002-publish-hardening.md` | `feat/node-002-publish-hardening` | Done, merged | Harden publish failure handling so startup and per-call publish failures are resilient and diagnosable. | Validated at `4d0022f0187b866015cca2c4d921a4f109e512a5`; merged into `master`. |
 | `NODE-003-transcription-integrity-and-meaningful-fallback-phrases` | `docs/nodes/NODE-003-transcription-integrity-and-meaningful-fallback-phrases.md` | `feat/node-003-transcription-integrity-and-fallback-phrases` | Done, merged | Fix transcription integrity and replace non-meaningful fallback media behavior surfaced by NODE-002. | Validated at `b5a315cb6fa41dc97c1dfb42cb6891f420ab55ad`; merged into `master`. |
+| `NODE-004-restore-post-phone-transfer-flow` | `docs/nodes/NODE-004-restore-post-phone-transfer-flow.md` | `feat/node-004-restore-post-phone-transfer-flow` | Done | Restore the post-PHONE invariant so successful PHONE capture immediately plays the transfer phrase and continues to `sales_real`. | Focused regression test proves no generic pipeline is used after successful PHONE capture. |
 
 ## Node Completion Requirements
 

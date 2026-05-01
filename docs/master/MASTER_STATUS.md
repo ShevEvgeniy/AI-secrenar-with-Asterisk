@@ -50,6 +50,12 @@ NODE-003 completed transcription integrity and meaningful fallback phrases:
 real caller audio artifact -> traceable transcription metadata -> no fabricated user_transcribed text
 ```
 
+NODE-004 restored the post-PHONE transfer invariant:
+
+```text
+valid PHONE transcript -> phone_digits saved -> transfer phrase -> ARI continue to from-internal,sales_real,1
+```
+
 ## Validation Notes
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
@@ -67,6 +73,7 @@ real caller audio artifact -> traceable transcription metadata -> no fabricated 
 - NODE-003 fixed the integrity problem where runtime logs showed transcribed text that did not match what the caller says they actually spoke.
 - If no STT backend is configured, transcription is logged as unavailable instead of fabricated.
 - Fallback media now uses controlled meaningful fallback phrases instead of `demo-congrats`.
+- NODE-004 prevents the generic reply pipeline from running after successful PHONE capture.
 
 ## Next Recommended Step
 
