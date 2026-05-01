@@ -10,9 +10,9 @@
 
 ## Registered Nodes
 
-| Node | Branch | Status | Purpose | Result |
-| --- | --- | --- | --- | --- |
-| `node-real-sales-transfer-route` | `codex/node-real-sales-transfer-route` | Recommended next | Implement and validate the real transfer route `sales_real -> 78007074193 via thermo-trunk-endpoint -> DTMF 52144`. | Pending |
+| Node | Node Doc | Branch | Status | Purpose | Result |
+| --- | --- | --- | --- | --- | --- |
+| `NODE-001-sales-real-transfer` | `docs/nodes/NODE-001-sales-real-transfer.md` | `feat/node-001-sales-real-transfer` | Recommended next | Implement and validate the real transfer route `sales_real -> 78007074193 via thermo-trunk-endpoint -> DTMF 52144`. | Pending |
 
 ## Node Completion Requirements
 
