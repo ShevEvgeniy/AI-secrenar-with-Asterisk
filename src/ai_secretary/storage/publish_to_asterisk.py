@@ -13,6 +13,15 @@ from typing import Any, Sequence
 from ..config.settings import Settings
 
 
+class PublishStepError(RuntimeError):
+    """Publish failure annotated with the step and reason for diagnostics."""
+
+    def __init__(self, step: str, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.step = step
+        self.reason = reason
+
+
 def build_remote_sound_id(remote_rel_path: str) -> str:
     """Build stable ARI sound id from a relative wav path."""
     rel = PurePosixPath(remote_rel_path.replace("\\", "/")).as_posix().lstrip("/")
@@ -101,6 +110,45 @@ def _handle_ssh_error(cmd: Sequence[str], rc: int, stderr: str, stdout: str) -> 
     if "no such file or directory" in lowered:
         raise RuntimeError("OpenSSH client not installed or key missing: " + combined)
     raise RuntimeError("ssh/scp failed: " + combined)
+
+
+def _classify_error(message: str, *, step: str | None = None) -> str:
+    lowered = (message or "").lower()
+    if "timed out" in lowered or "timeout" in lowered:
+        return "timeout"
+    if "authenticationmethods" in lowered or "permission denied" in lowered or "password" in lowered:
+        return "ssh_auth_failed"
+    if "openssh client not installed" in lowered:
+        return "ssh_client_missing"
+    if "key missing" in lowered or "ssh key not found" in lowered:
+        return "key_not_found"
+    if "ffmpeg not found" in lowered:
+        return "ffmpeg_missing"
+    if "ffmpeg convert failed" in lowered:
+        return "ffmpeg_failed"
+    if "local wav not found" in lowered:
+        return "local_wav_missing"
+    if "local wav is empty" in lowered:
+        return "local_wav_empty"
+    if step == "scp_upload":
+        return "scp_failed"
+    if step in {"docker_mkdir", "docker_cp"}:
+        return "docker_failed"
+    if step in {"host_stat", "container_stat"}:
+        return "remote_stat_failed"
+    if step == "mkdir":
+        return "ssh_mkdir_failed"
+    return "publish_failed"
+
+
+def _run_publish_step(step: str, func: Any, *args: Any, **kwargs: Any) -> Any:
+    try:
+        return func(*args, **kwargs)
+    except PublishStepError:
+        raise
+    except Exception as exc:
+        message = str(exc)
+        raise PublishStepError(step, _classify_error(message, step=step), message) from exc
 
 
 def _cmd_timeout_sec() -> int:
@@ -328,13 +376,18 @@ def publish_wav_to_asterisk(
     }
     total_start = time.perf_counter()
     try:
+        if not local_wav_path.exists():
+            raise PublishStepError("local_wav", "local_wav_missing", f"Local WAV not found: {local_wav_path.as_posix()}")
+        if local_wav_path.stat().st_size <= 0:
+            raise PublishStepError("local_wav", "local_wav_empty", f"Local WAV is empty: {local_wav_path.as_posix()}")
+
         if not settings.asterisk_ssh_key:
             return {
                 "ok": False,
                 "sound_id": "",
                 "remote_path": "",
                 "error": "ASTERISK_SSH_KEY is required for publishing",
-                "details": {"reason": "missing_key"},
+                "details": {"reason": "missing_key", "failed_step": "config"},
             }
 
         key_path = Path(settings.asterisk_ssh_key)
@@ -350,7 +403,7 @@ def publish_wav_to_asterisk(
                 "sound_id": "",
                 "remote_path": "",
                 "error": f"SSH key not found: {key_path.as_posix()}",
-                "details": {"reason": "key_not_found"},
+                "details": {"reason": "key_not_found", "failed_step": "config"},
             }
 
         if not settings.asterisk_ssh_host or not settings.asterisk_ssh_user:
@@ -359,17 +412,19 @@ def publish_wav_to_asterisk(
                 "sound_id": "",
                 "remote_path": "",
                 "error": "ASTERISK_SSH_HOST and ASTERISK_SSH_USER are required",
-                "details": {"reason": "missing_ssh_target"},
+                "details": {"reason": "missing_ssh_target", "failed_step": "config"},
             }
 
         remote_rel = PurePosixPath(remote_rel_path.replace("\\", "/").lstrip("/"))
         remote_dir = PurePosixPath(settings.asterisk_sounds_dir.as_posix()) / remote_rel.parent
         remote_wav = (PurePosixPath(settings.asterisk_sounds_dir.as_posix()) / remote_rel).as_posix()
 
-        converted_wav = _ensure_wav_8k_mono(local_wav_path)
+        converted_wav = _run_publish_step("convert", _ensure_wav_8k_mono, local_wav_path)
 
         step_start = time.perf_counter()
-        ensure_remote_dir(
+        _run_publish_step(
+            "mkdir",
+            ensure_remote_dir,
             settings.asterisk_ssh_host,
             settings.asterisk_ssh_user,
             key_path,
@@ -379,7 +434,9 @@ def publish_wav_to_asterisk(
         timings_ms["mkdir_ms"] = int((time.perf_counter() - step_start) * 1000)
 
         step_start = time.perf_counter()
-        scp_upload(
+        _run_publish_step(
+            "scp_upload",
+            scp_upload,
             settings.asterisk_ssh_host,
             settings.asterisk_ssh_user,
             key_path,
@@ -392,7 +449,9 @@ def publish_wav_to_asterisk(
         docker_container = (settings.asterisk_docker_container or "").strip().strip('"').strip("'")
         if docker_container:
             step_start = time.perf_counter()
-            docker_exec_mkdir(
+            _run_publish_step(
+                "docker_mkdir",
+                docker_exec_mkdir,
                 settings.asterisk_ssh_host,
                 settings.asterisk_ssh_user,
                 key_path,
@@ -402,7 +461,9 @@ def publish_wav_to_asterisk(
             )
             timings_ms["docker_mkdir_ms"] = int((time.perf_counter() - step_start) * 1000)
             step_start = time.perf_counter()
-            docker_cp_to_container(
+            _run_publish_step(
+                "docker_cp",
+                docker_cp_to_container,
                 settings.asterisk_ssh_host,
                 settings.asterisk_ssh_user,
                 key_path,
@@ -413,7 +474,9 @@ def publish_wav_to_asterisk(
             )
             timings_ms["docker_cp_ms"] = int((time.perf_counter() - step_start) * 1000)
             step_start = time.perf_counter()
-            _remote_stat_container(
+            _run_publish_step(
+                "container_stat",
+                _remote_stat_container,
                 settings.asterisk_ssh_host,
                 settings.asterisk_ssh_user,
                 key_path,
@@ -424,7 +487,9 @@ def publish_wav_to_asterisk(
             timings_ms["stat_ms"] = int((time.perf_counter() - step_start) * 1000)
         else:
             step_start = time.perf_counter()
-            _remote_stat_host(
+            _run_publish_step(
+                "host_stat",
+                _remote_stat_host,
                 settings.asterisk_ssh_host,
                 settings.asterisk_ssh_user,
                 key_path,
@@ -450,12 +515,16 @@ def publish_wav_to_asterisk(
     except Exception as exc:
         timings_ms["total_ms"] = int((time.perf_counter() - total_start) * 1000)
         error_message = str(exc)
+        failed_step = exc.step if isinstance(exc, PublishStepError) else "unknown"
+        reason = exc.reason if isinstance(exc, PublishStepError) else _classify_error(error_message)
         return {
             "ok": False,
             "sound_id": "",
             "remote_path": remote_wav,
             "error": error_message,
             "details": {
+                "reason": reason,
+                "failed_step": failed_step,
                 "exception": type(exc).__name__,
                 "stderr_snippet": error_message[:400],
                 "cmd_timeout_sec": cmd_timeout_sec if (cmd_timeout_sec is not None and cmd_timeout_sec > 0) else _cmd_timeout_sec(),

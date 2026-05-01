@@ -93,11 +93,40 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _publish_fail_reason(message: str) -> str:
+def _publish_fail_reason(message: str, details: dict[str, Any] | None = None) -> str:
+    reason = (details or {}).get("reason")
+    if isinstance(reason, str) and reason:
+        return reason
     lowered = (message or "").lower()
     if "timed out" in lowered or "timeout" in lowered:
         return "timeout"
     return "publish_failed"
+
+
+def _publish_result_reason(result: dict[str, Any]) -> str:
+    return _publish_fail_reason(str(result.get("error") or ""), result.get("details") or {})
+
+
+async def _play_publish_failure_fallback(
+    client: AriClient,
+    session: CallSession,
+    system_sounds: dict[str, bool],
+    moh_started: bool,
+    *,
+    reason: str,
+    publish_details: dict[str, Any],
+) -> tuple[bool, bool]:
+    played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
+    session.log_event(
+        action="publish_fallback",
+        status="ok" if played else "fail",
+        reason=None if played else "fallback_play_failed",
+        details={
+            "publish_reason": reason,
+            "publish_details": publish_details,
+        },
+    )
+    return played, moh_started
 
 
 async def ensure_system_sounds(settings: Settings) -> dict[str, bool]:
@@ -116,7 +145,7 @@ async def ensure_system_sounds(settings: Settings) -> dict[str, bool]:
         details: dict[str, dict[str, Any]] = {}
         local_dir = settings.storage_dir / "_system"
         local_dir.mkdir(parents=True, exist_ok=True)
-        tts = SileroTTS()
+        tts: SileroTTS | None = None
         timeout_sec = _system_sounds_publish_timeout_sec()
 
         cmd_timeout_sec = max(1, timeout_sec - 5)
@@ -126,6 +155,8 @@ async def ensure_system_sounds(settings: Settings) -> dict[str, bool]:
             local_path = local_dir / file_name
             try:
                 if not local_path.exists():
+                    if tts is None:
+                        tts = SileroTTS()
                     wav = await asyncio.to_thread(tts.synthesize, text)
                     save_bytes(local_path, wav)
                 remote_rel = _system_rel_path(sound_id)
@@ -142,7 +173,7 @@ async def ensure_system_sounds(settings: Settings) -> dict[str, bool]:
                 ok = bool(result.get("ok"))
                 dur_ms = int((time.perf_counter() - item_start) * 1000)
                 _system_sound_status[sound_id] = ok
-                reason = None if ok else _publish_fail_reason(str(result.get("error") or ""))
+                reason = None if ok else _publish_result_reason(result)
                 details[sound_id] = {
                     "ok": ok,
                     "dur_ms": dur_ms,
@@ -674,7 +705,20 @@ async def handle_call(
                     "docker_container": bool(settings.asterisk_docker_container),
                 },
             )
-            _played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
+            fallback_details = {
+                "remote_rel_path": remote_rel_path,
+                "publish_timeout_sec": publish_timeout_sec,
+                "publish_cmd_timeout_sec": publish_cmd_timeout_sec,
+                "docker_container": bool(settings.asterisk_docker_container),
+            }
+            _played, moh_started = await _play_publish_failure_fallback(
+                client,
+                session,
+                system_sounds,
+                moh_started,
+                reason="publish_timeout",
+                publish_details=fallback_details,
+            )
             session.transition(
                 CallState.FAILED,
                 action="publish_timeout_fallback_no_immediate_hangup",
@@ -684,8 +728,16 @@ async def handle_call(
 
         publish_ms = int((time.perf_counter() - publish_start) * 1000)
         if not publish_result.get("ok"):
-            session.log_event(action="publish", status="fail", reason="publish_failed", dur_ms=publish_ms, details=publish_result)
-            _played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
+            reason = _publish_result_reason(publish_result)
+            session.log_event(action="publish", status="fail", reason=reason, dur_ms=publish_ms, details=publish_result)
+            _played, moh_started = await _play_publish_failure_fallback(
+                client,
+                session,
+                system_sounds,
+                moh_started,
+                reason=reason,
+                publish_details=publish_result,
+            )
             await client.hangup_safe(channel_id)
             session.transition(CallState.FAILED, action="hangup_after_publish_fail", status="ok")
             return

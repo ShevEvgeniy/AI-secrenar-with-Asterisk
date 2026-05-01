@@ -97,6 +97,8 @@ def test_publish_returns_structured_error(monkeypatch, tmp_path):
     assert result["ok"] is False
     assert result["sound_id"] == ""
     assert result["error"]
+    assert result["details"]["reason"] == "missing_key"
+    assert result["details"]["failed_step"] == "config"
 
 
 def test_publish_subprocess_timeout(monkeypatch, tmp_path):
@@ -117,3 +119,86 @@ def test_publish_subprocess_timeout(monkeypatch, tmp_path):
 
     assert result["ok"] is False
     assert "timed out" in result["error"].lower()
+    assert result["details"]["reason"] == "timeout"
+    assert result["details"]["failed_step"] == "mkdir"
+
+
+def test_publish_classifies_local_wav_missing(tmp_path):
+    key_path = tmp_path / "id_rsa"
+    key_path.write_text("dummy", encoding="utf-8")
+
+    result = pub.publish_wav_to_asterisk(tmp_path / "missing.wav", "ai_secretary/call/reply.wav", _settings(tmp_path))
+
+    assert result["ok"] is False
+    assert result["details"]["reason"] == "local_wav_missing"
+    assert result["details"]["failed_step"] == "local_wav"
+
+
+def test_publish_classifies_scp_failure(monkeypatch, tmp_path):
+    key_path = tmp_path / "id_rsa"
+    key_path.write_text("dummy", encoding="utf-8")
+    local_wav = tmp_path / "reply.wav"
+    local_wav.write_bytes(b"RIFF")
+
+    monkeypatch.setattr(pub, "_ensure_wav_8k_mono", lambda p: p)
+    monkeypatch.setattr(pub, "ensure_remote_dir", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        pub,
+        "scp_upload",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("scp failed: lost connection")),
+    )
+
+    result = pub.publish_wav_to_asterisk(local_wav, "ai_secretary/call/reply.wav", _settings(tmp_path))
+
+    assert result["ok"] is False
+    assert result["details"]["reason"] == "scp_failed"
+    assert result["details"]["failed_step"] == "scp_upload"
+
+
+def test_publish_classifies_docker_partial_failure(monkeypatch, tmp_path):
+    key_path = tmp_path / "id_rsa"
+    key_path.write_text("dummy", encoding="utf-8")
+    local_wav = tmp_path / "reply.wav"
+    local_wav.write_bytes(b"RIFF")
+
+    monkeypatch.setattr(pub, "_ensure_wav_8k_mono", lambda p: p)
+    monkeypatch.setattr(pub, "ensure_remote_dir", lambda *args, **kwargs: None)
+    monkeypatch.setattr(pub, "scp_upload", lambda *args, **kwargs: None)
+    monkeypatch.setattr(pub, "docker_exec_mkdir", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        pub,
+        "docker_cp_to_container",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("docker cp failed")),
+    )
+
+    result = pub.publish_wav_to_asterisk(
+        local_wav,
+        "ai_secretary/call/reply.wav",
+        _settings(tmp_path, docker_container="asterisk"),
+    )
+
+    assert result["ok"] is False
+    assert result["details"]["reason"] == "docker_failed"
+    assert result["details"]["failed_step"] == "docker_cp"
+
+
+def test_publish_classifies_remote_stat_failure(monkeypatch, tmp_path):
+    key_path = tmp_path / "id_rsa"
+    key_path.write_text("dummy", encoding="utf-8")
+    local_wav = tmp_path / "reply.wav"
+    local_wav.write_bytes(b"RIFF")
+
+    monkeypatch.setattr(pub, "_ensure_wav_8k_mono", lambda p: p)
+    monkeypatch.setattr(pub, "ensure_remote_dir", lambda *args, **kwargs: None)
+    monkeypatch.setattr(pub, "scp_upload", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        pub,
+        "_remote_stat_host",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("test -f failed")),
+    )
+
+    result = pub.publish_wav_to_asterisk(local_wav, "ai_secretary/call/reply.wav", _settings(tmp_path))
+
+    assert result["ok"] is False
+    assert result["details"]["reason"] == "remote_stat_failed"
+    assert result["details"]["failed_step"] == "host_stat"

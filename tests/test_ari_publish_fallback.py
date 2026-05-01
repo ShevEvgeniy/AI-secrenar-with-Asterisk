@@ -102,6 +102,22 @@ def test_system_sounds_publish_once_with_cache(monkeypatch, tmp_path):
     assert len(publishes) == len(ari_app._SYSTEM_SOUND_TEXTS)
 
 
+def test_system_sounds_tts_failure_is_itemized(monkeypatch, tmp_path):
+    ari_app._reset_fallback_cache_for_tests()
+    settings = _settings(tmp_path)
+
+    class _FailingTTS:
+        def __init__(self) -> None:
+            raise RuntimeError("tts unavailable")
+
+    monkeypatch.setattr(ari_app, "SileroTTS", _FailingTTS)
+
+    result = asyncio.run(ari_app.ensure_system_sounds(settings))
+
+    assert not any(result.values())
+    assert ari_app._system_sounds_done is True
+
+
 def test_call_uses_system_prompt_without_per_call_publish(monkeypatch, tmp_path):
     ari_app._reset_fallback_cache_for_tests()
     monkeypatch.setenv("PLAY_TEST", "0")
@@ -185,3 +201,56 @@ def test_prompt_fail_uses_builtin_fallback_and_no_immediate_hangup(monkeypatch, 
     assert not any(e["action"] == "hangup_after_prompt_fail" for e in events)
     assert any(e["action"] == "play_fallback" for e in events)
     assert any(e["action"] == "record_start" for e in events)
+
+
+def test_publish_failure_plays_fallback_and_logs_reason(monkeypatch, tmp_path):
+    ari_app._reset_fallback_cache_for_tests()
+    monkeypatch.setenv("PLAY_TEST", "0")
+    settings = _settings(tmp_path)
+    artifact_dir = tmp_path / "artifacts" / "call-publish-fail"
+    session = CallSession(call_id="call-publish-fail", channel_id="ch-3", artifact_dir=artifact_dir)
+    client = _FakeClient()
+
+    response_for_tts = artifact_dir / "response_for_tts.txt"
+    response_for_tts.parent.mkdir(parents=True, exist_ok=True)
+    response_for_tts.write_text("ok", encoding="utf-8")
+
+    for sid in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sid] = False
+    ari_app._system_sounds_done = True
+    monkeypatch.setattr(
+        ari_app,
+        "run_pipeline_from_transcript",
+        lambda *_args, **_kwargs: {"paths": {"response_for_tts": str(response_for_tts)}},
+    )
+    monkeypatch.setattr(ari_app, "should_stop_dialog", lambda _state, turns_done, _max_turns: turns_done >= 1)
+
+    class _FakeTTS:
+        def synthesize(self, _text: str) -> bytes:
+            return b"RIFFreply"
+
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: {
+            "ok": False,
+            "sound_id": "",
+            "remote_path": "/var/lib/asterisk/sounds/ai_secretary/call-publish-fail/reply.wav",
+            "error": "docker cp failed",
+            "details": {"reason": "docker_failed", "failed_step": "docker_cp"},
+        },
+    )
+
+    asyncio.run(ari_app.handle_call(client, settings, "app", session))
+    events = _read_events(session)
+
+    assert any(call == "play:sound:demo-congrats" for call in client.calls)
+    assert any(e["action"] == "publish" and e["reason"] == "docker_failed" for e in events)
+    assert any(
+        e["action"] == "publish_fallback"
+        and e["status"] == "ok"
+        and e["details"]["publish_reason"] == "docker_failed"
+        for e in events
+    )
+    assert any(e["action"] == "hangup_after_publish_fail" for e in events)
