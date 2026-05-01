@@ -76,6 +76,10 @@ class _FakeClient:
         self.calls.append("hangup")
         return {"ok": True}
 
+    async def continue_safe(self, *_args, **_kwargs):
+        self.calls.append("continue")
+        return {"ok": False, "reason": "not_configured", "http_status": 404, "details": {}}
+
 
 def test_system_sounds_publish_once_with_cache(monkeypatch, tmp_path):
     ari_app._reset_fallback_cache_for_tests()
@@ -166,7 +170,7 @@ def test_prompt_fail_uses_builtin_fallback_and_no_immediate_hangup(monkeypatch, 
     settings = _settings(tmp_path)
     artifact_dir = tmp_path / "artifacts" / "call-fallback"
     session = CallSession(call_id="call-fallback", channel_id="ch-2", artifact_dir=artifact_dir)
-    client = _FakeClient(fail_media={"sound:demo-congrats"})
+    client = _FakeClient(fail_media={"sound:please-try-again"})
 
     response_for_tts = artifact_dir / "response_for_tts.txt"
     response_for_tts.parent.mkdir(parents=True, exist_ok=True)
@@ -197,10 +201,50 @@ def test_prompt_fail_uses_builtin_fallback_and_no_immediate_hangup(monkeypatch, 
     asyncio.run(ari_app.handle_call(client, settings, "app", session))
     events = _read_events(session)
 
-    assert any(call == "play:sound:demo-congrats" for call in client.calls)
+    assert not any(call == "play:sound:demo-congrats" for call in client.calls)
+    assert any(call == "play:sound:pls-try-call-later" for call in client.calls)
     assert not any(e["action"] == "hangup_after_prompt_fail" for e in events)
     assert any(e["action"] == "play_fallback" for e in events)
     assert any(e["action"] == "record_start" for e in events)
+
+
+def test_prompt_media_uses_controlled_stage_fallback_when_prompt_unavailable():
+    system_sounds = {
+        ari_app.PROMPT_3_SOUND_ID: False,
+        ari_app.PROMPT_FALLBACK_SOUND_IDS[ari_app.DialogStage.CITY]: True,
+        ari_app.FALLBACK_SOUND_ID: True,
+    }
+
+    media = ari_app._prompt_media_for_stage(ari_app.DialogStage.CITY, system_sounds)
+
+    assert media == ari_app.PROMPT_FALLBACK_SOUND_IDS[ari_app.DialogStage.CITY]
+    assert media != "sound:demo-congrats"
+
+
+def test_transfer_media_uses_controlled_transfer_fallback_when_transfer_unavailable(monkeypatch, tmp_path):
+    ari_app._reset_fallback_cache_for_tests()
+    monkeypatch.delenv("TRANSFER_CONTEXT", raising=False)
+    monkeypatch.delenv("TRANSFER_EXTEN", raising=False)
+    monkeypatch.delenv("TRANSFER_PRIORITY", raising=False)
+    artifact_dir = tmp_path / "artifacts" / "call-transfer-fallback"
+    session = CallSession(call_id="call-transfer-fallback", channel_id="ch-transfer", artifact_dir=artifact_dir)
+    client = _FakeClient()
+
+    transferred, _moh_started = asyncio.run(
+        ari_app._play_transfer_and_continue(
+            client,
+            session,
+            {
+                ari_app.TRANSFER_SOUND_ID: False,
+                ari_app.TRANSFER_FALLBACK_SOUND_ID: True,
+            },
+            False,
+        )
+    )
+
+    assert transferred is False
+    assert f"play:{ari_app.TRANSFER_FALLBACK_SOUND_ID}" in client.calls
+    assert "play:sound:demo-congrats" not in client.calls
 
 
 def test_publish_failure_plays_fallback_and_logs_reason(monkeypatch, tmp_path):
@@ -245,7 +289,8 @@ def test_publish_failure_plays_fallback_and_logs_reason(monkeypatch, tmp_path):
     asyncio.run(ari_app.handle_call(client, settings, "app", session))
     events = _read_events(session)
 
-    assert any(call == "play:sound:demo-congrats" for call in client.calls)
+    assert not any(call == "play:sound:demo-congrats" for call in client.calls)
+    assert any(call == "play:sound:please-try-again" for call in client.calls)
     assert any(e["action"] == "publish" and e["reason"] == "docker_failed" for e in events)
     assert any(
         e["action"] == "publish_fallback"

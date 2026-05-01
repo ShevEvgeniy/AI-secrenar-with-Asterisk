@@ -45,5 +45,12 @@ def test_dialog_max_turns_stops_loop() -> None:
     assert state != DialogStage.DONE
 
 
+def test_empty_issue_transcript_does_not_complete_dialog() -> None:
+    state, profile = apply_turn(DialogStage.ISSUE, {}, "")
+
+    assert state == DialogStage.ISSUE
+    assert profile == {}
+
+
 def test_dialog_done_prompt_exact_transfer_phrase() -> None:
     assert next_prompt(DialogStage.DONE, {}) == "хорошо я соединяю вас с отделом продаж."

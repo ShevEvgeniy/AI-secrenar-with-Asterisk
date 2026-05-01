@@ -56,3 +56,14 @@ priority=1
 ```text
 feat/node-003-transcription-integrity-and-fallback-phrases
 ```
+
+## Implementation Notes
+
+- `user_transcribed` is no longer populated from canned stage text.
+- Each dialog recording name now includes the call id, stage, and turn index.
+- Each downloaded transcription artifact logs the local path, byte size, and SHA-256 hash.
+- Existing local `turn_N.wav` files are discarded before download so stale artifacts cannot be reused silently.
+- If no STT backend is configured, transcription is logged as `status=unavailable` with `reason=stt_backend_not_configured` instead of fabricating caller speech.
+- Runtime STT can be enabled with `TELEPHONY_STT_BACKEND=openai` or `TELEPHONY_STT_BACKEND=whisper_api`; test fixtures use `TELEPHONY_STT_BACKEND=fixture`.
+- Missing stage prompts prefer controlled `fallback_prompt_N` media, then the controlled generic fallback, then non-demo built-ins.
+- Missing transfer phrase prefers controlled `fallback_transfer` media, then non-demo transfer built-ins.

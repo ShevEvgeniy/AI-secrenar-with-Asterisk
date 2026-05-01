@@ -82,6 +82,8 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
     if state == DialogStage.ISSUE and text:
         updated["issue"] = text
         return DialogStage.NAME, updated
+    if state == DialogStage.ISSUE:
+        return DialogStage.ISSUE, updated
     if state == DialogStage.NAME:
         name = _extract_name(text)
         if name:

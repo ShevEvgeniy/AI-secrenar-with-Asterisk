@@ -84,5 +84,5 @@ priority=1
 
 ## Open Runtime Follow-Ups
 
-- Fallback media currently degrades to `demo-congrats`, which is not meaningful UX.
-- `user_transcribed` content in runtime logs did not match what the caller says they actually spoke.
+- NODE-003 replaced `demo-congrats` fallback use with controlled prompt/transfer fallbacks and non-demo built-ins.
+- NODE-003 removed canned `user_transcribed` content from the live dialog path. Transcription events now identify the exact call id, stage, recording name, local audio path, byte size, and SHA-256. If no STT backend is configured, the event is logged as unavailable instead of fabricated.

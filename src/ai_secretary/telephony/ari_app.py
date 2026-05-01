@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -13,6 +15,7 @@ from typing import Any
 from ..config.settings import Settings
 from ..core.runner import run_pipeline, run_pipeline_from_transcript
 from ..rag.embeddings import warmup_embeddings
+from ..stt.whisper_api import WhisperAPIClient
 from ..storage.files import save_bytes, save_json
 from ..tts.silero import SileroTTS
 from .ari_client import AriClient
@@ -26,23 +29,68 @@ PROMPT_3_SOUND_ID = "sound:ai_secretary/_system/prompt_3"
 PROMPT_4_SOUND_ID = "sound:ai_secretary/_system/prompt_4"
 FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback"
 TRANSFER_SOUND_ID = "sound:ai_secretary/_system/transfer"
+PROMPT_FALLBACK_SOUND_IDS: dict[DialogStage, str] = {
+    DialogStage.ISSUE: "sound:ai_secretary/_system/fallback_prompt_1",
+    DialogStage.NAME: "sound:ai_secretary/_system/fallback_prompt_2",
+    DialogStage.CITY: "sound:ai_secretary/_system/fallback_prompt_3",
+    DialogStage.PHONE: "sound:ai_secretary/_system/fallback_prompt_4",
+}
+TRANSFER_FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback_transfer"
 DEFAULT_TRANSFER_CONTEXT = "from-internal"
 DEFAULT_TRANSFER_EXTEN = "sales_real"
 DEFAULT_TRANSFER_PRIORITY = 1
-BUILTIN_FALLBACK_MEDIA = ("sound:demo-congrats", "sound:tt-weasels")
+BUILTIN_GENERAL_FALLBACK_MEDIA = ("sound:please-try-again", "sound:pls-try-call-later")
+BUILTIN_PROMPT_FALLBACK_MEDIA: dict[DialogStage, str] = {
+    DialogStage.ISSUE: "sound:please-try-again",
+    DialogStage.NAME: "sound:please-try-again",
+    DialogStage.CITY: "sound:please-try-again",
+    DialogStage.PHONE: "sound:please-try-again",
+}
+BUILTIN_TRANSFER_FALLBACK_MEDIA = ("sound:pls-wait-connect-call", "sound:please-hold-while-try")
 
 _SYSTEM_SOUND_TEXTS: dict[str, str] = {
     PROMPT_1_SOUND_ID: PROMPTS[DialogStage.ISSUE],
     PROMPT_2_SOUND_ID: PROMPTS[DialogStage.NAME],
     PROMPT_3_SOUND_ID: PROMPTS[DialogStage.CITY],
     PROMPT_4_SOUND_ID: PROMPTS[DialogStage.PHONE],
+    PROMPT_FALLBACK_SOUND_IDS[DialogStage.ISSUE]: PROMPTS[DialogStage.ISSUE],
+    PROMPT_FALLBACK_SOUND_IDS[DialogStage.NAME]: PROMPTS[DialogStage.NAME],
+    PROMPT_FALLBACK_SOUND_IDS[DialogStage.CITY]: PROMPTS[DialogStage.CITY],
+    PROMPT_FALLBACK_SOUND_IDS[DialogStage.PHONE]: PROMPTS[DialogStage.PHONE],
     FALLBACK_SOUND_ID: "Одну секунду, пожалуйста.",
     TRANSFER_SOUND_ID: PROMPTS[DialogStage.DONE],
+    TRANSFER_FALLBACK_SOUND_ID: PROMPTS[DialogStage.DONE],
 }
 _system_sound_status: dict[str, bool] = {sound_id: False for sound_id in _SYSTEM_SOUND_TEXTS}
 _system_sounds_done = False
 _system_sounds_lock: asyncio.Lock | None = None
 _system_sounds_task: asyncio.Task[dict[str, bool]] | None = None
+
+
+@dataclass(frozen=True)
+class TranscriptionArtifact:
+    """The exact audio artifact passed to transcription."""
+
+    call_id: str
+    channel_id: str
+    stage: DialogStage
+    turn_idx: int
+    record_name: str
+    path: Path
+    size_bytes: int
+    sha256: str
+
+    def details(self) -> dict[str, Any]:
+        return {
+            "call_id": self.call_id,
+            "channel_id": self.channel_id,
+            "stage": self.stage.value,
+            "turn_idx": self.turn_idx,
+            "record_name": self.record_name,
+            "audio_path": str(self.path.as_posix()),
+            "audio_size_bytes": self.size_bytes,
+            "audio_sha256": self.sha256,
+        }
 
 
 def _env_int(name: str, default: int) -> int:
@@ -323,7 +371,7 @@ async def _play_fallback(
     candidates: list[str] = []
     if system_sounds.get(FALLBACK_SOUND_ID, False):
         candidates.append(FALLBACK_SOUND_ID)
-    candidates.extend(BUILTIN_FALLBACK_MEDIA)
+    candidates.extend(BUILTIN_GENERAL_FALLBACK_MEDIA)
 
     fallback_played = False
     for media in candidates:
@@ -362,7 +410,12 @@ def _prompt_media_for_stage(stage: DialogStage, system_sounds: dict[str, bool]) 
         return PROMPT_3_SOUND_ID
     if stage == DialogStage.PHONE and system_sounds.get(PROMPT_4_SOUND_ID, False):
         return PROMPT_4_SOUND_ID
-    return BUILTIN_FALLBACK_MEDIA[0]
+    fallback_sound_id = PROMPT_FALLBACK_SOUND_IDS.get(stage)
+    if fallback_sound_id and system_sounds.get(fallback_sound_id, False):
+        return fallback_sound_id
+    if system_sounds.get(FALLBACK_SOUND_ID, False):
+        return FALLBACK_SOUND_ID
+    return BUILTIN_PROMPT_FALLBACK_MEDIA.get(stage, BUILTIN_GENERAL_FALLBACK_MEDIA[0])
 
 
 async def _play_transfer_and_continue(
@@ -371,7 +424,12 @@ async def _play_transfer_and_continue(
     system_sounds: dict[str, bool],
     moh_started: bool,
 ) -> tuple[bool, bool]:
-    media = TRANSFER_SOUND_ID if system_sounds.get(TRANSFER_SOUND_ID, False) else BUILTIN_FALLBACK_MEDIA[0]
+    if system_sounds.get(TRANSFER_SOUND_ID, False):
+        media = TRANSFER_SOUND_ID
+    elif system_sounds.get(TRANSFER_FALLBACK_SOUND_ID, False):
+        media = TRANSFER_FALLBACK_SOUND_ID
+    else:
+        media = BUILTIN_TRANSFER_FALLBACK_MEDIA[0]
     started = time.perf_counter()
     moh_started = await _maybe_stop_moh(client, session, moh_started)
     play_result = await client.play_safe(session.channel_id, media)
@@ -470,14 +528,87 @@ def _save_profile(artifact_dir: Path, profile: dict[str, Any]) -> None:
     save_json(artifact_dir / "profile.json", profile)
 
 
-def _transcribe_placeholder(stage: DialogStage) -> str:
-    if stage == DialogStage.ISSUE:
-        return "Хочу уточнить условия поставки оборудования."
-    if stage == DialogStage.NAME:
-        return "Меня зовут Иван Петров."
-    if stage == DialogStage.CITY:
-        return "Я из Казани."
-    return "Мой телефон 9 903 678 46 53."
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+async def _download_transcription_artifact(
+    client: AriClient,
+    session: CallSession,
+    stage: DialogStage,
+    turn_idx: int,
+    record_name: str,
+    dest_path: Path,
+) -> TranscriptionArtifact:
+    if dest_path.exists():
+        dest_path.unlink()
+        session.log_event(
+            action="discard_stale_audio_artifact",
+            status="ok",
+            details={
+                "stage": stage.value,
+                "turn_idx": turn_idx,
+                "record_name": record_name,
+                "audio_path": str(dest_path.as_posix()),
+            },
+        )
+
+    await client.download_recording(record_name, dest_path.as_posix())
+    if not dest_path.exists():
+        raise FileNotFoundError(f"recording download did not create {dest_path}")
+    size_bytes = dest_path.stat().st_size
+    if size_bytes <= 0:
+        raise ValueError(f"recording download is empty: {dest_path}")
+
+    artifact = TranscriptionArtifact(
+        call_id=session.call_id,
+        channel_id=session.channel_id,
+        stage=stage,
+        turn_idx=turn_idx,
+        record_name=record_name,
+        path=dest_path,
+        size_bytes=size_bytes,
+        sha256=_file_sha256(dest_path),
+    )
+    session.log_event(action="download_recording", status="ok", details=artifact.details())
+    return artifact
+
+
+def _transcribe_audio_artifact(_settings: Settings, artifact: TranscriptionArtifact) -> tuple[str, dict[str, Any]]:
+    """Transcribe the artifact without fabricating speech when no STT backend is configured."""
+    backend = os.getenv("TELEPHONY_STT_BACKEND", "").strip().lower()
+    details = artifact.details()
+    details["stt_backend"] = backend or "none"
+
+    if backend in {"", "none", "disabled"}:
+        details["reason"] = "stt_backend_not_configured"
+        return "", details
+
+    if backend == "fixture":
+        fixture_env = f"TELEPHONY_STT_FIXTURE_{artifact.stage.value}"
+        details["fixture_env"] = fixture_env
+        return os.getenv(fixture_env, "").strip(), details
+
+    if backend in {"openai", "whisper", "whisper_api"}:
+        model = os.getenv("OPENAI_TRANSCRIBE_MODEL", "whisper-1").strip() or "whisper-1"
+        base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").strip()
+        try:
+            audio_bytes = artifact.path.read_bytes()
+            client = WhisperAPIClient(api_key=_settings.openai_api_key, model=model, base_url=base_url)
+            text = client.transcribe(audio_bytes, filename=artifact.path.name)
+        except Exception as exc:
+            details["reason"] = "stt_transcribe_failed"
+            details["error"] = repr(exc)
+            return "", details
+        details["stt_model"] = model
+        return text, details
+
+    details["reason"] = "unsupported_stt_backend"
+    return "", details
 
 
 async def handle_call(
@@ -574,7 +705,8 @@ async def handle_call(
 
                 session.transition(CallState.RECORDING, action="record_start", status="start")
                 turn_idx = session.dialog.turns_done + 1
-                record_name = f"{call_id}_utt{turn_idx}"
+                stage = session.dialog.stage
+                record_name = f"{call_id}_{stage.value.lower()}_utt{turn_idx}"
                 record_start = time.perf_counter()
                 record_result = await client.record_safe(
                     channel_id,
@@ -603,22 +735,45 @@ async def handle_call(
                     reason = event.get("type") or "recording_event_missing"
                     session.transition(CallState.FAILED, action="record_wait", status="fail", reason=reason, dur_ms=dur_ms)
                     return
-                session.log_event(action="record_done", status="ok", dur_ms=dur_ms)
+                session.log_event(
+                    action="record_done",
+                    status="ok",
+                    dur_ms=dur_ms,
+                    details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+                )
 
                 turn_audio = artifact_dir / f"turn_{turn_idx}.wav"
-                await client.download_recording(record_name, turn_audio.as_posix())
-                session.log_event(action="download_recording", status="ok")
+                try:
+                    artifact = await _download_transcription_artifact(
+                        client,
+                        session,
+                        stage,
+                        turn_idx,
+                        record_name,
+                        turn_audio,
+                    )
+                except Exception as exc:
+                    session.transition(
+                        CallState.FAILED,
+                        action="download_recording",
+                        status="fail",
+                        reason=repr(exc),
+                        details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+                    )
+                    return
 
-                transcript_text = _transcribe_placeholder(session.dialog.stage)
+                transcript_text, transcript_details = _transcribe_audio_artifact(settings, artifact)
+                transcript_status = "ok" if transcript_text else "unavailable"
                 session.log_event(
                     action="user_transcribed",
-                    status="ok",
-                    details={"state": session.dialog.stage.value, "text": transcript_text},
+                    status=transcript_status,
+                    reason=None if transcript_text else transcript_details.get("reason", "empty_transcript"),
+                    details={**transcript_details, "text": transcript_text},
                 )
-                prompt_text = next_prompt(session.dialog.stage, session.dialog.profile)
-                _append_turn(artifact_dir, build_turn_record(session.dialog.stage, prompt_text, transcript_text).to_dict())
+                prompt_text = next_prompt(stage, session.dialog.profile)
+                _append_turn(artifact_dir, build_turn_record(stage, prompt_text, transcript_text).to_dict())
 
-                new_stage, new_profile = apply_turn(session.dialog.stage, session.dialog.profile, transcript_text)
+                new_stage, new_profile = apply_turn(stage, session.dialog.profile, transcript_text)
                 session.dialog.stage = new_stage
                 session.dialog.profile = new_profile
                 session.dialog.turns_done += 1
