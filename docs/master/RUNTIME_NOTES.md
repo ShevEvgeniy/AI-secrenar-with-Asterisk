@@ -7,6 +7,8 @@
 - Stage-specific prompts are active in `master`.
 - Transfer after data collection is active in `master`.
 - ARI continue is the established transfer mechanism.
+- Partial publish failures are now classified with `reason` and `failed_step`.
+- Startup can remain resilient when system-sounds prepublish partially fails.
 
 ## Transfer Route Target
 
@@ -66,3 +68,21 @@ Preserve existing tracing and logging. The transfer route node should leave enou
 - During live validation, MicroSIP using the wrong Windows input device produced a false negative for dialog capture.
 - Selecting the correct Windows microphone fixed live ISSUE / NAME / CITY / PHONE capture.
 - The validated transfer path is merged into `master`.
+
+## NODE-002 Runtime Notes
+
+- During startup, `prompt_3` and transfer system sounds failed to publish because SSH to `92.118.85.117:22` timed out.
+- Despite that partial prepublish failure, the listener reached `READY_WAITING_FOR_CALLS`.
+- During the live call, fallback media was used instead of missing `prompt_3` and the missing transfer phrase.
+- Transfer still completed successfully to:
+
+```text
+context=from-internal
+extension=sales_real
+priority=1
+```
+
+## Open Runtime Follow-Ups
+
+- Fallback media currently degrades to `demo-congrats`, which is not meaningful UX.
+- `user_transcribed` content in runtime logs did not match what the caller says they actually spoke.

@@ -37,3 +37,16 @@ priority=1
 ```
 
 Live smoke validation confirmed staged prompts, user speech transcription, transfer phrase playback, and `transfer status=ok`.
+
+## Publish Failure Handling
+
+NODE-002 completed publish hardening. Partial publish failures must remain explicit and diagnosable rather than silently degrading startup or call behavior.
+
+Accepted runtime behavior:
+
+- Startup may continue under partial system-sounds prepublish failure.
+- Publish failures must include `reason` and `failed_step`.
+- Per-call publish failures must remain visible in traces/logs.
+- Existing transfer behavior must continue when fallback media is used.
+
+NODE-002 validation observed SSH timeout to `92.118.85.117:22` while publishing `prompt_3` and transfer system sounds. The listener still reached `READY_WAITING_FOR_CALLS`, and transfer completed to `from-internal,sales_real,1`.
