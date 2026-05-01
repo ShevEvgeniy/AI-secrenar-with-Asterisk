@@ -59,6 +59,20 @@ def _dur_ms_or_diff(
     return int((end_ts - start_ts).total_seconds() * 1000)
 
 
+def _sum_dur_ms(events: list[dict[str, Any]], action: str) -> int | None:
+    total = 0
+    seen = False
+    for event in events:
+        if event.get("action") != action or event.get("dur_ms") is None:
+            continue
+        try:
+            total += int(event["dur_ms"])
+            seen = True
+        except (TypeError, ValueError):
+            continue
+    return total if seen else None
+
+
 def compute_latency_report(events: list[dict[str, Any]]) -> dict[str, Any]:
     call_id = ""
     for event in events:
@@ -67,10 +81,26 @@ def compute_latency_report(events: list[dict[str, Any]]) -> dict[str, Any]:
             call_id = value
             break
 
-    record_ms = _dur_ms_or_diff(events, "record_done", "record_start", "record_done")
+    prompt_ms = _sum_dur_ms(events, "play_prompt")
+    record_sum_ms = _sum_dur_ms(events, "record_done")
+    record_ms = (
+        record_sum_ms
+        if record_sum_ms is not None
+        else _dur_ms_or_diff(events, "record_done", "record_start", "record_done")
+    )
+    download_ms = _sum_dur_ms(events, "download_recording")
+    stt_ms = _sum_dur_ms(events, "user_transcribed")
+    decision_ms = _sum_dur_ms(events, "dialog_decision")
     pipeline_ms = _dur_ms_or_diff(events, "pipeline_done", "pipeline_start", "pipeline_done")
     tts_ms = _dur_ms_or_diff(events, "tts_done", "tts_start", "tts_done")
     publish_ms = _dur_ms_or_diff(events, "publish", "publish_start", "publish")
+    transfer_phrase_ms = _dur_ms_or_diff(
+        events,
+        "play_transfer_phrase",
+        "play_transfer_phrase",
+        "play_transfer_phrase",
+    )
+    transfer_ms = _dur_ms_or_diff(events, "transfer", "transfer", "transfer")
 
     if events and events[0].get("ts") and events[-1].get("ts"):
         total_ms = int(((_parse_ts(str(events[-1]["ts"])) - _parse_ts(str(events[0]["ts"]))).total_seconds()) * 1000)
@@ -79,10 +109,16 @@ def compute_latency_report(events: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "call_id": call_id,
+        "prompt_ms": prompt_ms,
         "record_ms": record_ms,
+        "download_ms": download_ms,
+        "stt_ms": stt_ms,
+        "decision_ms": decision_ms,
         "pipeline_ms": pipeline_ms,
         "tts_ms": tts_ms,
         "publish_ms": publish_ms,
+        "transfer_phrase_ms": transfer_phrase_ms,
+        "transfer_ms": transfer_ms,
         "total_ms": total_ms,
     }
 
@@ -133,10 +169,16 @@ def main() -> int:
 
     print(
         f"CALL {report['call_id']} "
+        f"prompt={_fmt(report['prompt_ms'])} "
         f"record={_fmt(report['record_ms'])} "
+        f"download={_fmt(report['download_ms'])} "
+        f"stt={_fmt(report['stt_ms'])} "
+        f"decision={_fmt(report['decision_ms'])} "
         f"pipeline={_fmt(report['pipeline_ms'])} "
         f"tts={_fmt(report['tts_ms'])} "
         f"publish={_fmt(report['publish_ms'])} "
+        f"transfer_phrase={_fmt(report['transfer_phrase_ms'])} "
+        f"transfer={_fmt(report['transfer_ms'])} "
         f"total={_fmt(report['total_ms'])}"
     )
 

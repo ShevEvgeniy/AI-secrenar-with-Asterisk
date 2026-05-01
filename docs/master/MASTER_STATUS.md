@@ -9,6 +9,7 @@
 - Master docs initialized: yes.
 - Latest completed node branch: `feat/node-004-restore-post-phone-transfer-flow`
 - Latest completed node commit: `8ec82c5790cc513a9d5428abb75a90dbce9b5420`
+- Current node branch: `feat/node-005-latency-and-turn-based-hardening`
 
 ## Confirmed Working
 
@@ -26,6 +27,8 @@
 - Stage and transfer fallback paths now use controlled meaningful fallback phrases.
 - Successful PHONE capture now leads to `play_transfer_phrase -> transfer`.
 - The generic reply path after PHONE is no longer taken on the validated live call.
+- Turn-based real-call recording now uses stage-specific contours to reduce dead air.
+- Runtime events now trace prompt, record, download, STT, decision, transfer phrase, and transfer latency.
 - NODE-001 live smoke validation passed:
   - stage prompts progressed correctly;
   - user speech was transcribed for ISSUE / NAME / CITY / PHONE;
@@ -58,6 +61,12 @@ NODE-004 restored the post-PHONE transfer invariant:
 valid PHONE transcript -> phone_digits saved -> transfer phrase -> ARI continue to from-internal,sales_real,1
 ```
 
+NODE-005 hardens the turn-based latency contour:
+
+```text
+ISSUE longer/tolerant recording -> NAME/CITY/PHONE shorter slot recording -> explicit latency buckets
+```
+
 ## Validation Notes
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
@@ -78,6 +87,8 @@ valid PHONE transcript -> phone_digits saved -> transfer phrase -> ARI continue 
 - Fallback media now uses controlled meaningful fallback phrases instead of `demo-congrats`.
 - NODE-004 prevents the generic reply pipeline from running after successful PHONE capture.
 - NODE-004 fixed the runtime root cause where the PHONE parser rejected dotted separators from STT output.
+- NODE-005 reduces avoidable recording tail latency for NAME, CITY, and PHONE and replaces fixed `30s` recording waits with stage-profile-based waits.
+- NODE-005 extends `scripts/latency_report.py` with turn-based hot-path buckets.
 
 ## NODE-004 Live Smoke
 
@@ -94,10 +105,26 @@ priority=1
 
 - `pipeline_start`, `build_response`, and `reply.wav` did not occur after PHONE in the validated call.
 
+## NODE-005 Local Validation
+
+- Focused regression suite passed:
+
+```text
+python -m pytest tests/test_turn_latency_hardening.py tests/test_post_phone_transfer.py tests/test_latency_report.py tests/test_ari_client_record_params.py tests/test_transcription_integrity.py
+```
+
+- Full local suite attempted:
+
+```text
+python -m pytest
+```
+
+Result: 46 passed, 6 failed. Failures were outside NODE-005: missing `src/scripts/make_demo_audio.py` for synth pipeline tests, and a blocked Hugging Face model fetch in `test_events_and_artifacts_overrides_use_single_directory`.
+
 ## Next Recommended Step
 
 ```text
-Push master after NODE-004 handoff.
+Run one live smoke for NODE-005 and compare latency_report output against a pre-NODE-005 call if available.
 ```
 
 Real live transcription still depends on `TELEPHONY_STT_BACKEND` being explicitly configured, for example `openai` or `whisper_api`.

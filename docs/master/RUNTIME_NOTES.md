@@ -106,3 +106,20 @@ user_transcribed(PHONE) -> play_transfer_phrase -> transfer(context=from-interna
 ```
 
 - The generic response path must not run on that successful PHONE path, so `pipeline_start`, `build_response`, `publish`, and generic `playback` should be absent after valid PHONE collection.
+
+## NODE-005 Runtime Notes
+
+- NODE-005 keeps the current turn-based architecture and the NODE-004 post-PHONE transfer flow.
+- Real-call recording is now stage-specific:
+
+```text
+ISSUE: max_duration=8s, max_silence=2s, wait_timeout=13s
+NAME:  max_duration=4s, max_silence=1s, wait_timeout=8s
+CITY:  max_duration=4s, max_silence=1s, wait_timeout=8s
+PHONE: max_duration=5s, max_silence=1s, wait_timeout=9s
+```
+
+- Runtime events now include timing for prompt playback, record, download, STT, dialog decision, transfer phrase, and ARI continue transfer.
+- `scripts/latency_report.py` now prints turn-based buckets: `prompt`, `record`, `download`, `stt`, `decision`, `transfer_phrase`, and `transfer`, while preserving the existing generic pipeline buckets.
+- Operator overrides are available globally, by slot stages, or by exact stage. Stage-specific variables take precedence, for example `RECORD_PHONE_MAX_SILENCE_SECONDS`.
+- No partial STT, streaming STT, realtime agent, or barge-in behavior was added in this node.

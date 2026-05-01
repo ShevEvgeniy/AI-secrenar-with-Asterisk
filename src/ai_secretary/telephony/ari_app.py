@@ -39,6 +39,7 @@ TRANSFER_FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback_transfer"
 DEFAULT_TRANSFER_CONTEXT = "from-internal"
 DEFAULT_TRANSFER_EXTEN = "sales_real"
 DEFAULT_TRANSFER_PRIORITY = 1
+DEFAULT_RECORD_WAIT_PAD_SECONDS = 3
 BUILTIN_GENERAL_FALLBACK_MEDIA = ("sound:please-try-again", "sound:pls-try-call-later")
 BUILTIN_PROMPT_FALLBACK_MEDIA: dict[DialogStage, str] = {
     DialogStage.ISSUE: "sound:please-try-again",
@@ -93,6 +94,22 @@ class TranscriptionArtifact:
         }
 
 
+@dataclass(frozen=True)
+class RecordProfile:
+    """Per-stage recording contour for the turn-based dialog."""
+
+    max_duration_seconds: int
+    max_silence_seconds: int
+    wait_timeout_seconds: int
+
+    def details(self) -> dict[str, int]:
+        return {
+            "max_duration_seconds": self.max_duration_seconds,
+            "max_silence_seconds": self.max_silence_seconds,
+            "wait_timeout_seconds": self.wait_timeout_seconds,
+        }
+
+
 def _env_int(name: str, default: int) -> int:
     raw = os.getenv(name, str(default)).strip()
     try:
@@ -100,6 +117,50 @@ def _env_int(name: str, default: int) -> int:
     except ValueError:
         return default
     return value if value >= 0 else default
+
+
+def _env_int_optional(name: str) -> int | None:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    try:
+        value = int(raw.strip())
+    except ValueError:
+        return None
+    return value if value >= 0 else None
+
+
+def _stage_env_int(stage: DialogStage, suffix: str, default: int) -> int:
+    stage_name = stage.value.upper()
+    for name in (
+        f"RECORD_{stage_name}_{suffix}",
+        f"RECORD_SLOT_{suffix}",
+        f"RECORD_{suffix}",
+    ):
+        value = _env_int_optional(name)
+        if value is not None:
+            return value
+    return default
+
+
+def _record_profile_for_stage(stage: DialogStage) -> RecordProfile:
+    """Return stage-specific turn-recording limits without changing architecture."""
+    defaults = {
+        DialogStage.ISSUE: (8, 2),
+        DialogStage.NAME: (4, 1),
+        DialogStage.CITY: (4, 1),
+        DialogStage.PHONE: (5, 1),
+    }
+    default_duration, default_silence = defaults.get(stage, (4, 1))
+    max_duration = _stage_env_int(stage, "MAX_DURATION_SECONDS", default_duration)
+    max_silence = _stage_env_int(stage, "MAX_SILENCE_SECONDS", default_silence)
+    wait_pad = _stage_env_int(stage, "WAIT_PAD_SECONDS", DEFAULT_RECORD_WAIT_PAD_SECONDS)
+    wait_timeout = _stage_env_int(stage, "WAIT_TIMEOUT_SECONDS", max(3, max_duration + max_silence + wait_pad))
+    return RecordProfile(
+        max_duration_seconds=max_duration,
+        max_silence_seconds=max_silence,
+        wait_timeout_seconds=wait_timeout,
+    )
 
 
 def _publish_total_timeout_sec() -> int:
@@ -451,17 +512,20 @@ async def _play_transfer_and_continue(
     transfer_context = os.getenv("TRANSFER_CONTEXT", DEFAULT_TRANSFER_CONTEXT).strip() or DEFAULT_TRANSFER_CONTEXT
     transfer_exten = os.getenv("TRANSFER_EXTEN", DEFAULT_TRANSFER_EXTEN).strip() or DEFAULT_TRANSFER_EXTEN
     transfer_priority = _env_int("TRANSFER_PRIORITY", DEFAULT_TRANSFER_PRIORITY)
+    transfer_start = time.perf_counter()
     cont_result = await client.continue_safe(
         session.channel_id,
         context=transfer_context,
         extension=transfer_exten,
         priority=transfer_priority,
     )
+    transfer_ms = int((time.perf_counter() - transfer_start) * 1000)
     if cont_result["ok"]:
         session.transition(
             CallState.DONE,
             action="transfer",
             status="ok",
+            dur_ms=transfer_ms,
             details={
                 "context": transfer_context,
                 "extension": transfer_exten,
@@ -476,6 +540,7 @@ async def _play_transfer_and_continue(
         status="fail",
         reason=cont_result.get("reason"),
         http_status=cont_result.get("http_status"),
+        dur_ms=transfer_ms,
         details=cont_result.get("details"),
     )
     return False, moh_started
@@ -565,6 +630,7 @@ async def _download_transcription_artifact(
             },
         )
 
+    download_start = time.perf_counter()
     await client.download_recording(record_name, dest_path.as_posix())
     if not dest_path.exists():
         raise FileNotFoundError(f"recording download did not create {dest_path}")
@@ -582,7 +648,12 @@ async def _download_transcription_artifact(
         size_bytes=size_bytes,
         sha256=_file_sha256(dest_path),
     )
-    session.log_event(action="download_recording", status="ok", details=artifact.details())
+    session.log_event(
+        action="download_recording",
+        status="ok",
+        dur_ms=int((time.perf_counter() - download_start) * 1000),
+        details=artifact.details(),
+    )
     return artifact
 
 
@@ -711,16 +782,26 @@ async def handle_call(
                     return
                 moh_started = await _maybe_stop_moh(client, session, moh_started)
 
-                session.transition(CallState.RECORDING, action="record_start", status="start")
                 turn_idx = session.dialog.turns_done + 1
                 stage = session.dialog.stage
+                record_profile = _record_profile_for_stage(stage)
+                session.transition(
+                    CallState.RECORDING,
+                    action="record_start",
+                    status="start",
+                    details={
+                        "stage": stage.value,
+                        "turn_idx": turn_idx,
+                        **record_profile.details(),
+                    },
+                )
                 record_name = f"{call_id}_{stage.value.lower()}_utt{turn_idx}"
                 record_start = time.perf_counter()
                 record_result = await client.record_safe(
                     channel_id,
                     record_name,
-                    max_duration_seconds=record_max_duration_seconds,
-                    max_silence_seconds=record_max_silence_seconds,
+                    max_duration_seconds=record_profile.max_duration_seconds,
+                    max_silence_seconds=record_profile.max_silence_seconds,
                     beep=record_beep,
                 )
                 if not record_result["ok"]:
@@ -737,17 +818,33 @@ async def handle_call(
                     )
                     return
 
-                event = await client.wait_for_recording_finished(app_name, record_name, timeout=30)
+                event = await client.wait_for_recording_finished(
+                    app_name,
+                    record_name,
+                    timeout=record_profile.wait_timeout_seconds,
+                )
                 dur_ms = int((time.perf_counter() - record_start) * 1000)
                 if event.get("type") != "RecordingFinished":
                     reason = event.get("type") or "recording_event_missing"
-                    session.transition(CallState.FAILED, action="record_wait", status="fail", reason=reason, dur_ms=dur_ms)
+                    session.transition(
+                        CallState.FAILED,
+                        action="record_wait",
+                        status="fail",
+                        reason=reason,
+                        dur_ms=dur_ms,
+                        details={"stage": stage.value, "turn_idx": turn_idx, **record_profile.details()},
+                    )
                     return
                 session.log_event(
                     action="record_done",
                     status="ok",
                     dur_ms=dur_ms,
-                    details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+                    details={
+                        "stage": stage.value,
+                        "turn_idx": turn_idx,
+                        "record_name": record_name,
+                        **record_profile.details(),
+                    },
                 )
 
                 turn_audio = artifact_dir / f"turn_{turn_idx}.wav"
@@ -770,18 +867,38 @@ async def handle_call(
                     )
                     return
 
-                transcript_text, transcript_details = _transcribe_audio_artifact(settings, artifact)
+                stt_start = time.perf_counter()
+                transcript_text, transcript_details = await asyncio.to_thread(
+                    _transcribe_audio_artifact,
+                    settings,
+                    artifact,
+                )
+                stt_ms = int((time.perf_counter() - stt_start) * 1000)
                 transcript_status = "ok" if transcript_text else "unavailable"
                 session.log_event(
                     action="user_transcribed",
                     status=transcript_status,
                     reason=None if transcript_text else transcript_details.get("reason", "empty_transcript"),
+                    dur_ms=stt_ms,
                     details={**transcript_details, "text": transcript_text},
                 )
                 prompt_text = next_prompt(stage, session.dialog.profile)
                 _append_turn(artifact_dir, build_turn_record(stage, prompt_text, transcript_text).to_dict())
 
+                decision_start = time.perf_counter()
                 new_stage, new_profile = apply_turn(stage, session.dialog.profile, transcript_text)
+                decision_ms = int((time.perf_counter() - decision_start) * 1000)
+                session.log_event(
+                    action="dialog_decision",
+                    status="ok",
+                    dur_ms=decision_ms,
+                    details={
+                        "from_stage": stage.value,
+                        "to_stage": new_stage.value,
+                        "turn_idx": turn_idx,
+                        "profile_fields": sorted(new_profile.keys()),
+                    },
+                )
                 session.dialog.stage = new_stage
                 session.dialog.profile = new_profile
                 session.dialog.turns_done += 1
