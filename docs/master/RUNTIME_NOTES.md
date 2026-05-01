@@ -65,4 +65,4 @@ Preserve existing tracing and logging. The transfer route node should leave enou
 
 - During live validation, MicroSIP using the wrong Windows input device produced a false negative for dialog capture.
 - Selecting the correct Windows microphone fixed live ISSUE / NAME / CITY / PHONE capture.
-- The validated transfer path is ready for master handoff.
+- The validated transfer path is merged into `master`.

@@ -20,12 +20,20 @@
 - Do not mix multiple concerns in one node.
 - Always preserve tracing and logging.
 
-## Current Technical Direction
+## Completed Technical Direction
 
-The next implementation focus is the real transfer route:
+NODE-001 completed the real transfer route:
 
 ```text
-sales_real -> 78007074193 via thermo-trunk-endpoint -> DTMF 52144
+sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 ```
 
-The existing ARI continue transfer flow should be reused. The node should only add or adjust the dialplan/trunk/DTMF behavior necessary to make the real route work.
+The existing ARI continue transfer flow is reused. The validated runtime target is:
+
+```text
+context=from-internal
+extension=sales_real
+priority=1
+```
+
+Live smoke validation confirmed staged prompts, user speech transcription, transfer phrase playback, and `transfer status=ok`.

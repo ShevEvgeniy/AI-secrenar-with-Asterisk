@@ -16,12 +16,12 @@
 - Transfer flow through ARI continue is present in `master`.
 - Tracing and logging are required to be preserved across all node work.
 
-## Current Practical Gap
+## Completed Practical Gap
 
-The remaining practical gap is the real transfer route through the dialplan:
+NODE-001 completed and live-validated the real transfer route through the dialplan:
 
 ```text
-sales_real -> 78007074193 via thermo-trunk-endpoint -> DTMF 52144
+sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 ```
 
 ## Execution Model
@@ -34,23 +34,25 @@ sales_real -> 78007074193 via thermo-trunk-endpoint -> DTMF 52144
 - Do not mix multiple concerns in one node.
 - Preserve tracing and logging.
 
-## Next Action Plan
+## Current Action Plan
 
-1. Create a focused node branch for the real sales transfer route.
-2. Verify the existing ARI continue transfer handoff path and the dialplan entry point it expects.
-3. Implement only the dialplan/trunk/DTMF route needed for:
+1. Treat NODE-001 as complete and merged into `master`.
+2. Preserve the validated runtime transfer target:
 
 ```text
-sales_real -> 78007074193 via thermo-trunk-endpoint -> DTMF 52144
+context=from-internal
+extension=sales_real
+priority=1
 ```
 
-4. Validate with the narrowest practical smoke test:
-   - confirm the transfer path is selected after data collection;
-   - confirm ARI continue reaches the intended dialplan context/extension;
-   - confirm outbound dialing uses `thermo-trunk-endpoint`;
-   - confirm DTMF `52144` is sent;
-   - confirm logs/traces make each stage observable.
-5. Merge the completed node back through the master workflow and update master docs with the result.
+3. Preserve the validated dialplan route:
+
+```text
+sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
+```
+
+4. Keep the MicroSIP input-device false negative documented for future live smoke testing.
+5. Select the next node only after reviewing the remaining practical gaps from the current master state.
 
 ## Node Completion Report Format
 

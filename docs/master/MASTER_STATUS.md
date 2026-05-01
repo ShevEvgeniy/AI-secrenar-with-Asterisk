@@ -9,6 +9,7 @@
 - Master docs initialized: yes.
 - Latest completed node branch: `feat/node-001-sales-real-transfer`
 - Latest completed node commit: `598843d0fc00caa40c935f39dec123acc1b7a6c4`
+- Latest master handoff commit before this documentation update: `e5d1cb6892a2319fb6ebbc05e52ec2d06f98e0fd`
 
 ## Confirmed Working
 
@@ -34,4 +35,4 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
 - Selecting the correct Windows microphone fixed live dialog capture.
-- NODE-001 is ready for fast-forward merge into `master`.
+- NODE-001 is merged into `master`.
