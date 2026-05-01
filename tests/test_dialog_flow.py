@@ -73,6 +73,11 @@ def test_city_reasks_when_not_confident() -> None:
     assert state == DialogStage.CITY
     assert profile == {}
 
+    state, profile = apply_turn(DialogStage.CITY, {}, "Мос")
+
+    assert state == DialogStage.CITY
+    assert profile == {}
+
 
 def test_phone_confirmation_rejects_and_redictates() -> None:
     state, profile = apply_turn(DialogStage.PHONE, {}, "920.032.0355")
@@ -89,3 +94,15 @@ def test_phone_confirmation_rejects_and_redictates() -> None:
     state, profile = apply_turn(state, profile, "верно")
     assert state == DialogStage.DONE
     assert profile["phone_confirmed"] is True
+
+
+def test_phone_reasks_until_complete_digit_floor() -> None:
+    state, profile = apply_turn(DialogStage.PHONE, {}, "920 032")
+
+    assert state == DialogStage.PHONE
+    assert profile == {}
+
+    state, profile = apply_turn(DialogStage.PHONE, {}, "920 032 03 55")
+
+    assert state == DialogStage.PHONE_CONFIRM
+    assert profile["phone_digits"] == "9200320355"

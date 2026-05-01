@@ -125,11 +125,11 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
     assert [(call["max_duration_seconds"], call["max_silence_seconds"]) for call in client.record_calls] == [
         (8, 2),
         (4, 1),
-        (4, 1),
-        (5, 1),
-        (3, 1),
+        (7, 3),
+        (14, 4),
+        (4, 2),
     ]
-    assert client.wait_timeouts == [13, 8, 8, 9, 7]
+    assert client.wait_timeouts == [13, 8, 13, 21, 9]
 
     events = _read_events(session)
     for action in (

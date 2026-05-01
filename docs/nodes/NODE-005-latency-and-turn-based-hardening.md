@@ -25,12 +25,21 @@ Default real-call recording profiles are now stage-specific:
 ```text
 ISSUE: max_duration=8s, max_silence=2s, wait_timeout=13s
 NAME:  max_duration=4s, max_silence=1s, wait_timeout=8s
-CITY:  max_duration=4s, max_silence=1s, wait_timeout=8s
-PHONE: max_duration=5s, max_silence=1s, wait_timeout=9s
-PHONE_CONFIRM: max_duration=3s, max_silence=1s, wait_timeout=7s
+CITY:  max_duration=7s, max_silence=3s, wait_timeout=13s
+PHONE: max_duration=14s, max_silence=4s, wait_timeout=21s
+PHONE_CONFIRM: max_duration=4s, max_silence=2s, wait_timeout=9s
 ```
 
-The ISSUE stage remains more tolerant because callers may describe the problem. NAME, CITY, and PHONE are shorter and more aggressive because they are slot-filling stages.
+The ISSUE stage remains tolerant because callers may describe the problem. NAME stays tight. CITY and PHONE were relaxed after live smoke showed that the previous patch treated short intra-utterance pauses as end-of-speech.
+
+Patch 3 turn-taking guardrails:
+
+- CITY requires at least 4 letters before it can advance to PHONE.
+- PHONE requires a complete 10- or 11-digit captured run before it can advance to PHONE_CONFIRM.
+- CITY and PHONE have longer `maxSilenceSeconds`, so short pauses inside a city name or slow phone dictation do not immediately end the turn.
+- PHONE has the longest non-ISSUE profile because slow digit dictation is expected.
+- Generic `reply.wav` remains blocked while structured collection is incomplete or PHONE is unconfirmed.
+- Live smoke noted poor TTS stress/pronunciation on the phone prompt; this is recorded as a secondary issue and is not part of the NODE-005 acceptance gate unless prompt wording is changed later.
 
 Patch 2 adds explicit confirmation only for PHONE:
 
@@ -102,8 +111,11 @@ For turn-based calls, repeated actions such as `play_prompt`, `record_done`, `do
 
 Added focused coverage proving:
 
-- ISSUE uses the longer recording profile.
-- NAME, CITY, and PHONE use shorter slot profiles.
+- ISSUE uses a tolerant opening profile.
+- NAME stays tighter than CITY and PHONE.
+- CITY and PHONE use relaxed end-of-speech profiles.
+- CITY has a minimum speech floor before advancing.
+- PHONE has a complete digit floor before PHONE_CONFIRM.
 - Recording wait timeouts track the stage profile instead of fixed `30s`.
 - The successful PHONE path transfers only after positive PHONE confirmation.
 - Rejected/unconfirmed PHONE does not run the generic pipeline.

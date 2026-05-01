@@ -148,9 +148,9 @@ def _record_profile_for_stage(stage: DialogStage) -> RecordProfile:
     defaults = {
         DialogStage.ISSUE: (8, 2),
         DialogStage.NAME: (4, 1),
-        DialogStage.CITY: (4, 1),
-        DialogStage.PHONE: (5, 1),
-        DialogStage.PHONE_CONFIRM: (3, 1),
+        DialogStage.CITY: (7, 3),
+        DialogStage.PHONE: (14, 4),
+        DialogStage.PHONE_CONFIRM: (4, 2),
     }
     default_duration, default_silence = defaults.get(stage, (4, 1))
     max_duration = _stage_env_int(stage, "MAX_DURATION_SECONDS", default_duration)

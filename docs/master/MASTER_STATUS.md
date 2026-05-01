@@ -65,7 +65,7 @@ valid PHONE transcript -> phone_digits saved -> transfer phrase -> ARI continue 
 NODE-005 hardens the turn-based latency contour:
 
 ```text
-ISSUE longer/tolerant recording -> NAME/CITY/PHONE shorter slot recording -> PHONE_CONFIRM -> explicit latency buckets
+ISSUE tolerant recording -> NAME tight recording -> CITY relaxed recording -> PHONE slow-dictation recording -> PHONE_CONFIRM -> explicit latency buckets
 ```
 
 ## Validation Notes
@@ -92,6 +92,8 @@ ISSUE longer/tolerant recording -> NAME/CITY/PHONE shorter slot recording -> PHO
 - NODE-005 extends `scripts/latency_report.py` with turn-based hot-path buckets.
 - NODE-005 patch 2 applies explicit confirmation only to PHONE. CITY simply re-asks when not confidently accepted.
 - NODE-005 patch 2 prevents unconfirmed PHONE from falling through to the generic reply pipeline.
+- NODE-005 patch 3 responds to live turn-taking regression: CITY and PHONE end-of-speech were too aggressive, so CITY now uses `7s/3s/13s`, PHONE uses `14s/4s/21s`, and PHONE_CONFIRM uses `4s/2s/9s`.
+- NODE-005 patch 3 adds minimum completion floors: CITY requires at least 4 letters, and PHONE requires a complete 10- or 11-digit run before confirmation.
 
 ## NODE-004 Live Smoke
 
@@ -127,7 +129,7 @@ Result: 46 passed, 6 failed. Failures were outside NODE-005: missing `src/script
 ## Next Recommended Step
 
 ```text
-Run one live smoke for NODE-005 and compare latency_report output against a pre-NODE-005 call if available.
+Run one live re-smoke for NODE-005 patch 3. Current local patch is NOT READY for merge until CITY/PHONE turn-taking is validated live.
 ```
 
 Real live transcription still depends on `TELEPHONY_STT_BACKEND` being explicitly configured, for example `openai` or `whisper_api`.

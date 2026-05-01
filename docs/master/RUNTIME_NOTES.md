@@ -115,9 +115,9 @@ user_transcribed(PHONE) -> play_transfer_phrase -> transfer(context=from-interna
 ```text
 ISSUE: max_duration=8s, max_silence=2s, wait_timeout=13s
 NAME:  max_duration=4s, max_silence=1s, wait_timeout=8s
-CITY:  max_duration=4s, max_silence=1s, wait_timeout=8s
-PHONE: max_duration=5s, max_silence=1s, wait_timeout=9s
-PHONE_CONFIRM: max_duration=3s, max_silence=1s, wait_timeout=7s
+CITY:  max_duration=7s, max_silence=3s, wait_timeout=13s
+PHONE: max_duration=14s, max_silence=4s, wait_timeout=21s
+PHONE_CONFIRM: max_duration=4s, max_silence=2s, wait_timeout=9s
 ```
 
 - Runtime events now include timing for prompt playback, record, download, STT, dialog decision, transfer phrase, and ARI continue transfer.
@@ -128,3 +128,6 @@ PHONE_CONFIRM: max_duration=3s, max_silence=1s, wait_timeout=7s
 - PHONE capture stores a digits-only value stripped from caller formatting, then asks `Правильно ли я записала ваш номер: <formatted_phone>?`.
 - Transfer is allowed only after positive PHONE confirmation. Rejection or re-dictation returns to PHONE capture / replacement confirmation.
 - If PHONE remains unconfirmed, runtime exits through `phone_unconfirmed_no_generic_pipeline` and must not run `pipeline_start`, `build_response`, `publish`, or generic `playback`.
+- NODE-005 patch 3 relaxes CITY and PHONE turn-taking after live smoke showed cutoff regressions. CITY now requires at least 4 letters before advancing; PHONE requires a complete 10- or 11-digit run before `PHONE_CONFIRM`.
+- PHONE now has the longest non-ISSUE end-of-speech profile to tolerate slow dictation and short intra-utterance pauses.
+- Poor TTS stress/pronunciation on the phone prompt was observed during live smoke and recorded as secondary; do not mix it into the NODE-005 acceptance gate unless prompt wording changes.

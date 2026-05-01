@@ -9,6 +9,8 @@ from typing import Any
 
 from .call_session import DialogStage
 
+MIN_CITY_LETTERS = 4
+PHONE_DIGIT_LENGTHS = {10, 11}
 
 PROMPTS: dict[DialogStage, str] = {
     DialogStage.ISSUE: "Здравствуйте! Я Анна, виртуальный секретарь. По какому вопросу вы обращаетесь?",
@@ -66,6 +68,9 @@ def _extract_city(text: str) -> str | None:
     candidate = text.strip()
     if not candidate or not re.search(r"[А-ЯЁA-Zа-яёa-z]", candidate):
         return None
+    letters = re.findall(r"[А-ЯЁA-Zа-яёa-z]", candidate)
+    if len(letters) < MIN_CITY_LETTERS:
+        return None
     return candidate
 
 
@@ -74,7 +79,7 @@ def _digits_only_phone(text: str) -> str | None:
     if not m:
         return None
     digits = "".join(ch for ch in m.group(1) if ch.isdigit())
-    if not digits or len(digits) not in {10, 11}:
+    if not digits or len(digits) not in PHONE_DIGIT_LENGTHS:
         return None
     return digits
 
