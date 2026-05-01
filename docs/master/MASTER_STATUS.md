@@ -28,6 +28,7 @@
 - Successful PHONE capture now leads to `play_transfer_phrase -> transfer`.
 - The generic reply path after PHONE is no longer taken on the validated live call.
 - Turn-based real-call recording now uses stage-specific contours to reduce dead air.
+- PHONE now requires explicit confirmation before validated completion and transfer.
 - Runtime events now trace prompt, record, download, STT, decision, transfer phrase, and transfer latency.
 - NODE-001 live smoke validation passed:
   - stage prompts progressed correctly;
@@ -64,7 +65,7 @@ valid PHONE transcript -> phone_digits saved -> transfer phrase -> ARI continue 
 NODE-005 hardens the turn-based latency contour:
 
 ```text
-ISSUE longer/tolerant recording -> NAME/CITY/PHONE shorter slot recording -> explicit latency buckets
+ISSUE longer/tolerant recording -> NAME/CITY/PHONE shorter slot recording -> PHONE_CONFIRM -> explicit latency buckets
 ```
 
 ## Validation Notes
@@ -89,6 +90,8 @@ ISSUE longer/tolerant recording -> NAME/CITY/PHONE shorter slot recording -> exp
 - NODE-004 fixed the runtime root cause where the PHONE parser rejected dotted separators from STT output.
 - NODE-005 reduces avoidable recording tail latency for NAME, CITY, and PHONE and replaces fixed `30s` recording waits with stage-profile-based waits.
 - NODE-005 extends `scripts/latency_report.py` with turn-based hot-path buckets.
+- NODE-005 patch 2 applies explicit confirmation only to PHONE. CITY simply re-asks when not confidently accepted.
+- NODE-005 patch 2 prevents unconfirmed PHONE from falling through to the generic reply pipeline.
 
 ## NODE-004 Live Smoke
 
@@ -110,7 +113,7 @@ priority=1
 - Focused regression suite passed:
 
 ```text
-python -m pytest tests/test_turn_latency_hardening.py tests/test_post_phone_transfer.py tests/test_latency_report.py tests/test_ari_client_record_params.py tests/test_transcription_integrity.py
+python -m pytest tests/test_dialog_flow.py tests/test_post_phone_transfer.py tests/test_turn_latency_hardening.py tests/test_latency_report.py
 ```
 
 - Full local suite attempted:

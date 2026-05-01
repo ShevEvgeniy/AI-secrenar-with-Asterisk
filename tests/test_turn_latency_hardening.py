@@ -92,12 +92,30 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
         DialogStage.NAME: "Ivan Petrov",
         DialogStage.CITY: "from Moscow",
         DialogStage.PHONE: "920.032.0355",
+        DialogStage.PHONE_CONFIRM: "да",
     }
 
     def fake_transcribe(_settings: Settings, artifact: ari_app.TranscriptionArtifact) -> tuple[str, dict[str, Any]]:
         return transcripts[artifact.stage], artifact.details()
 
     monkeypatch.setattr(ari_app, "_transcribe_audio_artifact", fake_transcribe)
+
+    class _FakeTTS:
+        def synthesize(self, _text: str) -> bytes:
+            return b"RIFFconfirm"
+
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: {
+            "ok": True,
+            "sound_id": "sound:ai_secretary/call-node-005/phone_confirm_prompt",
+            "remote_path": "/tmp/phone_confirm_prompt.wav",
+            "error": None,
+            "details": {},
+        },
+    )
 
     session = CallSession(call_id="call-node-005", channel_id="ch-node-005", artifact_dir=tmp_path / "artifacts")
     client = _LatencyClient()
@@ -109,8 +127,9 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
         (4, 1),
         (4, 1),
         (5, 1),
+        (3, 1),
     ]
-    assert client.wait_timeouts == [13, 8, 8, 9]
+    assert client.wait_timeouts == [13, 8, 8, 9, 7]
 
     events = _read_events(session)
     for action in (

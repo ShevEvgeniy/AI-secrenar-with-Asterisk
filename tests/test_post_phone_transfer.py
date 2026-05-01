@@ -81,6 +81,19 @@ class _PhoneTransferClient:
         raise AssertionError("hangup should not be used after successful PHONE transfer")
 
 
+class _UnconfirmedPhoneClient(_PhoneTransferClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.hangups = 0
+
+    async def continue_safe(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("unconfirmed PHONE must not transfer")
+
+    async def hangup_safe(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        self.hangups += 1
+        return {"ok": True}
+
+
 def test_successful_phone_capture_transfers_without_generic_pipeline(monkeypatch, tmp_path: Path) -> None:
     ari_app._reset_fallback_cache_for_tests()
     monkeypatch.setenv("PLAY_TEST", "0")
@@ -95,6 +108,7 @@ def test_successful_phone_capture_transfers_without_generic_pipeline(monkeypatch
         DialogStage.NAME: "Ivan Petrov",
         DialogStage.CITY: "from Moscow",
         DialogStage.PHONE: "920.032.0355",
+        DialogStage.PHONE_CONFIRM: "да",
     }
 
     def fake_transcribe(_settings: Settings, artifact: ari_app.TranscriptionArtifact) -> tuple[str, dict[str, Any]]:
@@ -106,13 +120,31 @@ def test_successful_phone_capture_transfers_without_generic_pipeline(monkeypatch
     monkeypatch.setattr(ari_app, "_transcribe_audio_artifact", fake_transcribe)
     monkeypatch.setattr(ari_app, "run_pipeline_from_transcript", fail_pipeline)
 
+    class _FakeTTS:
+        def synthesize(self, _text: str) -> bytes:
+            return b"RIFFconfirm"
+
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: {
+            "ok": True,
+            "sound_id": "sound:ai_secretary/call-node-004/phone_confirm_prompt",
+            "remote_path": "/tmp/phone_confirm_prompt.wav",
+            "error": None,
+            "details": {},
+        },
+    )
+
     session = CallSession(call_id="call-node-004", channel_id="ch-node-004", artifact_dir=tmp_path / "artifacts")
     client = _PhoneTransferClient()
 
     asyncio.run(ari_app.handle_call(client, _settings(tmp_path), "app", session))
     events = _read_events(session)
 
-    assert client.record_names[-1].endswith("_phone_utt4")
+    assert client.record_names[-2].endswith("_phone_utt4")
+    assert client.record_names[-1].endswith("_phone_confirm_utt5")
     assert client.play_calls[-1] == ari_app.TRANSFER_SOUND_ID
     assert client.continue_calls == [
         {
@@ -123,7 +155,60 @@ def test_successful_phone_capture_transfers_without_generic_pipeline(monkeypatch
         }
     ]
     profile = json.loads((session.artifact_dir / "profile.json").read_text(encoding="utf-8"))
-    assert profile["phone_digits"] == "79200320355"
+    assert profile["phone_digits"] == "9200320355"
+    assert profile["phone_confirmed"] is True
     assert any(event["action"] == "play_transfer_phrase" and event["status"] == "ok" for event in events)
     assert any(event["action"] == "transfer" and event["status"] == "ok" for event in events)
+    assert not any(event["action"] in {"pipeline_start", "build_response", "publish", "playback"} for event in events)
+
+
+def test_unconfirmed_phone_does_not_fall_through_to_generic_pipeline(monkeypatch, tmp_path: Path) -> None:
+    ari_app._reset_fallback_cache_for_tests()
+    monkeypatch.setenv("PLAY_TEST", "0")
+    for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sound_id] = True
+
+    stage_counts: dict[DialogStage, int] = {}
+
+    def fake_transcribe(_settings: Settings, artifact: ari_app.TranscriptionArtifact) -> tuple[str, dict[str, Any]]:
+        stage_counts[artifact.stage] = stage_counts.get(artifact.stage, 0) + 1
+        transcripts = {
+            DialogStage.ISSUE: "Need cylinders",
+            DialogStage.NAME: "Ivan Petrov",
+            DialogStage.CITY: "from Moscow",
+            DialogStage.PHONE: "920.032.0355" if stage_counts[artifact.stage] == 1 else "",
+            DialogStage.PHONE_CONFIRM: "нет",
+        }
+        return transcripts[artifact.stage], artifact.details()
+
+    def fail_pipeline(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("generic reply pipeline must not run while PHONE is unconfirmed")
+
+    class _FakeTTS:
+        def synthesize(self, _text: str) -> bytes:
+            return b"RIFFconfirm"
+
+    monkeypatch.setattr(ari_app, "_transcribe_audio_artifact", fake_transcribe)
+    monkeypatch.setattr(ari_app, "run_pipeline_from_transcript", fail_pipeline)
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: {
+            "ok": True,
+            "sound_id": "sound:ai_secretary/call-unconfirmed/phone_confirm_prompt",
+            "remote_path": "/tmp/phone_confirm_prompt.wav",
+            "error": None,
+            "details": {},
+        },
+    )
+
+    session = CallSession(call_id="call-unconfirmed", channel_id="ch-unconfirmed", artifact_dir=tmp_path / "artifacts")
+    client = _UnconfirmedPhoneClient()
+
+    asyncio.run(ari_app.handle_call(client, _settings(tmp_path), "app", session))
+    events = _read_events(session)
+
+    assert client.hangups == 1
+    assert any(event["action"] == "phone_unconfirmed_no_generic_pipeline" for event in events)
     assert not any(event["action"] in {"pipeline_start", "build_response", "publish", "playback"} for event in events)

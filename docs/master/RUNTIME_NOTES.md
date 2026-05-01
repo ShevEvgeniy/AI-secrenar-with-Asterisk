@@ -117,9 +117,14 @@ ISSUE: max_duration=8s, max_silence=2s, wait_timeout=13s
 NAME:  max_duration=4s, max_silence=1s, wait_timeout=8s
 CITY:  max_duration=4s, max_silence=1s, wait_timeout=8s
 PHONE: max_duration=5s, max_silence=1s, wait_timeout=9s
+PHONE_CONFIRM: max_duration=3s, max_silence=1s, wait_timeout=7s
 ```
 
 - Runtime events now include timing for prompt playback, record, download, STT, dialog decision, transfer phrase, and ARI continue transfer.
 - `scripts/latency_report.py` now prints turn-based buckets: `prompt`, `record`, `download`, `stt`, `decision`, `transfer_phrase`, and `transfer`, while preserving the existing generic pipeline buckets.
 - Operator overrides are available globally, by slot stages, or by exact stage. Stage-specific variables take precedence, for example `RECORD_PHONE_MAX_SILENCE_SECONDS`.
 - No partial STT, streaming STT, realtime agent, or barge-in behavior was added in this node.
+- NODE-005 patch 2 adds explicit confirmation only for PHONE. CITY re-asks on low-confidence input but has no confirmation substage.
+- PHONE capture stores a digits-only value stripped from caller formatting, then asks `Правильно ли я записала ваш номер: <formatted_phone>?`.
+- Transfer is allowed only after positive PHONE confirmation. Rejection or re-dictation returns to PHONE capture / replacement confirmation.
+- If PHONE remains unconfirmed, runtime exits through `phone_unconfirmed_no_generic_pipeline` and must not run `pipeline_start`, `build_response`, `publish`, or generic `playback`.

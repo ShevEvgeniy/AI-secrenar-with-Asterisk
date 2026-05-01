@@ -27,9 +27,26 @@ ISSUE: max_duration=8s, max_silence=2s, wait_timeout=13s
 NAME:  max_duration=4s, max_silence=1s, wait_timeout=8s
 CITY:  max_duration=4s, max_silence=1s, wait_timeout=8s
 PHONE: max_duration=5s, max_silence=1s, wait_timeout=9s
+PHONE_CONFIRM: max_duration=3s, max_silence=1s, wait_timeout=7s
 ```
 
 The ISSUE stage remains more tolerant because callers may describe the problem. NAME, CITY, and PHONE are shorter and more aggressive because they are slot-filling stages.
+
+Patch 2 adds explicit confirmation only for PHONE:
+
+```text
+PHONE plausible -> PHONE_CONFIRM -> positive confirmation -> DONE -> transfer
+```
+
+CITY remains a normal capture stage. If CITY is not confidently accepted, the flow re-asks CITY; there is no CITY confirmation substage.
+
+PHONE now strips formatting and keeps the captured digits-only form. Plausible values enter `PHONE_CONFIRM` and ask:
+
+```text
+Правильно ли я записала ваш номер: <formatted_phone>?
+```
+
+If the caller rejects or re-dictates, the flow returns to PHONE capture or re-confirms the replacement number. While PHONE is unconfirmed, the call does not fall through to the generic `reply.wav` / received-request path.
 
 Operators can override the defaults:
 
@@ -75,7 +92,8 @@ For turn-based calls, repeated actions such as `play_prompt`, `record_done`, `do
 
 - NODE-004 successful PHONE transfer boundary is unchanged.
 - The transfer target remains `from-internal,sales_real,1`.
-- Generic pipeline work still does not run after successful PHONE capture.
+- Generic pipeline work still does not run after confirmed PHONE capture.
+- Generic pipeline work also does not run while PHONE is plausible but unconfirmed.
 - Publish hardening and controlled fallback media remain in place.
 - Transcription integrity remains tied to the downloaded audio artifact and SHA-256 metadata.
 - No realtime, partial STT, streaming STT, or barge-in behavior was introduced.
@@ -87,7 +105,8 @@ Added focused coverage proving:
 - ISSUE uses the longer recording profile.
 - NAME, CITY, and PHONE use shorter slot profiles.
 - Recording wait timeouts track the stage profile instead of fixed `30s`.
-- The successful PHONE path still transfers and does not hang up or run the generic pipeline.
+- The successful PHONE path transfers only after positive PHONE confirmation.
+- Rejected/unconfirmed PHONE does not run the generic pipeline.
 - Latency events include `dur_ms` for the hot-path stages.
 - The latency report includes the new turn-based buckets.
 
@@ -96,7 +115,7 @@ Added focused coverage proving:
 Run:
 
 ```text
-python -m pytest tests/test_turn_latency_hardening.py tests/test_post_phone_transfer.py tests/test_latency_report.py tests/test_ari_client_record_params.py tests/test_transcription_integrity.py
+python -m pytest tests/test_dialog_flow.py tests/test_post_phone_transfer.py tests/test_turn_latency_hardening.py tests/test_latency_report.py tests/test_ari_client_record_params.py tests/test_transcription_integrity.py
 ```
 
 Focused regression validation passed.

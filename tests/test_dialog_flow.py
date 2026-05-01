@@ -10,21 +10,27 @@ def test_dialog_state_transitions_typical_inputs() -> None:
     profile: dict[str, str] = {}
     state = DialogStage.ISSUE
 
-    state, profile = apply_turn(state, profile, "Хочу уточнить условия поставки оборудования.")
+    state, profile = apply_turn(state, profile, "Need cylinders")
     assert state == DialogStage.NAME
-    assert profile["issue"].startswith("Хочу уточнить")
+    assert profile["issue"] == "Need cylinders"
 
-    state, profile = apply_turn(state, profile, "Меня зовут Иван Петров")
+    state, profile = apply_turn(state, profile, "Ivan Petrov")
     assert state == DialogStage.CITY
-    assert profile["name"] == "Иван Петров"
+    assert profile["name"] == "Ivan Petrov"
 
-    state, profile = apply_turn(state, profile, "Я из Казани")
+    state, profile = apply_turn(state, profile, "from Moscow")
     assert state == DialogStage.PHONE
-    assert profile["city"] == "Казани"
+    assert profile["city"] == "from Moscow"
 
-    state, profile = apply_turn(state, profile, "Мой телефон 9 903 678 46 53")
+    state, profile = apply_turn(state, profile, "My phone is 9 903 678 46 53")
+    assert state == DialogStage.PHONE_CONFIRM
+    assert profile["phone_digits"] == "99036784653"
+    assert profile["phone_confirmed"] is False
+
+    state, profile = apply_turn(state, profile, "да")
     assert state == DialogStage.DONE
-    assert profile["phone_digits"] == "79036784653"
+    assert profile["phone_digits"] == "99036784653"
+    assert profile["phone_confirmed"] is True
 
 
 def test_dialog_max_turns_stops_loop() -> None:
@@ -34,10 +40,7 @@ def test_dialog_max_turns_stops_loop() -> None:
     max_turns = 4
 
     while not should_stop_dialog(state, turns_done, max_turns):
-        if state == DialogStage.ISSUE:
-            transcript = "Нужна помощь с заказом."
-        else:
-            transcript = ""
+        transcript = "Need order help" if state == DialogStage.ISSUE else ""
         state, profile = apply_turn(state, profile, transcript)
         turns_done += 1
 
@@ -59,5 +62,30 @@ def test_dialog_done_prompt_exact_transfer_phrase() -> None:
 def test_phone_stage_accepts_dotted_mobile_transcription() -> None:
     state, profile = apply_turn(DialogStage.PHONE, {}, "920.032.0355")
 
+    assert state == DialogStage.PHONE_CONFIRM
+    assert profile["phone_digits"] == "9200320355"
+    assert profile["phone_formatted"] == "+7 920 032-03-55"
+
+
+def test_city_reasks_when_not_confident() -> None:
+    state, profile = apply_turn(DialogStage.CITY, {}, "12345")
+
+    assert state == DialogStage.CITY
+    assert profile == {}
+
+
+def test_phone_confirmation_rejects_and_redictates() -> None:
+    state, profile = apply_turn(DialogStage.PHONE, {}, "920.032.0355")
+    assert state == DialogStage.PHONE_CONFIRM
+
+    state, profile = apply_turn(state, profile, "нет")
+    assert state == DialogStage.PHONE
+    assert profile["phone_confirmed"] is False
+
+    state, profile = apply_turn(state, profile, "903 678 46 53")
+    assert state == DialogStage.PHONE_CONFIRM
+    assert profile["phone_digits"] == "9036784653"
+
+    state, profile = apply_turn(state, profile, "верно")
     assert state == DialogStage.DONE
-    assert profile["phone_digits"] == "79200320355"
+    assert profile["phone_confirmed"] is True

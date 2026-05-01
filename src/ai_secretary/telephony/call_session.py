@@ -30,6 +30,7 @@ class DialogStage(str, Enum):
     NAME = "NAME"
     CITY = "CITY"
     PHONE = "PHONE"
+    PHONE_CONFIRM = "PHONE_CONFIRM"
     DONE = "DONE"
 
 

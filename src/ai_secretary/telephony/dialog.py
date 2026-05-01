@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from ..llm.parsers import normalize_ru_phone
 from .call_session import DialogStage
 
 
@@ -16,6 +15,7 @@ PROMPTS: dict[DialogStage, str] = {
     DialogStage.NAME: "Как я могу к вам обращаться?",
     DialogStage.CITY: "Из какого города или региона вы звоните?",
     DialogStage.PHONE: "Подскажите номер телефона для связи.",
+    DialogStage.PHONE_CONFIRM: "Правильно ли я записала ваш номер?",
     DialogStage.DONE: "хорошо я соединяю вас с отделом продаж.",
 }
 
@@ -40,7 +40,10 @@ class TurnRecord:
 
 def next_prompt(state: DialogStage, profile: dict[str, Any]) -> str:
     """Return prompt text for current state."""
-    _ = profile
+    if state == DialogStage.PHONE_CONFIRM:
+        formatted_phone = profile.get("phone_formatted") or profile.get("phone_digits") or ""
+        if formatted_phone:
+            return f"Правильно ли я записала ваш номер: {formatted_phone}?"
     return PROMPTS.get(state, PROMPTS[DialogStage.DONE])
 
 
@@ -60,18 +63,46 @@ def _extract_city(text: str) -> str | None:
     m = re.search(r"(?:из|с)\s+([А-ЯЁA-Z][а-яёa-z-]+(?:\s+[А-ЯЁA-Z][а-яёa-z-]+)?)", text, flags=re.IGNORECASE)
     if m:
         return m.group(1).strip()
-    return text.strip() or None
+    candidate = text.strip()
+    if not candidate or not re.search(r"[А-ЯЁA-Zа-яёa-z]", candidate):
+        return None
+    return candidate
 
 
-def _extract_phone(text: str) -> str | None:
+def _digits_only_phone(text: str) -> str | None:
     m = re.search(r"(\+?\d[\d\s().\-]{8,}\d)", text)
     if not m:
         return None
-    normalized = normalize_ru_phone(m.group(1))
-    digits = normalized.get("digits")
-    if not digits or len(digits) != 11 or not digits.startswith("7"):
+    digits = "".join(ch for ch in m.group(1) if ch.isdigit())
+    if not digits or len(digits) not in {10, 11}:
         return None
     return digits
+
+
+def _format_phone_for_confirmation(digits: str) -> str:
+    display_digits = digits
+    if len(digits) == 10:
+        return f"+7 {digits[0:3]} {digits[3:6]}-{digits[6:8]}-{digits[8:10]}"
+    if len(digits) == 11:
+        return f"+{digits[0]} {digits[1:4]} {digits[4:7]}-{digits[7:9]}-{digits[9:11]}"
+    return display_digits
+
+
+def _extract_phone(text: str) -> tuple[str, str] | None:
+    digits = _digits_only_phone(text)
+    if digits is None:
+        return None
+    return digits, _format_phone_for_confirmation(digits)
+
+
+def _is_positive_confirmation(text: str) -> bool:
+    normalized = text.strip().lower()
+    return bool(re.search(r"\b(да|верно|правильно|угу|ага|подтверждаю|всё верно|все верно)\b", normalized))
+
+
+def _is_negative_confirmation(text: str) -> bool:
+    normalized = text.strip().lower()
+    return bool(re.search(r"\b(нет|не верно|неверно|неправильно|ошибка|ошиблась|другой|заново)\b", normalized))
 
 
 def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str) -> tuple[DialogStage, dict[str, Any]]:
@@ -99,9 +130,27 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
     if state == DialogStage.PHONE:
         phone = _extract_phone(text)
         if phone:
-            updated["phone_digits"] = phone
-            return DialogStage.DONE, updated
+            digits, formatted = phone
+            updated["phone_digits"] = digits
+            updated["phone_formatted"] = formatted
+            updated["phone_confirmed"] = False
+            return DialogStage.PHONE_CONFIRM, updated
         return DialogStage.PHONE, updated
+    if state == DialogStage.PHONE_CONFIRM:
+        phone = _extract_phone(text)
+        if phone:
+            digits, formatted = phone
+            updated["phone_digits"] = digits
+            updated["phone_formatted"] = formatted
+            updated["phone_confirmed"] = False
+            return DialogStage.PHONE_CONFIRM, updated
+        if _is_negative_confirmation(text):
+            updated["phone_confirmed"] = False
+            return DialogStage.PHONE, updated
+        if _is_positive_confirmation(text) and updated.get("phone_digits"):
+            updated["phone_confirmed"] = True
+            return DialogStage.DONE, updated
+        return DialogStage.PHONE_CONFIRM, updated
     return DialogStage.DONE, updated
 
 
