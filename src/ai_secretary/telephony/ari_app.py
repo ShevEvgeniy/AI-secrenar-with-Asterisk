@@ -26,6 +26,9 @@ PROMPT_3_SOUND_ID = "sound:ai_secretary/_system/prompt_3"
 PROMPT_4_SOUND_ID = "sound:ai_secretary/_system/prompt_4"
 FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback"
 TRANSFER_SOUND_ID = "sound:ai_secretary/_system/transfer"
+DEFAULT_TRANSFER_CONTEXT = "from-internal"
+DEFAULT_TRANSFER_EXTEN = "sales_real"
+DEFAULT_TRANSFER_PRIORITY = 1
 BUILTIN_FALLBACK_MEDIA = ("sound:demo-congrats", "sound:tt-weasels")
 
 _SYSTEM_SOUND_TEXTS: dict[str, str] = {
@@ -356,9 +359,9 @@ async def _play_transfer_and_continue(
         return False, moh_started
 
     session.log_event(action="play_transfer_phrase", status="ok", media=media, sound_id=media, dur_ms=dur_ms)
-    transfer_context = os.getenv("TRANSFER_CONTEXT", "from-internal").strip() or "from-internal"
-    transfer_exten = os.getenv("TRANSFER_EXTEN", "sales").strip() or "sales"
-    transfer_priority = _env_int("TRANSFER_PRIORITY", 1)
+    transfer_context = os.getenv("TRANSFER_CONTEXT", DEFAULT_TRANSFER_CONTEXT).strip() or DEFAULT_TRANSFER_CONTEXT
+    transfer_exten = os.getenv("TRANSFER_EXTEN", DEFAULT_TRANSFER_EXTEN).strip() or DEFAULT_TRANSFER_EXTEN
+    transfer_priority = _env_int("TRANSFER_PRIORITY", DEFAULT_TRANSFER_PRIORITY)
     cont_result = await client.continue_safe(
         session.channel_id,
         context=transfer_context,

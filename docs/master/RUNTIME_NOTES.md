@@ -16,6 +16,31 @@ The current target route is:
 sales_real -> 78007074193 via thermo-trunk-endpoint -> DTMF 52144
 ```
 
+The AI secretary ARI handoff target is:
+
+```text
+context: from-internal
+extension: sales_real
+priority: 1
+```
+
+Runtime environment defaults now point to this target. Operators may still set these explicitly:
+
+```text
+TRANSFER_CONTEXT=from-internal
+TRANSFER_EXTEN=sales_real
+TRANSFER_PRIORITY=1
+```
+
+Required Asterisk dialplan route:
+
+```asterisk
+[from-internal]
+exten => sales_real,1,NoOp(AI secretary sales real transfer)
+ same => n,Dial(PJSIP/78007074193@thermo-trunk-endpoint,60,D(52144))
+ same => n,Hangup()
+```
+
 ## Observability Requirements
 
 Preserve existing tracing and logging. The transfer route node should leave enough logs to identify:

@@ -40,6 +40,31 @@ The node must support this route:
 sales_real -> 78007074193 via thermo-trunk-endpoint -> DTMF 52144
 ```
 
+Runtime ARI continue target:
+
+```text
+context: from-internal
+extension: sales_real
+priority: 1
+```
+
+Runtime env, if set explicitly:
+
+```text
+TRANSFER_CONTEXT=from-internal
+TRANSFER_EXTEN=sales_real
+TRANSFER_PRIORITY=1
+```
+
+Asterisk dialplan snippet:
+
+```asterisk
+[from-internal]
+exten => sales_real,1,NoOp(AI secretary sales real transfer)
+ same => n,Dial(PJSIP/78007074193@thermo-trunk-endpoint,60,D(52144))
+ same => n,Hangup()
+```
+
 Expected behavior:
 
 - The post-data-collection transfer selects `sales_real`.
@@ -56,6 +81,17 @@ Expected behavior:
 4. Confirm the destination number is `78007074193`.
 5. Confirm DTMF `52144` is emitted.
 6. Confirm traces/logs show each transfer stage clearly enough for troubleshooting.
+
+Live smoke call on extension `501`:
+
+1. Install or confirm the `sales_real` dialplan route in `[from-internal]`.
+2. Run `asterisk -rx "dialplan reload"`.
+3. Start the ARI listener with the runtime env above.
+4. Call `501` and provide issue, name, city/region, and phone number.
+5. Confirm the caller hears exactly: `хорошо я соединяю вас с отделом продаж.`
+6. Confirm the call leaves ARI through `from-internal,sales_real,1`.
+7. Confirm Asterisk logs show `Dial(PJSIP/78007074193@thermo-trunk-endpoint,60,D(52144))`.
+8. Confirm the outbound leg answers and DTMF `52144` is sent.
 
 ## Success Criteria
 
