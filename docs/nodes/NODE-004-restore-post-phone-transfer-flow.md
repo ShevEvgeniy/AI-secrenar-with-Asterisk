@@ -55,6 +55,35 @@ Run:
 python -m pytest tests/test_post_phone_transfer.py tests/test_sales_real_transfer.py tests/test_dialog_flow.py
 ```
 
+Validated live smoke:
+
+- `call_id`: `1777641576.42`
+- ISSUE / NAME / CITY / PHONE each reached `user_transcribed=ok`.
+- After PHONE, events showed `play_transfer_phrase` followed by `transfer status=ok`.
+- Transfer completed successfully to:
+
+```text
+context=from-internal
+extension=sales_real
+priority=1
+```
+
+- `pipeline_start`, `build_response`, and `reply.wav` did not occur after PHONE in this validated call.
+
+## Validated Result
+
+- Successful PHONE capture now leads to `play_transfer_phrase -> transfer`.
+- The generic reply path after PHONE is no longer taken on the validated live call.
+- Transfer completed successfully to `from-internal,sales_real,1`.
+- The runtime root cause was the PHONE parser rejecting dotted separators from STT output.
+- After patching dotted-phone normalization, live transfer flow was restored.
+
+## Validated Commit
+
+```text
+8ec82c5790cc513a9d5428abb75a90dbce9b5420
+```
+
 ## Status
 
-READY pending final test run and commit.
+READY and merged into `master`.

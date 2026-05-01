@@ -36,6 +36,12 @@ NODE-003 completed and validated transcription integrity plus meaningful fallbac
 real downloaded caller audio artifact -> traceable transcription metadata -> no fabricated user_transcribed text
 ```
 
+NODE-004 completed and validated post-PHONE transfer flow restoration:
+
+```text
+successful PHONE capture -> play_transfer_phrase -> transfer status=ok
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -48,7 +54,7 @@ real downloaded caller audio artifact -> traceable transcription metadata -> no 
 
 ## Current Action Plan
 
-1. Treat NODE-001, NODE-002, and NODE-003 as complete and merged into `master`.
+1. Treat NODE-001, NODE-002, NODE-003, and NODE-004 as complete and merged into `master`.
 2. Preserve the validated runtime transfer target:
 
 ```text
@@ -67,15 +73,15 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 5. Keep the MicroSIP input-device false negative documented for future live smoke testing.
 6. Preserve NODE-003 transcription artifact traceability through `call_id`, `stage`, `turn_idx`, `audio_path`, `audio_size_bytes`, and `audio_sha256`.
 7. Preserve controlled meaningful fallback phrases for stage and transfer fallback paths.
-8. Run one live smoke with a real STT backend configured.
+8. Preserve NODE-004 post-PHONE transfer behavior so the generic reply pipeline is not taken after successful PHONE capture.
 
 ## Next Recommended Step
 
 ```text
-Run one live smoke with TELEPHONY_STT_BACKEND configured, for example openai or whisper_api.
+Push master after NODE-004 handoff.
 ```
 
-The smoke should confirm live transcription uses the configured backend and remains tied to the downloaded caller audio artifact.
+Real live transcription still depends on `TELEPHONY_STT_BACKEND` being explicitly configured, for example `openai` or `whisper_api`.
 
 ## Node Completion Report Format
 

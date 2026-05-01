@@ -96,6 +96,9 @@ priority=1
 
 - Successful PHONE capture is now an immediate transfer boundary in the ARI dialog loop.
 - Live smoke `1777640788.40` exposed an STT formatting case where the phone was transcribed as `920.032.0355`; PHONE parsing now accepts dotted numeric separators and normalizes that to `79200320355`.
+- Validated live smoke `1777641576.42` confirmed ISSUE / NAME / CITY / PHONE each reached `user_transcribed=ok`.
+- After PHONE in live smoke `1777641576.42`, events showed `play_transfer_phrase` followed by `transfer status=ok`.
+- `pipeline_start`, `build_response`, and `reply.wav` did not occur after PHONE in the validated call.
 - Expected event order after a valid PHONE transcript:
 
 ```text
