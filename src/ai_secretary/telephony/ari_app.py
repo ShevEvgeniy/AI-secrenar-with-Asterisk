@@ -40,6 +40,10 @@ FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback"
 TRANSFER_SOUND_ID = "sound:ai_secretary/_system/transfer"
 TRANSFER_ACCOUNTING_SOUND_ID = "sound:ai_secretary/_system/transfer_accounting"
 TRANSFER_DELIVERY_SOUND_ID = "sound:ai_secretary/_system/transfer_delivery"
+SAFE_FINISH_BASELINE_SOUND_ID = "sound:ai_secretary/_system/safe_finish"
+SAFE_FINISH_MISSING_REQUIRED_SOUND_ID = "sound:ai_secretary/_system/safe_finish_missing_required_data"
+SAFE_FINISH_INTENT_NOT_RESOLVED_SOUND_ID = "sound:ai_secretary/_system/safe_finish_intent_not_resolved"
+SAFE_FINISH_PHONE_NOT_CONFIRMED_SOUND_ID = "sound:ai_secretary/_system/safe_finish_phone_not_confirmed"
 PROMPT_FALLBACK_SOUND_IDS: dict[DialogStage, str] = {
     DialogStage.ISSUE: "sound:ai_secretary/_system/fallback_prompt_1",
     DialogStage.INTENT_CLARIFY: "sound:ai_secretary/_system/fallback_prompt_intent_clarify",
@@ -77,6 +81,65 @@ TRANSFER_PHRASES: dict[Department, str] = {
     "accounting": "\u0425\u043e\u0440\u043e\u0448\u043e, \u044f \u0441\u043e\u0435\u0434\u0438\u043d\u044f\u044e \u0432\u0430\u0441 \u0441 \u0431\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0438\u0435\u0439.",
     "delivery": "\u0425\u043e\u0440\u043e\u0448\u043e, \u044f \u0441\u043e\u0435\u0434\u0438\u043d\u044f\u044e \u0432\u0430\u0441 \u0441 \u043e\u0442\u0434\u0435\u043b\u043e\u043c \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0438.",
 }
+SAFE_FINISH_BASELINE_PHRASE = (
+    "\u0418\u0437\u0432\u0438\u043d\u0438\u0442\u0435, \u044f \u043d\u0435 \u0441\u043c\u043e\u0433\u043b\u0430 "
+    "\u043a\u043e\u0440\u0440\u0435\u043a\u0442\u043d\u043e \u0437\u0430\u043f\u0438\u0441\u0430\u0442\u044c "
+    "\u0432\u0430\u0448\u0438 \u0434\u0430\u043d\u043d\u044b\u0435. \u041f\u043e\u0436\u0430\u043b\u0443\u0439\u0441\u0442\u0430, "
+    "\u043f\u043e\u0437\u0432\u043e\u043d\u0438\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437, \u0438 \u044f "
+    "\u043f\u043e\u0441\u0442\u0430\u0440\u0430\u044e\u0441\u044c \u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u043e "
+    "\u0437\u0430\u0444\u0438\u043a\u0441\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0435 "
+    "\u0438 \u0441\u043e\u0435\u0434\u0438\u043d\u0438\u0442\u044c \u0432\u0430\u0441 \u0441\u043e "
+    "\u0441\u043f\u0435\u0446\u0438\u0430\u043b\u0438\u0441\u0442\u043e\u043c."
+)
+SAFE_FINISH_PHRASES: dict[str, str] = {
+    "baseline": SAFE_FINISH_BASELINE_PHRASE,
+    "missing_required_data": (
+        "\u0418\u0437\u0432\u0438\u043d\u0438\u0442\u0435, \u044f \u043d\u0435 \u0441\u043c\u043e\u0433\u043b\u0430 "
+        "\u043a\u043e\u0440\u0440\u0435\u043a\u0442\u043d\u043e \u0437\u0430\u043f\u0438\u0441\u0430\u0442\u044c "
+        "\u043e\u0431\u044f\u0437\u0430\u0442\u0435\u043b\u044c\u043d\u044b\u0435 \u0434\u0430\u043d\u043d\u044b\u0435. "
+        "\u041f\u043e\u0436\u0430\u043b\u0443\u0439\u0441\u0442\u0430, \u043f\u043e\u0437\u0432\u043e\u043d\u0438\u0442\u0435 "
+        "\u0435\u0449\u0451 \u0440\u0430\u0437, \u0438 \u044f \u043f\u043e\u0441\u0442\u0430\u0440\u0430\u044e\u0441\u044c "
+        "\u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u043e \u0437\u0430\u0444\u0438\u043a\u0441\u0438\u0440\u043e\u0432\u0430\u0442\u044c "
+        "\u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0435 \u0438 \u0441\u043e\u0435\u0434\u0438\u043d\u0438\u0442\u044c "
+        "\u0432\u0430\u0441 \u0441\u043e \u0441\u043f\u0435\u0446\u0438\u0430\u043b\u0438\u0441\u0442\u043e\u043c."
+    ),
+    "intent_not_resolved": (
+        "\u0418\u0437\u0432\u0438\u043d\u0438\u0442\u0435, \u044f \u043d\u0435 \u0441\u043c\u043e\u0433\u043b\u0430 "
+        "\u043d\u0430\u0434\u0451\u0436\u043d\u043e \u043e\u043f\u0440\u0435\u0434\u0435\u043b\u0438\u0442\u044c "
+        "\u043d\u0443\u0436\u043d\u044b\u0439 \u043e\u0442\u0434\u0435\u043b. \u041f\u043e\u0436\u0430\u043b\u0443\u0439\u0441\u0442\u0430, "
+        "\u043f\u043e\u0437\u0432\u043e\u043d\u0438\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437, \u0438 \u044f "
+        "\u043f\u043e\u0441\u0442\u0430\u0440\u0430\u044e\u0441\u044c \u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u043e "
+        "\u0437\u0430\u0444\u0438\u043a\u0441\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0435 "
+        "\u0438 \u0441\u043e\u0435\u0434\u0438\u043d\u0438\u0442\u044c \u0432\u0430\u0441 \u0441\u043e "
+        "\u0441\u043f\u0435\u0446\u0438\u0430\u043b\u0438\u0441\u0442\u043e\u043c."
+    ),
+    "phone_not_confirmed": (
+        "\u0418\u0437\u0432\u0438\u043d\u0438\u0442\u0435, \u044f \u043d\u0435 \u0441\u043c\u043e\u0433\u043b\u0430 "
+        "\u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044c \u043d\u043e\u043c\u0435\u0440 "
+        "\u0442\u0435\u043b\u0435\u0444\u043e\u043d\u0430 \u0434\u043b\u044f \u0441\u0432\u044f\u0437\u0438. "
+        "\u041f\u043e\u0436\u0430\u043b\u0443\u0439\u0441\u0442\u0430, \u043f\u043e\u0437\u0432\u043e\u043d\u0438\u0442\u0435 "
+        "\u0435\u0449\u0451 \u0440\u0430\u0437, \u0438 \u044f \u043f\u043e\u0441\u0442\u0430\u0440\u0430\u044e\u0441\u044c "
+        "\u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u043e \u0437\u0430\u0444\u0438\u043a\u0441\u0438\u0440\u043e\u0432\u0430\u0442\u044c "
+        "\u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0435 \u0438 \u0441\u043e\u0435\u0434\u0438\u043d\u0438\u0442\u044c "
+        "\u0432\u0430\u0441 \u0441\u043e \u0441\u043f\u0435\u0446\u0438\u0430\u043b\u0438\u0441\u0442\u043e\u043c."
+    ),
+}
+SAFE_FINISH_SOUND_IDS: dict[str, str] = {
+    "baseline": SAFE_FINISH_BASELINE_SOUND_ID,
+    "missing_required_data": SAFE_FINISH_MISSING_REQUIRED_SOUND_ID,
+    "intent_not_resolved": SAFE_FINISH_INTENT_NOT_RESOLVED_SOUND_ID,
+    "phone_not_confirmed": SAFE_FINISH_PHONE_NOT_CONFIRMED_SOUND_ID,
+}
+SAFE_FINISH_REASON_ALIASES: dict[str, str] = {
+    "name_retry_limit": "missing_required_data",
+    "city_retry_limit": "missing_required_data",
+    "dialog_retry_limit": "missing_required_data",
+    "intent_retry_limit": "intent_not_resolved",
+    "intent_not_resolved": "intent_not_resolved",
+    "phone_retry_limit": "phone_not_confirmed",
+    "phone_not_confirmed": "phone_not_confirmed",
+    "missing_required_data": "missing_required_data",
+}
 
 _SYSTEM_SOUND_TEXTS: dict[str, str] = {
     PROMPT_1_SOUND_ID: PROMPTS[DialogStage.ISSUE],
@@ -94,6 +157,10 @@ _SYSTEM_SOUND_TEXTS: dict[str, str] = {
     TRANSFER_ACCOUNTING_SOUND_ID: TRANSFER_PHRASES["accounting"],
     TRANSFER_DELIVERY_SOUND_ID: TRANSFER_PHRASES["delivery"],
     TRANSFER_FALLBACK_SOUND_ID: TRANSFER_PHRASES["sales"],
+    SAFE_FINISH_BASELINE_SOUND_ID: SAFE_FINISH_PHRASES["baseline"],
+    SAFE_FINISH_MISSING_REQUIRED_SOUND_ID: SAFE_FINISH_PHRASES["missing_required_data"],
+    SAFE_FINISH_INTENT_NOT_RESOLVED_SOUND_ID: SAFE_FINISH_PHRASES["intent_not_resolved"],
+    SAFE_FINISH_PHONE_NOT_CONFIRMED_SOUND_ID: SAFE_FINISH_PHRASES["phone_not_confirmed"],
 }
 _system_sound_status: dict[str, bool] = {sound_id: False for sound_id in _SYSTEM_SOUND_TEXTS}
 _system_sounds_done = False
@@ -519,6 +586,109 @@ async def _play_fallback(
             return False, moh_started
 
     return fallback_played, moh_started
+
+
+def _safe_finish_phrase_key(reason: str) -> str:
+    return SAFE_FINISH_REASON_ALIASES.get(reason, "baseline")
+
+
+def _resolve_safe_finish_phrase(
+    reason: str,
+    system_sounds: dict[str, bool],
+) -> tuple[str, str, str, str, bool]:
+    phrase_key = _safe_finish_phrase_key(reason)
+    phrase_text = SAFE_FINISH_PHRASES.get(phrase_key) or SAFE_FINISH_BASELINE_PHRASE
+    sound_id = SAFE_FINISH_SOUND_IDS.get(phrase_key) or SAFE_FINISH_BASELINE_SOUND_ID
+    if system_sounds.get(sound_id, False):
+        return phrase_key, phrase_text, sound_id, sound_id, True
+
+    baseline_media = SAFE_FINISH_BASELINE_SOUND_ID
+    return "baseline", SAFE_FINISH_BASELINE_PHRASE, baseline_media, baseline_media, system_sounds.get(baseline_media, False)
+
+
+async def _play_safe_finish_phrase(
+    client: AriClient,
+    settings: Settings,
+    app_name: str,
+    session: CallSession,
+    system_sounds: dict[str, bool],
+    moh_started: bool,
+    reason: str,
+) -> tuple[bool, bool]:
+    phrase_key, phrase_text, sound_id, media, media_available = _resolve_safe_finish_phrase(reason, system_sounds)
+    session.log_event(
+        action="safe_finish_phrase_resolved",
+        status="ok",
+        media=media if media_available else "",
+        sound_id=sound_id if media_available else "",
+        details={
+            "safe_finish_reason": reason,
+            "phrase_key": phrase_key,
+            "phrase_text": phrase_text,
+            "resolved_sound_id": sound_id if media_available else "",
+            "resolved_media": media if media_available else "",
+            "static_media_available": media_available,
+        },
+    )
+    if not media_available:
+        played, moh_started = await _play_dynamic_prompt(
+            client,
+            settings,
+            app_name,
+            session,
+            DialogStage.SAFE_FINISH,
+            phrase_text,
+            moh_started,
+        )
+        session.log_event(
+            action="safe_finish_phrase_played",
+            status="ok" if played else "fail",
+            reason=None if played else "dynamic_prompt_failed",
+            details={
+                "safe_finish_reason": reason,
+                "phrase_key": phrase_key,
+                "phrase_text": phrase_text,
+                "dynamic": True,
+            },
+        )
+        return played, moh_started
+
+    started = time.perf_counter()
+    moh_started = await _maybe_stop_moh(client, session, moh_started)
+    result = await client.play_safe(session.channel_id, media)
+    dur_ms = int((time.perf_counter() - started) * 1000)
+    if result["ok"]:
+        session.log_event(
+            action="safe_finish_phrase_played",
+            status="ok",
+            media=media,
+            sound_id=sound_id,
+            dur_ms=dur_ms,
+            details={
+                "safe_finish_reason": reason,
+                "phrase_key": phrase_key,
+                "phrase_text": phrase_text,
+                **(result.get("details") or {}),
+            },
+        )
+        return True, moh_started
+
+    session.log_event(
+        action="safe_finish_phrase_played",
+        status="fail",
+        reason=result.get("reason"),
+        http_status=result.get("http_status"),
+        media=media,
+        sound_id=sound_id,
+        dur_ms=dur_ms,
+        details={
+            "safe_finish_reason": reason,
+            "phrase_key": phrase_key,
+            "phrase_text": phrase_text,
+            **(result.get("details") or {}),
+        },
+    )
+    return False, moh_started
 
 
 def _prompt_media_for_stage(stage: DialogStage, system_sounds: dict[str, bool]) -> str:
@@ -1515,7 +1685,17 @@ async def handle_call(
                         "retry_limit": session.dialog.profile.get("last_retry_limit"),
                     },
                 )
-                _played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
+                played_safe_finish, moh_started = await _play_safe_finish_phrase(
+                    client,
+                    settings,
+                    app_name,
+                    session,
+                    system_sounds,
+                    moh_started,
+                    reason,
+                )
+                if not played_safe_finish:
+                    _played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
                 await client.hangup_safe(channel_id)
                 return
             if session.dialog.stage == DialogStage.DONE:

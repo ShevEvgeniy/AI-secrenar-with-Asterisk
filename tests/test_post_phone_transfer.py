@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from ai_secretary.config.settings import Settings
 from ai_secretary.telephony import ari_app
 from ai_secretary.telephony.call_session import CallSession, DialogStage
@@ -223,8 +225,71 @@ def test_unconfirmed_phone_does_not_fall_through_to_generic_pipeline(monkeypatch
 
     assert client.hangups == 1
     assert any(event["action"] == "safe_finish" and event["reason"] == "phone_retry_limit" for event in events)
+    phrase_events = [event for event in events if event["action"] == "safe_finish_phrase_resolved"]
+    assert phrase_events
+    assert phrase_events[-1]["details"]["safe_finish_reason"] == "phone_retry_limit"
+    assert phrase_events[-1]["details"]["phrase_key"] == "phone_not_confirmed"
+    assert "\u043d\u043e\u043c\u0435\u0440 \u0442\u0435\u043b\u0435\u0444\u043e\u043d\u0430" in phrase_events[-1]["details"]["phrase_text"]
+    assert phrase_events[-1]["media"] == ari_app.SAFE_FINISH_PHONE_NOT_CONFIRMED_SOUND_ID
+    assert phrase_events[-1]["sound_id"] == ari_app.SAFE_FINISH_PHONE_NOT_CONFIRMED_SOUND_ID
+    assert any(
+        event["action"] == "safe_finish_phrase_played"
+        and event["status"] == "ok"
+        and event["media"] == ari_app.SAFE_FINISH_PHONE_NOT_CONFIRMED_SOUND_ID
+        for event in events
+    )
+    assert client.play_calls[-1] == ari_app.SAFE_FINISH_PHONE_NOT_CONFIRMED_SOUND_ID
     assert client.continue_calls == []
     assert not any(event["action"] in {"pipeline_start", "build_response", "publish", "playback"} for event in events)
+
+
+def test_safe_finish_phrase_resolution_falls_back_to_baseline_when_reason_unknown() -> None:
+    phrase_key, phrase_text, sound_id, media, available = ari_app._resolve_safe_finish_phrase(
+        "unknown_safe_finish_reason",
+        {ari_app.SAFE_FINISH_BASELINE_SOUND_ID: True},
+    )
+
+    assert phrase_key == "baseline"
+    assert phrase_text == ari_app.SAFE_FINISH_BASELINE_PHRASE
+    assert sound_id == ari_app.SAFE_FINISH_BASELINE_SOUND_ID
+    assert media == ari_app.SAFE_FINISH_BASELINE_SOUND_ID
+    assert available is True
+
+
+@pytest.mark.parametrize(
+    ("reason", "phrase_key", "sound_id", "phrase_fragment"),
+    [
+        (
+            "name_retry_limit",
+            "missing_required_data",
+            ari_app.SAFE_FINISH_MISSING_REQUIRED_SOUND_ID,
+            "\u043e\u0431\u044f\u0437\u0430\u0442\u0435\u043b\u044c\u043d\u044b\u0435 "
+            "\u0434\u0430\u043d\u043d\u044b\u0435",
+        ),
+        (
+            "intent_not_resolved",
+            "intent_not_resolved",
+            ari_app.SAFE_FINISH_INTENT_NOT_RESOLVED_SOUND_ID,
+            "\u043d\u0443\u0436\u043d\u044b\u0439 \u043e\u0442\u0434\u0435\u043b",
+        ),
+        (
+            "phone_retry_limit",
+            "phone_not_confirmed",
+            ari_app.SAFE_FINISH_PHONE_NOT_CONFIRMED_SOUND_ID,
+            "\u043d\u043e\u043c\u0435\u0440 \u0442\u0435\u043b\u0435\u0444\u043e\u043d\u0430",
+        ),
+    ],
+)
+def test_safe_finish_phrase_resolution_uses_required_reason_variants(
+    reason: str,
+    phrase_key: str,
+    sound_id: str,
+    phrase_fragment: str,
+) -> None:
+    resolved = ari_app._resolve_safe_finish_phrase(reason, {sound_id: True})
+
+    assert resolved == (phrase_key, ari_app.SAFE_FINISH_PHRASES[phrase_key], sound_id, sound_id, True)
+    assert phrase_fragment in resolved[1]
 
 
 def test_intent_clarify_recording_timeout_defaults_without_call_flow_exception(monkeypatch, tmp_path: Path) -> None:
