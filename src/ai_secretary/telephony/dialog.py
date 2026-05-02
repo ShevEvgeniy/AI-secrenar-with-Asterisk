@@ -11,6 +11,7 @@ from .call_session import DialogStage
 
 MIN_CITY_LETTERS = 4
 PHONE_DIGIT_LENGTHS = {10, 11}
+NAME_JUNK_TOKENS = {"you", "yeah", "yes", "no", "ok", "okay", "test"}
 PHONE_RETRY_PROMPTS: dict[str, tuple[str, ...]] = {
     "unclear": (
         "Возможно, я плохо расслышала. Продиктуйте, пожалуйста, номер ещё раз.",
@@ -24,6 +25,23 @@ PHONE_RETRY_PROMPTS: dict[str, tuple[str, ...]] = {
         "Спасибо, тогда продиктуйте номер ещё раз полностью.",
         "Хорошо, продиктуйте, пожалуйста, номер ещё раз.",
     ),
+    "meta_repair": (
+        "Да, возможно, я плохо расслышала. Продиктуйте, пожалуйста, номер ещё раз полностью.",
+        "Похоже, я записала номер не совсем корректно. Назовите его ещё раз, пожалуйста.",
+        "Хорошо, давайте уточним номер. Продиктуйте его ещё раз полностью.",
+    ),
+}
+RU_DIGIT_WORDS = {
+    "0": "ноль",
+    "1": "один",
+    "2": "два",
+    "3": "три",
+    "4": "четыре",
+    "5": "пять",
+    "6": "шесть",
+    "7": "семь",
+    "8": "восемь",
+    "9": "девять",
 }
 
 PROMPTS: dict[DialogStage, str] = {
@@ -61,9 +79,9 @@ def next_prompt(state: DialogStage, profile: dict[str, Any]) -> str:
         if isinstance(retry_prompt, str) and retry_prompt:
             return retry_prompt
     if state == DialogStage.PHONE_CONFIRM:
-        formatted_phone = profile.get("phone_formatted") or profile.get("phone_digits") or ""
-        if formatted_phone:
-            return f"Правильно ли я записала ваш номер: {formatted_phone}?"
+        phone_text = phone_confirm_prompt_text(profile)
+        if phone_text:
+            return phone_text
     return PROMPTS.get(state, PROMPTS[DialogStage.DONE])
 
 
@@ -77,6 +95,18 @@ def _extract_name(text: str) -> str | None:
     if len(words) >= 2:
         return f"{words[0]} {words[1]}"
     return words[0]
+
+
+def _is_name_confident(name: str, source_text: str) -> bool:
+    letters = re.findall(r"[А-ЯЁA-Zа-яёa-z]", name)
+    if len(letters) < 2:
+        return False
+    lowered = name.strip().lower()
+    if lowered in NAME_JUNK_TOKENS:
+        return False
+    if re.search(r"[А-ЯЁа-яё]", source_text):
+        return True
+    return bool(re.match(r"^[A-Z][a-z-]+(?:\s+[A-Z][a-z-]+)?$", name.strip()))
 
 
 def _extract_city(text: str) -> str | None:
@@ -132,6 +162,23 @@ def _format_phone_for_confirmation(digits: str) -> str:
     return display_digits
 
 
+def phone_digits_to_spoken_ru(digits: str) -> str:
+    """Return TTS-safe Russian digit words for a phone number."""
+    return ", ".join(RU_DIGIT_WORDS[digit] for digit in digits if digit in RU_DIGIT_WORDS)
+
+
+def phone_confirm_prompt_text(profile: dict[str, Any]) -> str:
+    digits = str(profile.get("phone_digits") or "")
+    if digits:
+        spoken_phone = profile.get("phone_spoken") or phone_digits_to_spoken_ru(digits)
+        if spoken_phone:
+            return f"Правильно ли я записала ваш номер: {spoken_phone}?"
+    formatted_phone = profile.get("phone_formatted") or ""
+    if formatted_phone:
+        return f"Правильно ли я записала ваш номер: {formatted_phone}?"
+    return ""
+
+
 def _extract_phone(text: str) -> tuple[str, str] | None:
     digits = _digits_only_phone(text)
     if digits is None:
@@ -149,6 +196,20 @@ def _is_negative_confirmation(text: str) -> bool:
     return bool(re.search(r"\b(нет|не верно|неверно|неправильно|ошибка|ошиблась|другой|заново)\b", normalized))
 
 
+def _is_meta_repair(text: str) -> bool:
+    normalized = text.strip().lower()
+    patterns = (
+        r"я уже сказал",
+        r"вы ничего не произнесли",
+        r"что-то не так",
+        r"что то не так",
+        r"вы не так записали",
+        r"не так записали",
+        r"плохо расслыш",
+    )
+    return any(re.search(pattern, normalized) for pattern in patterns)
+
+
 def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str) -> tuple[DialogStage, dict[str, Any]]:
     """Update profile and next state from one transcript."""
     updated = dict(profile)
@@ -161,7 +222,7 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
         return DialogStage.ISSUE, updated
     if state == DialogStage.NAME:
         name = _extract_name(text)
-        if name:
+        if name and _is_name_confident(name, text):
             updated["name"] = name
             return DialogStage.CITY, updated
         return DialogStage.NAME, updated
@@ -177,6 +238,7 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             digits, formatted = phone
             updated["phone_digits"] = digits
             updated["phone_formatted"] = formatted
+            updated["phone_spoken"] = phone_digits_to_spoken_ru(digits)
             updated["phone_confirmed"] = False
             _clear_phone_retry_prompt(updated)
             return DialogStage.PHONE_CONFIRM, updated
@@ -188,9 +250,14 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             digits, formatted = phone
             updated["phone_digits"] = digits
             updated["phone_formatted"] = formatted
+            updated["phone_spoken"] = phone_digits_to_spoken_ru(digits)
             updated["phone_confirmed"] = False
             _clear_phone_retry_prompt(updated)
             return DialogStage.PHONE_CONFIRM, updated
+        if _is_meta_repair(text):
+            updated["phone_confirmed"] = False
+            _set_phone_retry_prompt(updated, "meta_repair")
+            return DialogStage.PHONE, updated
         if _is_negative_confirmation(text):
             updated["phone_confirmed"] = False
             _set_phone_retry_prompt(updated, "rejected")

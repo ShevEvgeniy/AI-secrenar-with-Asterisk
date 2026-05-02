@@ -10,6 +10,9 @@ import threading
 _STRESS_DICT_CACHE: dict[str, str] | None = None
 _STRESS_DICT_PATH_CACHE: str | None = None
 _STRESS_LOCK = threading.Lock()
+_BUILTIN_STRESS_OVERRIDES = {
+    "связи": "св+язи",
+}
 
 
 def inn_digits_to_spaced(inn_digits: str) -> str:
@@ -67,7 +70,7 @@ def _get_stress_dict() -> dict[str, str]:
     with _STRESS_LOCK:
         if _STRESS_DICT_CACHE is not None and _STRESS_DICT_PATH_CACHE == path:
             return _STRESS_DICT_CACHE
-        _STRESS_DICT_CACHE = _load_stress_dict(path)
+        _STRESS_DICT_CACHE = {**_BUILTIN_STRESS_OVERRIDES, **_load_stress_dict(path)}
         _STRESS_DICT_PATH_CACHE = path
         return _STRESS_DICT_CACHE
 

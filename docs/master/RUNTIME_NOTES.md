@@ -117,7 +117,7 @@ ISSUE: max_duration=8s, max_silence=2s, wait_timeout=13s
 NAME:  max_duration=4s, max_silence=1s, wait_timeout=8s
 CITY:  max_duration=7s, max_silence=3s, wait_timeout=13s
 PHONE: max_duration=14s, max_silence=4s, wait_timeout=21s
-PHONE_CONFIRM: max_duration=4s, max_silence=2s, wait_timeout=9s
+PHONE_CONFIRM: max_duration=6s, max_silence=3s, wait_timeout=12s
 ```
 
 - Runtime events now include timing for prompt playback, record, download, STT, dialog decision, transfer phrase, and ARI continue transfer.
@@ -132,3 +132,6 @@ PHONE_CONFIRM: max_duration=4s, max_silence=2s, wait_timeout=9s
 - PHONE now has the longest non-ISSUE end-of-speech profile to tolerate slow dictation and short intra-utterance pauses.
 - Poor TTS stress/pronunciation on the phone prompt was observed during live smoke and recorded as secondary; do not mix it into the NODE-005 acceptance gate unless prompt wording changes.
 - NODE-005 patch 4 varies only PHONE retry prompts. Reasons are `unclear`, `incomplete`, and `rejected`; the same PHONE retry phrase should not repeat twice in a row.
+- NODE-005 patch 5 keeps `phone_formatted` for debug/display but feeds PHONE_CONFIRM TTS with `phone_spoken`, a Russian digit-by-digit string, to avoid TTS skipping symbolic formatting such as `+7 920 032-03-55`.
+- NODE-005 patch 6 adds an explicit `PlaybackFinished` barrier before PHONE_CONFIRM recording, then a default `400 ms` guard delay. `PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS` defaults to `15`.
+- NODE-005 patch 6 expands PHONE_CONFIRM capture to `6s/3s/12s`, handles meta-repair phrases neutrally, adds a NAME garbage guard, and forces the fixed PHONE system prompt to `prompt_4_v2` with built-in stress preprocessing for `связи -> св+язи`.

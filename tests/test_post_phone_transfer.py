@@ -64,7 +64,10 @@ class _PhoneTransferClient:
 
     async def play_safe(self, _channel_id: str, media: str) -> dict[str, Any]:
         self.play_calls.append(media)
-        return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
+        return {"ok": True, "reason": "ok", "http_status": 200, "details": {"payload": {"id": f"play-{len(self.play_calls)}"}}}
+
+    async def wait_for_playback_finished(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        return {"type": "PlaybackFinished"}
 
     async def continue_safe(self, channel_id: str, context: str, extension: str, priority: int) -> dict[str, Any]:
         self.continue_calls.append(
@@ -97,6 +100,7 @@ class _UnconfirmedPhoneClient(_PhoneTransferClient):
 def test_successful_phone_capture_transfers_without_generic_pipeline(monkeypatch, tmp_path: Path) -> None:
     ari_app._reset_fallback_cache_for_tests()
     monkeypatch.setenv("PLAY_TEST", "0")
+    monkeypatch.setenv("PHONE_CONFIRM_GUARD_DELAY_MS", "0")
     monkeypatch.delenv("TRANSFER_CONTEXT", raising=False)
     monkeypatch.delenv("TRANSFER_EXTEN", raising=False)
     monkeypatch.delenv("TRANSFER_PRIORITY", raising=False)
@@ -165,6 +169,7 @@ def test_successful_phone_capture_transfers_without_generic_pipeline(monkeypatch
 def test_unconfirmed_phone_does_not_fall_through_to_generic_pipeline(monkeypatch, tmp_path: Path) -> None:
     ari_app._reset_fallback_cache_for_tests()
     monkeypatch.setenv("PLAY_TEST", "0")
+    monkeypatch.setenv("PHONE_CONFIRM_GUARD_DELAY_MS", "0")
     for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
         ari_app._system_sound_status[sound_id] = True
 

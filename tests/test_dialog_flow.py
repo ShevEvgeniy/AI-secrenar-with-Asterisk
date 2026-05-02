@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from ai_secretary.telephony.call_session import DialogStage
-from ai_secretary.telephony.dialog import PHONE_RETRY_PROMPTS, apply_turn, next_prompt, should_stop_dialog
+from ai_secretary.telephony.dialog import (
+    PHONE_RETRY_PROMPTS,
+    apply_turn,
+    next_prompt,
+    phone_confirm_prompt_text,
+    phone_digits_to_spoken_ru,
+    should_stop_dialog,
+)
 
 
 def test_dialog_state_transitions_typical_inputs() -> None:
@@ -79,6 +86,18 @@ def test_city_reasks_when_not_confident() -> None:
     assert profile == {}
 
 
+def test_name_reasks_on_obvious_stt_junk() -> None:
+    state, profile = apply_turn(DialogStage.NAME, {}, "you")
+
+    assert state == DialogStage.NAME
+    assert profile == {}
+
+    state, profile = apply_turn(DialogStage.NAME, {}, "Ivan Petrov")
+
+    assert state == DialogStage.CITY
+    assert profile["name"] == "Ivan Petrov"
+
+
 def test_phone_confirmation_rejects_and_redictates() -> None:
     state, profile = apply_turn(DialogStage.PHONE, {}, "920.032.0355")
     assert state == DialogStage.PHONE_CONFIRM
@@ -133,3 +152,29 @@ def test_negative_phone_confirmation_uses_rejected_retry_prompt() -> None:
     assert state == DialogStage.PHONE
     assert profile["phone_retry_reason"] == "rejected"
     assert next_prompt(state, profile) == PHONE_RETRY_PROMPTS["rejected"][0]
+
+
+def test_phone_confirmation_meta_repair_returns_to_phone_capture() -> None:
+    state, profile = apply_turn(DialogStage.PHONE, {}, "920.032.0355")
+    assert state == DialogStage.PHONE_CONFIRM
+
+    state, profile = apply_turn(state, profile, "вы ничего не произнесли")
+
+    assert state == DialogStage.PHONE
+    assert profile["phone_retry_reason"] == "meta_repair"
+    assert next_prompt(state, profile) == PHONE_RETRY_PROMPTS["meta_repair"][0]
+
+
+def test_phone_confirm_prompt_uses_tts_safe_spoken_digits() -> None:
+    state, profile = apply_turn(DialogStage.PHONE, {}, "920.032.0355")
+
+    assert state == DialogStage.PHONE_CONFIRM
+    assert profile["phone_formatted"] == "+7 920 032-03-55"
+    assert profile["phone_spoken"] == "девять, два, ноль, ноль, три, два, ноль, три, пять, пять"
+    assert phone_digits_to_spoken_ru("79200320355") == (
+        "семь, девять, два, ноль, ноль, три, два, ноль, три, пять, пять"
+    )
+    assert phone_confirm_prompt_text(profile) == (
+        "Правильно ли я записала ваш номер: девять, два, ноль, ноль, три, два, ноль, три, пять, пять?"
+    )
+    assert next_prompt(state, profile) == phone_confirm_prompt_text(profile)

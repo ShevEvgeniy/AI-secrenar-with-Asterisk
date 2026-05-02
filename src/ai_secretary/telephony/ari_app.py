@@ -26,7 +26,7 @@ from .publish_to_asterisk import publish_wav_to_asterisk
 PROMPT_1_SOUND_ID = "sound:ai_secretary/_system/prompt_1"
 PROMPT_2_SOUND_ID = "sound:ai_secretary/_system/prompt_2"
 PROMPT_3_SOUND_ID = "sound:ai_secretary/_system/prompt_3"
-PROMPT_4_SOUND_ID = "sound:ai_secretary/_system/prompt_4"
+PROMPT_4_SOUND_ID = "sound:ai_secretary/_system/prompt_4_v2"
 FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback"
 TRANSFER_SOUND_ID = "sound:ai_secretary/_system/transfer"
 PROMPT_FALLBACK_SOUND_IDS: dict[DialogStage, str] = {
@@ -40,6 +40,8 @@ DEFAULT_TRANSFER_CONTEXT = "from-internal"
 DEFAULT_TRANSFER_EXTEN = "sales_real"
 DEFAULT_TRANSFER_PRIORITY = 1
 DEFAULT_RECORD_WAIT_PAD_SECONDS = 3
+DEFAULT_PHONE_CONFIRM_GUARD_DELAY_MS = 400
+DEFAULT_PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS = 15
 BUILTIN_GENERAL_FALLBACK_MEDIA = ("sound:please-try-again", "sound:pls-try-call-later")
 BUILTIN_PROMPT_FALLBACK_MEDIA: dict[DialogStage, str] = {
     DialogStage.ISSUE: "sound:please-try-again",
@@ -150,7 +152,7 @@ def _record_profile_for_stage(stage: DialogStage) -> RecordProfile:
         DialogStage.NAME: (4, 1),
         DialogStage.CITY: (7, 3),
         DialogStage.PHONE: (14, 4),
-        DialogStage.PHONE_CONFIRM: (4, 2),
+        DialogStage.PHONE_CONFIRM: (6, 3),
     }
     default_duration, default_silence = defaults.get(stage, (4, 1))
     max_duration = _stage_env_int(stage, "MAX_DURATION_SECONDS", default_duration)
@@ -167,6 +169,15 @@ def _record_profile_for_stage(stage: DialogStage) -> RecordProfile:
 def _publish_total_timeout_sec() -> int:
     value = _env_int("PUBLISH_TOTAL_TIMEOUT_SEC", 35)
     return value if value > 0 else 35
+
+
+def _phone_confirm_guard_delay_ms() -> int:
+    return _env_int("PHONE_CONFIRM_GUARD_DELAY_MS", DEFAULT_PHONE_CONFIRM_GUARD_DELAY_MS)
+
+
+def _phone_confirm_playback_timeout_sec() -> int:
+    value = _env_int("PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS", DEFAULT_PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS)
+    return value if value > 0 else DEFAULT_PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS
 
 
 def _system_sounds_publish_timeout_sec() -> int:
@@ -215,6 +226,13 @@ def _publish_fail_reason(message: str, details: dict[str, Any] | None = None) ->
 
 def _publish_result_reason(result: dict[str, Any]) -> str:
     return _publish_fail_reason(str(result.get("error") or ""), result.get("details") or {})
+
+
+def _playback_id_from_result(result: dict[str, Any]) -> str:
+    details = result.get("details") or {}
+    payload = details.get("payload") or {}
+    playback_id = payload.get("id")
+    return str(playback_id or "")
 
 
 async def _play_publish_failure_fallback(
@@ -550,6 +568,7 @@ async def _play_transfer_and_continue(
 async def _play_phone_confirmation_prompt(
     client: AriClient,
     settings: Settings,
+    app_name: str,
     session: CallSession,
     moh_started: bool,
 ) -> tuple[bool, bool]:
@@ -625,41 +644,93 @@ async def _play_phone_confirmation_prompt(
 
     moh_started = await _maybe_stop_moh(client, session, moh_started)
     play_result = await client.play_safe(session.channel_id, media)
-    dur_ms = int((time.perf_counter() - started) * 1000)
-    if play_result["ok"]:
+    playback_id = _playback_id_from_result(play_result)
+    if not play_result["ok"]:
+        dur_ms = int((time.perf_counter() - started) * 1000)
         session.log_event(
             action="play_prompt",
-            status="ok",
+            status="fail",
+            reason=play_result.get("reason"),
+            http_status=play_result.get("http_status"),
+            media=media,
+            sound_id=media,
+            dur_ms=dur_ms,
+            details={**(play_result.get("details") or {}), "stage": DialogStage.PHONE_CONFIRM.value},
+        )
+        return False, moh_started
+
+    if not playback_id:
+        dur_ms = int((time.perf_counter() - started) * 1000)
+        session.log_event(
+            action="phone_confirm_playback_barrier",
+            status="fail",
+            reason="playback_id_missing",
             media=media,
             sound_id=media,
             dur_ms=dur_ms,
             details={"stage": DialogStage.PHONE_CONFIRM.value, "prompt_text": prompt_text},
         )
-        return True, moh_started
+        return False, moh_started
 
+    barrier_start = time.perf_counter()
+    barrier_timeout = _phone_confirm_playback_timeout_sec()
+    barrier_event = await client.wait_for_playback_finished(app_name, playback_id, timeout=barrier_timeout)
+    barrier_ms = int((time.perf_counter() - barrier_start) * 1000)
+    if barrier_event.get("type") != "PlaybackFinished":
+        session.log_event(
+            action="phone_confirm_playback_barrier",
+            status="fail",
+            reason=barrier_event.get("type") or "playback_event_missing",
+            media=media,
+            sound_id=media,
+            dur_ms=barrier_ms,
+            details={
+                "stage": DialogStage.PHONE_CONFIRM.value,
+                "playback_id": playback_id,
+                "timeout_seconds": barrier_timeout,
+            },
+        )
+        return False, moh_started
+
+    guard_ms = _phone_confirm_guard_delay_ms()
+    if guard_ms > 0:
+        await asyncio.sleep(guard_ms / 1000)
+    dur_ms = int((time.perf_counter() - started) * 1000)
+    session.log_event(
+        action="phone_confirm_playback_barrier",
+        status="ok",
+        media=media,
+        sound_id=media,
+        dur_ms=barrier_ms,
+        details={
+            "stage": DialogStage.PHONE_CONFIRM.value,
+            "playback_id": playback_id,
+            "guard_delay_ms": guard_ms,
+            "timeout_seconds": barrier_timeout,
+        },
+    )
     session.log_event(
         action="play_prompt",
-        status="fail",
-        reason=play_result.get("reason"),
-        http_status=play_result.get("http_status"),
+        status="ok",
         media=media,
         sound_id=media,
         dur_ms=dur_ms,
-        details={**(play_result.get("details") or {}), "stage": DialogStage.PHONE_CONFIRM.value},
+        details={"stage": DialogStage.PHONE_CONFIRM.value, "prompt_text": prompt_text},
     )
-    return False, moh_started
+    return True, moh_started
 
 
 async def _play_prompt(
     client: AriClient,
     settings: Settings,
+    app_name: str,
     session: CallSession,
     stage: DialogStage,
     system_sounds: dict[str, bool],
     moh_started: bool,
 ) -> tuple[bool, bool]:
     if stage == DialogStage.PHONE_CONFIRM:
-        return await _play_phone_confirmation_prompt(client, settings, session, moh_started)
+        return await _play_phone_confirmation_prompt(client, settings, app_name, session, moh_started)
 
     media = _prompt_media_for_stage(stage, system_sounds)
     started = time.perf_counter()
@@ -887,6 +958,7 @@ async def handle_call(
                 should_continue, moh_started = await _play_prompt(
                     client,
                     settings,
+                    app_name,
                     session,
                     session.dialog.stage,
                     system_sounds,

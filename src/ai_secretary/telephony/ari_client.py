@@ -342,6 +342,33 @@ class AriClient:
                 self._unsubscribe_ws(queue)
         return await asyncio.wait_for(_wait(), timeout=timeout)
 
+    async def wait_for_playback_finished(
+        self,
+        app_name: str,
+        playback_id: str,
+        timeout: float = 30.0,
+    ) -> dict[str, Any]:
+        """Wait for PlaybackFinished or PlaybackFailed event for a playback id."""
+
+        async def _wait() -> dict[str, Any]:
+            queue = await self._subscribe_ws(app_name=app_name, subscribe_all=True)
+            try:
+                while True:
+                    event = await queue.get()
+                    if event.get("type") == "__ws_closed__":
+                        if self._ws_last_error is not None:
+                            raise self._ws_last_error
+                        return {}
+                    event_type = event.get("type")
+                    playback = event.get("playback", {})
+                    if playback.get("id") != playback_id:
+                        continue
+                    if event_type in {"PlaybackFinished", "PlaybackFailed"}:
+                        return event
+            finally:
+                self._unsubscribe_ws(queue)
+        return await asyncio.wait_for(_wait(), timeout=timeout)
+
     async def download_recording(self, name: str, dest_path: str) -> None:
         """Download a stored recording to a local file."""
         url = self._http_url(f"/recordings/stored/{name}/file")

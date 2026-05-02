@@ -56,6 +56,12 @@ def test_wait_for_recording_finished_reuses_single_ws_connection(monkeypatch) ->
         second_event = await second_wait
         assert second_event.get("type") == "RecordingFinished"
 
+        playback_wait = asyncio.create_task(client.wait_for_playback_finished("app", "play1", timeout=1.0))
+        await _wait_for_subscriber()
+        await messages.put(json.dumps({"type": "PlaybackFinished", "playback": {"id": "play1"}}))
+        playback_event = await playback_wait
+        assert playback_event.get("type") == "PlaybackFinished"
+
         assert len(connect_calls) == 1
 
         await messages.put(None)

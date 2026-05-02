@@ -44,8 +44,10 @@ class _LatencyClient:
     def __init__(self) -> None:
         self.record_calls: list[dict[str, Any]] = []
         self.wait_timeouts: list[float] = []
+        self.calls: list[str] = []
 
     async def record_safe(self, _channel_id: str, record_name: str, **kwargs: Any) -> dict[str, Any]:
+        self.calls.append(f"record:{record_name}")
         self.record_calls.append({"record_name": record_name, **kwargs})
         return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
 
@@ -63,7 +65,12 @@ class _LatencyClient:
         return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
 
     async def play_safe(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
-        return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
+        self.calls.append("play")
+        return {"ok": True, "reason": "ok", "http_status": 200, "details": {"payload": {"id": f"play-{len(self.calls)}"}}}
+
+    async def wait_for_playback_finished(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        self.calls.append("playback_finished")
+        return {"type": "PlaybackFinished"}
 
     async def continue_safe(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
         return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
@@ -75,6 +82,7 @@ class _LatencyClient:
 def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tmp_path: Path) -> None:
     ari_app._reset_fallback_cache_for_tests()
     monkeypatch.setenv("PLAY_TEST", "0")
+    monkeypatch.setenv("PHONE_CONFIRM_GUARD_DELAY_MS", "0")
     for name in (
         "RECORD_MAX_DURATION_SECONDS",
         "RECORD_MAX_SILENCE_SECONDS",
@@ -127,9 +135,12 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
         (4, 1),
         (7, 3),
         (14, 4),
-        (4, 2),
+        (6, 3),
     ]
-    assert client.wait_timeouts == [13, 8, 13, 21, 9]
+    assert client.wait_timeouts == [13, 8, 13, 21, 12]
+    confirm_record_idx = next(i for i, call in enumerate(client.calls) if "phone_confirm" in call)
+    barrier_idx = client.calls.index("playback_finished")
+    assert barrier_idx < confirm_record_idx
 
     events = _read_events(session)
     for action in (
