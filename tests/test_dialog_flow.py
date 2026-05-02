@@ -78,6 +78,12 @@ def test_empty_issue_transcript_does_not_complete_dialog() -> None:
     assert profile["last_retry_reason"] == "empty_transcript"
 
 
+def test_opening_prompt_has_natural_tts_rhythm() -> None:
+    assert next_prompt(DialogStage.ISSUE, {}) == (
+        "Здравствуйте. Меня зовут Анна. Я виртуальный секретарь. По какому вопросу вы обращаетесь?"
+    )
+
+
 def test_unclear_issue_intent_asks_bounded_clarification() -> None:
     state, profile = apply_turn(DialogStage.ISSUE, {}, "I need help")
 

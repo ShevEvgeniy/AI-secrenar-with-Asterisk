@@ -95,10 +95,20 @@ def test_after_hours_phrase_mapping_is_bounded() -> None:
         "accounting": ari_app.AFTER_HOURS_ACCOUNTING_SOUND_ID,
         "delivery": ari_app.AFTER_HOURS_DELIVERY_SOUND_ID,
     }
-    assert "\u043e\u0442\u0434\u0435\u043b \u043f\u0440\u043e\u0434\u0430\u0436" in ari_app.AFTER_HOURS_PHRASES["sales"].lower()
-    assert "\u0431\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0438\u044f" in ari_app.AFTER_HOURS_PHRASES["accounting"].lower()
-    assert "\u043e\u0442\u0434\u0435\u043b \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0438" in ari_app.AFTER_HOURS_PHRASES["delivery"].lower()
-    assert all("\u0440\u0430\u0431\u043e\u0447\u0435\u0435 \u0432\u0440\u0435\u043c\u044f" in phrase for phrase in ari_app.AFTER_HOURS_PHRASES.values())
+    assert ari_app.AFTER_HOURS_PHRASES == {
+        "sales": (
+            "Отдел продаж сейчас не работает. Мы записали ваше обращение, и отдел продаж "
+            "перезвонит вам в рабочее время. Спасибо за звонок. До свидания."
+        ),
+        "accounting": (
+            "Бухгалтерия сейчас не работает. Мы записали ваше обращение, и бухгалтерия "
+            "перезвонит вам в рабочее время. Спасибо за звонок. До свидания."
+        ),
+        "delivery": (
+            "Отдел доставки сейчас не работает. Мы записали ваше обращение, и отдел доставки "
+            "перезвонит вам в рабочее время. Спасибо за звонок. До свидания."
+        ),
+    }
 
 
 def test_business_hours_contract_supports_schedule_and_override(monkeypatch) -> None:

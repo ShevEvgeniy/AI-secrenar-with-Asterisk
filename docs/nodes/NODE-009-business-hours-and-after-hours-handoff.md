@@ -71,8 +71,18 @@ After-hours phrase mapping:
 
 ```text
 sales      -> sound:ai_secretary/_system/after_hours_sales
+              "Отдел продаж сейчас не работает. Мы записали ваше обращение, и отдел продаж перезвонит вам в рабочее время. Спасибо за звонок. До свидания."
 accounting -> sound:ai_secretary/_system/after_hours_accounting
+              "Бухгалтерия сейчас не работает. Мы записали ваше обращение, и бухгалтерия перезвонит вам в рабочее время. Спасибо за звонок. До свидания."
 delivery   -> sound:ai_secretary/_system/after_hours_delivery
+              "Отдел доставки сейчас не работает. Мы записали ваше обращение, и отдел доставки перезвонит вам в рабочее время. Спасибо за звонок. До свидания."
+```
+
+Opening prompt:
+
+```text
+sound:ai_secretary/_system/prompt_1
+"Здравствуйте. Меня зовут Анна. Я виртуальный секретарь. По какому вопросу вы обращаетесь?"
 ```
 
 After-hours transfer-skip logic:
