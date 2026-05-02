@@ -7,8 +7,8 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-006-name-capture-and-normalization-hardening`
-- Latest completed node commit: `c5a4311`
+- Latest completed node branch: `feat/node-007-intent-routing-and-department-transfer`
+- Latest completed node commit: `5911c19`
 
 ## Confirmed Working
 
@@ -38,6 +38,9 @@
 - STT for NAME explicitly uses Russian language and Russian-name prompt context.
 - Bounded post-STT normalization for Russian names, patronymics, and common conversational forms is present.
 - NAME prompt wording is simplified to: `Назовите, пожалуйста, ваше имя.`
+- Bounded department intent routing works for sales, accounting, and delivery.
+- Routing remains deterministic and debuggable.
+- Final transfer phrase is department-specific.
 - NODE-001 live smoke validation passed:
   - stage prompts progressed correctly;
   - user speech was transcribed for ISSUE / NAME / CITY / PHONE;
@@ -82,6 +85,12 @@ NODE-006 hardens NAME capture and normalization:
 NAME -> language=ru and Russian-name STT prompt -> bounded normalization -> stable flow continues
 ```
 
+NODE-007 adds bounded department intent routing:
+
+```text
+topic intent -> sales/accounting/delivery/default -> explicit transfer target
+```
+
 ## Validation Notes
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
@@ -92,6 +101,7 @@ NAME -> language=ru and Russian-name STT prompt -> bounded normalization -> stab
 - NODE-004 is merged into `master`.
 - NODE-005 is merged into `master`.
 - NODE-006 is merged into `master`.
+- NODE-007 is merged into `master`.
 - During NODE-002 validation, SSH to `92.118.85.117:22` timed out while publishing `prompt_3` and transfer system sounds.
 - Despite the partial publish failure, the listener reached `READY_WAITING_FOR_CALLS`.
 - Fallback media was used during the live call for missing `prompt_3` and transfer phrase.
@@ -118,6 +128,7 @@ NAME -> language=ru and Russian-name STT prompt -> bounded normalization -> stab
 - NODE-005 patch 9 fixes NAME prompt/record overlap with an explicit `PlaybackFinished` barrier plus `400 ms` guard for base NAME and dynamic NAME retry prompts, and relaxes NAME recording to `6s/2s/11s`.
 - NODE-005 live smoke confirmed the current full flow reaches `ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase -> transfer`.
 - NODE-006 improves NAME quality and stability but does not introduce multi-department routing.
+- NODE-007 validates department routing and department-specific transfer prompts for sales, accounting, and delivery.
 
 ## NODE-004 Live Smoke
 
@@ -188,10 +199,40 @@ extension=sales_real
 priority=1
 ```
 
+## NODE-007 Validation
+
+Current validated collection flow remains:
+
+```text
+ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> transfer
+```
+
+Routing contract:
+
+```text
+sales -> context=from-internal, extension=sales_real, priority=1
+accounting -> context=from-internal, extension=accounting, priority=1
+delivery -> context=from-internal, extension=delivery, priority=1
+```
+
+Unclear intent remains bounded and routes to the configured default department.
+
+Department-specific transfer phrases:
+
+```text
+sales: Хорошо, я соединяю вас с отделом продаж.
+accounting: Хорошо, я соединяю вас с бухгалтерией.
+delivery: Хорошо, я соединяю вас с отделом доставки.
+```
+
+Live validation references:
+
+- Sales: `call_id=1777725117.4`; issue matched sales intent; transfer target `department=sales`, `context=from-internal`, `extension=sales_real`, `priority=1`.
+- Accounting: `call_id=1777726120.10`; issue matched accounting intent; accounting phrase resolved and played; transfer target `department=accounting`, `context=from-internal`, `extension=accounting`, `priority=1`.
+- Delivery: `call_id=1777726440.12`; issue matched delivery intent; delivery phrase resolved and played; transfer target `department=delivery`, `context=from-internal`, `extension=delivery`, `priority=1`.
+
 ## Next Recommended Step
 
 ```text
-Start NODE-007 / intent-routing-and-department-transfer.
+Open the next bounded node only after master records NODE-007 completion.
 ```
-
-NODE-007 should detect department intent from the caller topic, map to sales/accounting/delivery, and transfer to the proper extension/context instead of always `sales_real`.

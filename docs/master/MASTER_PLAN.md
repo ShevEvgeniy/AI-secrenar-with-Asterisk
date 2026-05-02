@@ -16,7 +16,7 @@
 - Transfer flow through ARI continue is present in `master`.
 - Tracing and logging are required to be preserved across all node work.
 
-## Completed Practical Gap
+## Completed Practical Gaps
 
 NODE-001 completed and live-validated the real transfer route through the dialplan:
 
@@ -51,7 +51,13 @@ ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase 
 NODE-006 completed and validated NAME capture and normalization hardening:
 
 ```text
-NAME -> language=ru and Russian-name STT prompt -> bounded normalization -> Иван Семёнович
+NAME -> language=ru and Russian-name STT prompt -> bounded normalization -> stable flow continues
+```
+
+NODE-007 completed and validated bounded department intent routing:
+
+```text
+topic intent -> sales/accounting/delivery/default -> department-specific phrase -> explicit transfer target
 ```
 
 ## Execution Model
@@ -66,8 +72,8 @@ NAME -> language=ru and Russian-name STT prompt -> bounded normalization -> Ив
 
 ## Current Action Plan
 
-1. Treat NODE-001, NODE-002, NODE-003, NODE-004, NODE-005, and NODE-006 as complete and merged into `master`.
-2. Preserve the validated runtime transfer target:
+1. Treat NODE-001 through NODE-007 as complete and merged into `master`.
+2. Preserve the validated sales transfer target:
 
 ```text
 context=from-internal
@@ -75,27 +81,25 @@ extension=sales_real
 priority=1
 ```
 
-3. Preserve the validated dialplan route:
+3. Preserve the validated sales dialplan route:
 
 ```text
 sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 ```
 
 4. Preserve NODE-002 publish failure classification with `reason` and `failed_step`.
-5. Keep the MicroSIP input-device false negative documented for future live smoke testing.
-6. Preserve NODE-003 transcription artifact traceability through `call_id`, `stage`, `turn_idx`, `audio_path`, `audio_size_bytes`, and `audio_sha256`.
-7. Preserve controlled meaningful fallback phrases for stage and transfer fallback paths.
-8. Preserve NODE-004 post-PHONE transfer behavior so the generic reply pipeline is not taken after successful PHONE capture.
-9. Preserve NODE-005 turn-taking contour, NAME playback barrier, PHONE_CONFIRM behavior, and spoken-digit confirmation prompt.
-10. Preserve NODE-006 Russian NAME STT context, bounded NAME normalization, simplified NAME prompt, and overall call architecture.
+5. Preserve NODE-003 transcription artifact traceability through `call_id`, `stage`, `turn_idx`, `audio_path`, `audio_size_bytes`, and `audio_sha256`.
+6. Preserve NODE-004 post-PHONE transfer behavior so the generic reply pipeline is not taken after successful PHONE capture.
+7. Preserve NODE-005 turn-taking contour, NAME playback barrier, PHONE_CONFIRM behavior, and spoken-digit confirmation prompt.
+8. Preserve NODE-006 Russian NAME STT context, bounded NAME normalization, simplified NAME prompt, and overall call architecture.
+9. Preserve NODE-007 bounded department routing for sales, accounting, delivery, and configured default fallback.
+10. Preserve department-specific final transfer phrases.
 
 ## Next Recommended Step
 
 ```text
-Start NODE-007 / intent-routing-and-department-transfer.
+Open the next bounded node only after master records NODE-007 completion.
 ```
-
-NODE-007 should detect department intent from topic and map to sales, accounting, or delivery instead of always `sales_real`.
 
 ## Node Completion Report Format
 

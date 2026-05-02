@@ -114,3 +114,38 @@ ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase 
 ```
 
 NODE-006 validation confirmed recognized NAME `Иван Семёнович` for live call `1777721580.0` and transfer with `status=ok`. Multi-department routing remains out of scope until NODE-007.
+## Department Intent Routing
+
+NODE-007 completed bounded department intent routing and department-specific transfer phrases.
+
+Accepted runtime behavior:
+
+- Department intent routing is deterministic and debuggable.
+- Supported departments are:
+  - sales;
+  - accounting;
+  - delivery.
+- Unclear intent remains bounded and routes to the configured default department.
+- The collection flow remains:
+
+```text
+ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> transfer
+```
+
+- Routing contract:
+
+```text
+sales -> context=from-internal, extension=sales_real, priority=1
+accounting -> context=from-internal, extension=accounting, priority=1
+delivery -> context=from-internal, extension=delivery, priority=1
+```
+
+- Final transfer phrases are department-specific:
+
+```text
+sales: Хорошо, я соединяю вас с отделом продаж.
+accounting: Хорошо, я соединяю вас с бухгалтерией.
+delivery: Хорошо, я соединяю вас с отделом доставки.
+```
+
+NODE-007 live validation confirmed sales, accounting, and delivery routing with department-specific prompts.

@@ -150,6 +150,41 @@ ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase 
 
 - NODE-006 does not introduce multi-department routing.
 
+## NODE-007 Runtime Notes
+
+- Bounded department intent routing is working for:
+  - sales;
+  - accounting;
+  - delivery.
+- Routing remains deterministic and debuggable.
+- The validated collection flow is preserved:
+
+```text
+ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> transfer
+```
+
+- Routing contract:
+
+```text
+sales -> context=from-internal, extension=sales_real, priority=1
+accounting -> context=from-internal, extension=accounting, priority=1
+delivery -> context=from-internal, extension=delivery, priority=1
+```
+
+- Unclear intent remains bounded and routes to the configured default department.
+- Final transfer phrase is department-specific:
+
+```text
+sales: Хорошо, я соединяю вас с отделом продаж.
+accounting: Хорошо, я соединяю вас с бухгалтерией.
+delivery: Хорошо, я соединяю вас с отделом доставки.
+```
+
+- Live validation references:
+  - `1777725117.4`: sales intent -> `department=sales`, `context=from-internal`, `extension=sales_real`, `priority=1`.
+  - `1777726120.10`: accounting intent -> accounting phrase resolved and played -> `department=accounting`, `context=from-internal`, `extension=accounting`, `priority=1`.
+  - `1777726440.12`: delivery intent -> delivery phrase resolved and played -> `department=delivery`, `context=from-internal`, `extension=delivery`, `priority=1`.
+
 ## NODE-005 Runtime Notes
 
 - NODE-005 keeps the current turn-based architecture and the NODE-004 post-PHONE transfer flow.
