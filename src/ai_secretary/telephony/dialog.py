@@ -16,6 +16,7 @@ ISSUE_MAX_RETRIES = 2
 INTENT_CLARIFY_MAX_RETRIES = 2
 REQUIRED_STAGE_MAX_RETRIES = 3
 PHONE_CONFIRM_MAX_RETRIES = 2
+PHONE_CONFIRM_FAILURE_CYCLE_LIMIT = 2
 NAME_JUNK_TOKENS = {"you", "yeah", "yes", "yep", "yup", "no", "ok", "okay", "test", "hello", "hi"}
 NAME_MAX_RETRIES = 3
 NAME_LEXICON: dict[str, str] = {
@@ -261,6 +262,19 @@ def _stage_retry(profile: dict[str, Any], stage: DialogStage, reason: str) -> in
 
 def _clear_stage_retry(profile: dict[str, Any], stage: DialogStage) -> None:
     profile.pop(_retry_key(stage), None)
+
+
+def _clear_phone_policy_retries(profile: dict[str, Any]) -> None:
+    _clear_stage_retry(profile, DialogStage.PHONE)
+    _clear_stage_retry(profile, DialogStage.PHONE_CONFIRM)
+
+
+def _mark_phone_confirm_failure(profile: dict[str, Any], reason: str) -> int:
+    failure_count = int(profile.get("phone_confirm_failure_count") or 0) + 1
+    profile["phone_confirm_failure_count"] = failure_count
+    profile["phone_confirm_failure_limit"] = PHONE_CONFIRM_FAILURE_CYCLE_LIMIT
+    profile["phone_confirm_failure_reason"] = reason
+    return failure_count
 
 
 def _safe_finish(profile: dict[str, Any], reason: str, stage: DialogStage) -> tuple[DialogStage, dict[str, Any]]:
@@ -714,7 +728,7 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             updated["phone_spoken"] = phone_digits_to_spoken_ru(digits)
             updated["phone_confirmed"] = False
             _clear_phone_retry_prompt(updated)
-            _clear_stage_retry(updated, state)
+            _clear_phone_policy_retries(updated)
             return DialogStage.PHONE_CONFIRM, updated
         if _is_meta_repair(text):
             _set_phone_retry_prompt(updated, "meta_repair")
@@ -741,19 +755,29 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
         if _is_meta_repair(text):
             updated["phone_confirmed"] = False
             _set_phone_retry_prompt(updated, "meta_repair")
+            if _mark_phone_confirm_failure(updated, "meta_repair") >= PHONE_CONFIRM_FAILURE_CYCLE_LIMIT:
+                return _safe_finish(updated, "phone_retry_limit", state)
             return DialogStage.PHONE, updated
         if _is_negative_confirmation(text):
             updated["phone_confirmed"] = False
             _set_phone_retry_prompt(updated, "rejected")
+            if _mark_phone_confirm_failure(updated, "rejected") >= PHONE_CONFIRM_FAILURE_CYCLE_LIMIT:
+                return _safe_finish(updated, "phone_retry_limit", state)
             return DialogStage.PHONE, updated
         if _is_positive_confirmation(text) and updated.get("phone_digits"):
             _clear_stage_retry(updated, state)
+            updated.pop("phone_confirm_failure_count", None)
+            updated.pop("phone_confirm_failure_limit", None)
+            updated.pop("phone_confirm_failure_reason", None)
             updated["phone_confirmed"] = True
             return DialogStage.DONE, updated
         retry_count = _stage_retry(updated, state, "empty_transcript" if _is_empty_or_timeout(text) else "unclear_confirmation")
         if retry_count >= retry_limit_for_stage(state):
             updated["phone_confirmed"] = False
             _set_phone_retry_prompt(updated, "unclear")
+            _clear_stage_retry(updated, state)
+            if _mark_phone_confirm_failure(updated, "unclear") >= PHONE_CONFIRM_FAILURE_CYCLE_LIMIT:
+                return _safe_finish(updated, "phone_retry_limit", state)
             return DialogStage.PHONE, updated
         return DialogStage.PHONE_CONFIRM, updated
     return DialogStage.DONE, updated
@@ -769,4 +793,8 @@ def build_turn_record(state: DialogStage, prompt_text: str, transcript_text: str
 
 
 def should_stop_dialog(state: DialogStage, turns_done: int, max_turns: int) -> bool:
-    return state in {DialogStage.DONE, DialogStage.SAFE_FINISH} or turns_done >= max_turns
+    if state in {DialogStage.DONE, DialogStage.SAFE_FINISH}:
+        return True
+    if state in {DialogStage.PHONE, DialogStage.PHONE_CONFIRM}:
+        return False
+    return turns_done >= max_turns

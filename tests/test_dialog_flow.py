@@ -64,6 +64,12 @@ def test_dialog_max_turns_stops_loop() -> None:
     assert state != DialogStage.DONE
 
 
+def test_max_turns_do_not_stop_phone_confirmation_policy() -> None:
+    assert should_stop_dialog(DialogStage.NAME, 8, 8) is True
+    assert should_stop_dialog(DialogStage.PHONE, 8, 8) is False
+    assert should_stop_dialog(DialogStage.PHONE_CONFIRM, 8, 8) is False
+
+
 def test_empty_issue_transcript_does_not_complete_dialog() -> None:
     state, profile = apply_turn(DialogStage.ISSUE, {}, "")
 
@@ -308,6 +314,47 @@ def test_phone_confirm_retries_return_to_phone_before_safe_finish() -> None:
     assert state == DialogStage.PHONE
     assert profile["phone_retry_reason"] == "unclear"
     assert profile["last_retry_count"] == PHONE_CONFIRM_MAX_RETRIES
+
+
+def test_entering_phone_confirm_resets_confirm_retry_budget() -> None:
+    state = DialogStage.PHONE
+    profile: dict[str, object] = {
+        "phone_confirm_retry_count": PHONE_CONFIRM_MAX_RETRIES,
+        "phone_retry_count": REQUIRED_STAGE_MAX_RETRIES - 1,
+    }
+
+    state, profile = apply_turn(state, profile, "920.032.0355")
+
+    assert state == DialogStage.PHONE_CONFIRM
+    assert "phone_confirm_retry_count" not in profile
+    assert "phone_retry_count" not in profile
+
+    state, profile = apply_turn(state, profile, "")
+
+    assert state == DialogStage.PHONE_CONFIRM
+    assert profile["phone_confirm_retry_count"] == 1
+    assert profile["last_retry_limit"] == PHONE_CONFIRM_MAX_RETRIES
+
+
+def test_repeated_phone_confirm_failure_cycles_end_in_safe_finish() -> None:
+    state, profile = apply_turn(DialogStage.PHONE, {}, "920.032.0355")
+    assert state == DialogStage.PHONE_CONFIRM
+
+    for _ in range(PHONE_CONFIRM_MAX_RETRIES):
+        state, profile = apply_turn(state, profile, "")
+
+    assert state == DialogStage.PHONE
+    assert profile["phone_confirm_failure_count"] == 1
+
+    state, profile = apply_turn(state, profile, "920.032.0355")
+    assert state == DialogStage.PHONE_CONFIRM
+
+    for _ in range(PHONE_CONFIRM_MAX_RETRIES):
+        state, profile = apply_turn(state, profile, "")
+
+    assert state == DialogStage.SAFE_FINISH
+    assert profile["safe_finish_reason"] == "phone_retry_limit"
+    assert profile["phone_confirm_failure_count"] == 2
 
 
 def test_phone_confirmation_rejects_and_redictates() -> None:

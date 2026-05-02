@@ -1669,7 +1669,11 @@ async def handle_call(
 
             transcript_for_pipeline = "\n".join(dialogue_lines)
             profile_for_pipeline = dict(session.dialog.profile)
-            if session.dialog.stage == DialogStage.SAFE_FINISH or session.dialog.turns_done >= max_turns:
+            global_turn_limit_exhausted = (
+                session.dialog.turns_done >= max_turns
+                and session.dialog.stage not in {DialogStage.PHONE, DialogStage.PHONE_CONFIRM}
+            )
+            if session.dialog.stage == DialogStage.SAFE_FINISH or global_turn_limit_exhausted:
                 reason = str(session.dialog.profile.get("safe_finish_reason") or "dialog_retry_limit")
                 session.transition(
                     CallState.DONE,
