@@ -91,3 +91,26 @@ priority=1
 ```
 
 NODE-005 validation confirmed transfer with `status=ok` for live call `1777717705.10`. NAME quality still needs a separate focused follow-up in NODE-006.
+
+## Name Capture And Normalization
+
+NODE-006 completed NAME capture and normalization hardening without changing the overall call architecture.
+
+Accepted runtime behavior:
+
+- NAME transcription uses Russian language and Russian-name prompt context.
+- NAME prompt wording is:
+
+```text
+Назовите, пожалуйста, ваше имя.
+```
+
+- Bounded post-STT normalization may handle Russian names, patronymics, and common conversational forms.
+- NAME playback barrier remains in place so NAME recording does not start over prompt playback.
+- The validated end-to-end flow remains:
+
+```text
+ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase -> transfer
+```
+
+NODE-006 validation confirmed recognized NAME `Иван Семёнович` for live call `1777721580.0` and transfer with `status=ok`. Multi-department routing remains out of scope until NODE-007.

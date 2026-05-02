@@ -7,8 +7,8 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-005-latency-and-turn-based-hardening`
-- Latest completed node commit: `43790b1`
+- Latest completed node branch: `feat/node-006-name-capture-and-normalization-hardening`
+- Latest completed node commit: `c5a4311`
 
 ## Confirmed Working
 
@@ -34,6 +34,10 @@
 - NAME playback barrier is in place.
 - PHONE and PHONE_CONFIRM work in live flow.
 - Confirmation prompt now speaks the phone number as spoken digits.
+- NAME capture quality is hardened without changing the overall call architecture.
+- STT for NAME explicitly uses Russian language and Russian-name prompt context.
+- Bounded post-STT normalization for Russian names, patronymics, and common conversational forms is present.
+- NAME prompt wording is simplified to: `Назовите, пожалуйста, ваше имя.`
 - NODE-001 live smoke validation passed:
   - stage prompts progressed correctly;
   - user speech was transcribed for ISSUE / NAME / CITY / PHONE;
@@ -72,6 +76,12 @@ NODE-005 hardens the turn-based latency contour:
 ISSUE tolerant recording -> NAME playback barrier and relaxed recording -> CITY relaxed recording -> PHONE slow-dictation recording -> PHONE_CONFIRM -> explicit latency buckets
 ```
 
+NODE-006 hardens NAME capture and normalization:
+
+```text
+NAME -> language=ru and Russian-name STT prompt -> bounded normalization -> stable flow continues
+```
+
 ## Validation Notes
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
@@ -81,6 +91,7 @@ ISSUE tolerant recording -> NAME playback barrier and relaxed recording -> CITY 
 - NODE-003 is merged into `master`.
 - NODE-004 is merged into `master`.
 - NODE-005 is merged into `master`.
+- NODE-006 is merged into `master`.
 - During NODE-002 validation, SSH to `92.118.85.117:22` timed out while publishing `prompt_3` and transfer system sounds.
 - Despite the partial publish failure, the listener reached `READY_WAITING_FOR_CALLS`.
 - Fallback media was used during the live call for missing `prompt_3` and transfer phrase.
@@ -106,6 +117,7 @@ ISSUE tolerant recording -> NAME playback barrier and relaxed recording -> CITY 
 - NODE-005 patch 8 fixes PHONE-stage normalization for comma/dot grouped dictation, handles PHONE-stage meta-repair directly, makes dynamic PHONE retry prompts drive playback instead of fixed `prompt_4_v2`, and rejects short English NAME filler such as `Yep.`.
 - NODE-005 patch 9 fixes NAME prompt/record overlap with an explicit `PlaybackFinished` barrier plus `400 ms` guard for base NAME and dynamic NAME retry prompts, and relaxes NAME recording to `6s/2s/11s`.
 - NODE-005 live smoke confirmed the current full flow reaches `ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase -> transfer`.
+- NODE-006 improves NAME quality and stability but does not introduce multi-department routing.
 
 ## NODE-004 Live Smoke
 
@@ -155,10 +167,31 @@ extension=sales_real
 priority=1
 ```
 
+## NODE-006 Validation
+
+- `call_id`: `1777721580.0`
+- ISSUE captured successfully.
+- NAME captured successfully with:
+  - `stt_language=ru`;
+  - Russian-name STT prompt present;
+  - recognized NAME: `Иван Семёнович`.
+- CITY captured successfully.
+- PHONE captured successfully.
+- PHONE_CONFIRM accepted positive confirmation.
+- Transfer completed with `status=ok`.
+
+Current validated transfer target:
+
+```text
+context=from-internal
+extension=sales_real
+priority=1
+```
+
 ## Next Recommended Step
 
 ```text
-Start NODE-006 / name-capture-and-normalization-hardening.
+Start NODE-007 / intent-routing-and-department-transfer.
 ```
 
-NODE-005 solved the latency and turn-taking contour for the current flow, but NAME quality still needs improvement as a separate follow-up.
+NODE-007 should detect department intent from the caller topic, map to sales/accounting/delivery, and transfer to the proper extension/context instead of always `sales_real`.

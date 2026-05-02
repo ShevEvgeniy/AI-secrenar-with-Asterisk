@@ -52,3 +52,60 @@ ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase 
 ```text
 feat/node-006-name-capture-and-normalization-hardening
 ```
+
+## Validated Result
+
+- NAME capture quality was hardened without changing the overall call architecture.
+- STT for NAME now explicitly uses Russian language and Russian-name prompt context.
+- Bounded post-STT normalization for Russian names, patronymics, and common conversational forms was added.
+- NAME prompt wording was simplified to:
+
+```text
+Назовите, пожалуйста, ваше имя.
+```
+
+- NAME playback barrier remains in place, so NAME recording no longer starts over prompt playback.
+- Validated end-to-end flow remains intact:
+
+```text
+ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase -> transfer
+```
+
+## Live Validation
+
+- `call_id`: `1777721580.0`
+- ISSUE captured successfully.
+- NAME captured successfully with:
+  - `stt_language=ru`;
+  - Russian-name STT prompt present;
+  - recognized NAME: `Иван Семёнович`.
+- CITY captured successfully.
+- PHONE captured successfully.
+- PHONE_CONFIRM accepted positive confirmation.
+- Transfer completed with `status=ok`.
+
+Current validated transfer target:
+
+```text
+context=from-internal
+extension=sales_real
+priority=1
+```
+
+## Important Note
+
+NODE-006 improves NAME quality and stability, but does not introduce multi-department routing yet.
+
+## Validated Commit
+
+```text
+c5a4311
+```
+
+## Next Recommendation
+
+Start NODE-007:
+
+```text
+NODE-007 / intent-routing-and-department-transfer
+```

@@ -130,6 +130,26 @@ priority=1
 
 - NODE-005 solved the latency and turn-taking contour for the current flow, but NAME quality still needs improvement in NODE-006.
 
+## NODE-006 Runtime Notes
+
+- NAME capture quality is hardened without changing the overall call architecture.
+- NAME STT explicitly uses Russian language and Russian-name prompt context.
+- Bounded post-STT normalization for Russian names, patronymics, and common conversational forms is present.
+- NAME prompt wording is simplified to:
+
+```text
+Назовите, пожалуйста, ваше имя.
+```
+
+- NAME playback barrier remains in place, so NAME recording no longer starts over prompt playback.
+- Live validation `1777721580.0` recognized NAME as `Иван Семёнович` and reached:
+
+```text
+ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase -> transfer
+```
+
+- NODE-006 does not introduce multi-department routing.
+
 ## NODE-005 Runtime Notes
 
 - NODE-005 keeps the current turn-based architecture and the NODE-004 post-PHONE transfer flow.
