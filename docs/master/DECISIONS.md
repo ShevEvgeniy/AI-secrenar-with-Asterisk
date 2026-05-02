@@ -149,3 +149,26 @@ delivery: Хорошо, я соединяю вас с отделом доста�
 ```
 
 NODE-007 live validation confirmed sales, accounting, and delivery routing with department-specific prompts.
+
+## Intent Clarification And Mandatory Data Capture
+
+NODE-008 completed mandatory data gating, stage-aware immediate-transfer responses, bounded intent clarification, and terminal SAFE_FINISH behavior.
+
+Accepted runtime behavior:
+
+- Immediate transfer requests must not bypass required data collection.
+- Mandatory data before live transfer remains:
+  - `name`;
+  - `city`;
+  - `phone`;
+  - `phone_confirmed=true`.
+- Stage-aware responses are used when the caller asks for immediate transfer.
+- `INTENT_CLARIFY` is bounded for unclear or tied department intent.
+- ISSUE retries, then moves to `INTENT_CLARIFY`.
+- `INTENT_CLARIFY` retries, then defaults to the configured department.
+- NAME/CITY/PHONE use bounded retries, then `SAFE_FINISH`.
+- PHONE_CONFIRM has its own bounded policy and must not be cut off by generic global turn limits.
+- `INTENT_CLARIFY` timeout and empty outcomes are normal outcomes, not unhandled exceptions.
+- `SAFE_FINISH` is terminal/non-transfer and supports reason-based phrases for `missing_required_data`, `intent_not_resolved`, and `phone_not_confirmed`.
+
+NODE-008 focused regression passed with `42 passed in 2.73s`.

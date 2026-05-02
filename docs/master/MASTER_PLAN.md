@@ -60,6 +60,12 @@ NODE-007 completed and validated bounded department intent routing:
 topic intent -> sales/accounting/delivery/default -> department-specific phrase -> explicit transfer target
 ```
 
+NODE-008 completed and validated mandatory data capture plus bounded intent clarification:
+
+```text
+immediate transfer request -> required data capture -> bounded clarification/default -> transfer or SAFE_FINISH
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -72,7 +78,7 @@ topic intent -> sales/accounting/delivery/default -> department-specific phrase 
 
 ## Current Action Plan
 
-1. Treat NODE-001 through NODE-007 as complete and merged into `master`.
+1. Treat NODE-001 through NODE-008 as complete and recorded in `master`.
 2. Preserve the validated sales transfer target:
 
 ```text
@@ -94,12 +100,16 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 8. Preserve NODE-006 Russian NAME STT context, bounded NAME normalization, simplified NAME prompt, and overall call architecture.
 9. Preserve NODE-007 bounded department routing for sales, accounting, delivery, and configured default fallback.
 10. Preserve department-specific final transfer phrases.
+11. Preserve NODE-008 mandatory data gate before live transfer: `name`, `city`, `phone`, and `phone_confirmed=true`.
+12. Preserve bounded `INTENT_CLARIFY`, stage-local retry policy, and terminal/non-transfer `SAFE_FINISH`.
 
 ## Next Recommended Step
 
 ```text
-Open the next bounded node only after master records NODE-007 completion.
+Start NODE-009 / business-hours-and-after-hours-handoff.
 ```
+
+NODE-009 should detect working hours vs non-working hours. In non-working hours, it should not perform live transfer, but should still collect issue/name/city/phone and tell the caller the relevant department will call back in working hours.
 
 ## Node Completion Report Format
 

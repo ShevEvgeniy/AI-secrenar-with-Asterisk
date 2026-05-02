@@ -7,8 +7,8 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-007-intent-routing-and-department-transfer`
-- Latest completed node commit: `5911c19`
+- Latest completed node branch: `feat/node-008-intent-clarification-and-mandatory-data-capture`
+- Latest completed node commit: `6380d6e`
 
 ## Confirmed Working
 
@@ -41,6 +41,11 @@
 - Bounded department intent routing works for sales, accounting, and delivery.
 - Routing remains deterministic and debuggable.
 - Final transfer phrase is department-specific.
+- Immediate transfer requests no longer bypass required data collection.
+- Mandatory data before live transfer remains `name`, `city`, `phone`, and `phone_confirmed=true`.
+- Stage-aware responses are implemented when the caller asks for immediate transfer.
+- Bounded `INTENT_CLARIFY` is implemented for unclear or tied department intent.
+- `SAFE_FINISH` is terminal/non-transfer and uses reason-based spoken phrases before hangup.
 - NODE-001 live smoke validation passed:
   - stage prompts progressed correctly;
   - user speech was transcribed for ISSUE / NAME / CITY / PHONE;
@@ -91,6 +96,12 @@ NODE-007 adds bounded department intent routing:
 topic intent -> sales/accounting/delivery/default -> explicit transfer target
 ```
 
+NODE-008 adds mandatory data capture and bounded clarification:
+
+```text
+immediate transfer request -> collect required data -> clarify intent/default safely -> transfer only when complete
+```
+
 ## Validation Notes
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
@@ -102,6 +113,7 @@ topic intent -> sales/accounting/delivery/default -> explicit transfer target
 - NODE-005 is merged into `master`.
 - NODE-006 is merged into `master`.
 - NODE-007 is merged into `master`.
+- NODE-008 is recorded in `master`.
 - During NODE-002 validation, SSH to `92.118.85.117:22` timed out while publishing `prompt_3` and transfer system sounds.
 - Despite the partial publish failure, the listener reached `READY_WAITING_FOR_CALLS`.
 - Fallback media was used during the live call for missing `prompt_3` and transfer phrase.
@@ -129,6 +141,7 @@ topic intent -> sales/accounting/delivery/default -> explicit transfer target
 - NODE-005 live smoke confirmed the current full flow reaches `ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase -> transfer`.
 - NODE-006 improves NAME quality and stability but does not introduce multi-department routing.
 - NODE-007 validates department routing and department-specific transfer prompts for sales, accounting, and delivery.
+- NODE-008 prevents transfer from bypassing required data collection and makes SAFE_FINISH terminal/non-transfer.
 
 ## NODE-004 Live Smoke
 
@@ -231,8 +244,40 @@ Live validation references:
 - Accounting: `call_id=1777726120.10`; issue matched accounting intent; accounting phrase resolved and played; transfer target `department=accounting`, `context=from-internal`, `extension=accounting`, `priority=1`.
 - Delivery: `call_id=1777726440.12`; issue matched delivery intent; delivery phrase resolved and played; transfer target `department=delivery`, `context=from-internal`, `extension=delivery`, `priority=1`.
 
+## NODE-008 Validation
+
+Mandatory data before live transfer:
+
+```text
+name
+city
+phone
+phone_confirmed=true
+```
+
+Focused regression:
+
+```text
+tests/test_dialog_flow.py
+tests/test_post_phone_transfer.py
+```
+
+Latest focused result:
+
+```text
+42 passed in 2.73s
+```
+
+Implementation notes:
+
+- PHONE and PHONE_CONFIRM are governed by stage-local policy rather than generic accumulated turn cutoff.
+- `INTENT_CLARIFY` timeout and empty outcomes are normal outcomes, not unhandled exceptions.
+- `SAFE_FINISH` supports reason-based phrases for `missing_required_data`, `intent_not_resolved`, and `phone_not_confirmed`.
+
 ## Next Recommended Step
 
 ```text
-Open the next bounded node only after master records NODE-007 completion.
+Start NODE-009 / business-hours-and-after-hours-handoff.
 ```
+
+NODE-009 should detect working hours vs non-working hours. In non-working hours, it should not perform live transfer, but should still collect issue/name/city/phone and tell the caller the relevant department will call back in working hours.

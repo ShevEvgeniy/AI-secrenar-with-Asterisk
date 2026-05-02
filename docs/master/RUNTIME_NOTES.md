@@ -185,6 +185,28 @@ delivery: Хорошо, я соединяю вас с отделом доста�
   - `1777726120.10`: accounting intent -> accounting phrase resolved and played -> `department=accounting`, `context=from-internal`, `extension=accounting`, `priority=1`.
   - `1777726440.12`: delivery intent -> delivery phrase resolved and played -> `department=delivery`, `context=from-internal`, `extension=delivery`, `priority=1`.
 
+## NODE-008 Runtime Notes
+
+- Immediate transfer requests no longer bypass required data collection.
+- Mandatory data before live transfer remains:
+  - `name`;
+  - `city`;
+  - `phone`;
+  - `phone_confirmed=true`.
+- Stage-aware responses are implemented when the caller asks for immediate transfer.
+- Bounded `INTENT_CLARIFY` is implemented for unclear or tied department intent.
+- Bounded retry policy is implemented by stage:
+  - ISSUE retries, then moves to `INTENT_CLARIFY`;
+  - `INTENT_CLARIFY` retries, then defaults to the configured department;
+  - NAME/CITY/PHONE use bounded retries, then `SAFE_FINISH`;
+  - PHONE_CONFIRM has its own bounded policy and is not cut off by generic global turn limits.
+- PHONE and PHONE_CONFIRM are effectively governed by stage-local policy rather than prematurely terminated by generic accumulated turn cutoff.
+- `INTENT_CLARIFY` timeout and empty outcomes are handled as normal outcomes, not unhandled exceptions.
+- `SAFE_FINISH` is terminal/non-transfer and supports reason-based spoken phrases before hangup:
+  - `missing_required_data`;
+  - `intent_not_resolved`;
+  - `phone_not_confirmed`.
+
 ## NODE-005 Runtime Notes
 
 - NODE-005 keeps the current turn-based architecture and the NODE-004 post-PHONE transfer flow.
