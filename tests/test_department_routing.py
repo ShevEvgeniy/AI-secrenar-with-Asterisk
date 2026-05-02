@@ -19,15 +19,29 @@ class _TransferClient:
         self.play_calls: list[tuple[str, str]] = []
         self.continue_calls: list[dict[str, Any]] = []
         self.hangup_calls: list[str] = []
+        self.playback_waits: list[dict[str, Any]] = []
+        self.call_order: list[str] = []
 
     async def moh_stop_safe(self, _channel_id: str) -> dict[str, Any]:
         return {"ok": True}
 
     async def play_safe(self, channel_id: str, media: str) -> dict[str, Any]:
         self.play_calls.append((channel_id, media))
-        return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
+        self.call_order.append("play")
+        return {
+            "ok": True,
+            "reason": "ok",
+            "http_status": 200,
+            "details": {"payload": {"id": f"playback-{len(self.play_calls)}"}},
+        }
+
+    async def wait_for_playback_finished(self, app_name: str, playback_id: str, timeout: int) -> dict[str, Any]:
+        self.playback_waits.append({"app_name": app_name, "playback_id": playback_id, "timeout": timeout})
+        self.call_order.append("wait")
+        return {"type": "PlaybackFinished"}
 
     async def continue_safe(self, channel_id: str, context: str, extension: str, priority: int) -> dict[str, Any]:
+        self.call_order.append("continue")
         self.continue_calls.append(
             {
                 "channel_id": channel_id,
@@ -39,6 +53,7 @@ class _TransferClient:
         return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
 
     async def hangup_safe(self, channel_id: str) -> dict[str, Any]:
+        self.call_order.append("hangup")
         self.hangup_calls.append(channel_id)
         return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
 
@@ -227,6 +242,7 @@ def test_transfer_is_blocked_without_mandatory_name_city_and_confirmed_phone(tmp
 
 def test_after_hours_skips_transfer_after_required_data(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("BUSINESS_HOURS_MODE", "after_hours")
+    monkeypatch.setenv("AFTER_HOURS_GUARD_DELAY_MS", "0")
     client = _TransferClient()
     session = CallSession(call_id="call-after-hours", channel_id="ch-after-hours", artifact_dir=tmp_path)
     session.dialog.profile = {
@@ -245,12 +261,15 @@ def test_after_hours_skips_transfer_after_required_data(monkeypatch, tmp_path: P
             session,
             {ari_app.AFTER_HOURS_ACCOUNTING_SOUND_ID: True, ari_app.TRANSFER_ACCOUNTING_SOUND_ID: True},
             moh_started=True,
+            app_name="app",
         )
     )
 
     assert handled is True
     assert moh_started is False
     assert client.play_calls == [("ch-after-hours", ari_app.AFTER_HOURS_ACCOUNTING_SOUND_ID)]
+    assert client.playback_waits == [{"app_name": "app", "playback_id": "playback-1", "timeout": 20}]
+    assert client.call_order == ["play", "wait", "hangup"]
     assert client.continue_calls == []
     assert client.hangup_calls == ["ch-after-hours"]
     assert session.state == CallState.DONE
@@ -261,10 +280,18 @@ def test_after_hours_skips_transfer_after_required_data(monkeypatch, tmp_path: P
     assert phrase_event["details"]["department"] == "accounting"
     assert phrase_event["details"]["department_sound_id"] == ari_app.AFTER_HOURS_ACCOUNTING_SOUND_ID
     assert "\u0431\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0438\u044f" in phrase_event["details"]["phrase_text"].lower()
+    barrier_event = next(event for event in events if event["action"] == "after_hours_playback_barrier")
+    assert barrier_event["status"] == "ok"
+    assert barrier_event["details"]["playback_id"] == "playback-1"
+    assert barrier_event["details"]["timeout_seconds"] == 20
+    assert barrier_event["details"]["guard_delay_ms"] == 0
     skipped = next(event for event in events if event["action"] == "transfer_skipped_after_hours")
     assert skipped["details"]["transfer_skipped"] is True
     assert skipped["details"]["business_hours_mode"] == "after_hours"
+    assert skipped["details"]["after_hours_playback_completed"] is True
     assert not any(event["action"] == "transfer" for event in events)
+    handoff = next(event for event in events if event["action"] == "after_hours_handoff")
+    assert handoff["details"]["after_hours_playback_completed"] is True
 
 
 def test_after_hours_completion_is_blocked_until_required_data(monkeypatch, tmp_path: Path) -> None:

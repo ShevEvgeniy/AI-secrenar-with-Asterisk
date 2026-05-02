@@ -63,6 +63,8 @@ DEPARTMENT_WORKING_HOURS_<DEPARTMENT>_TZ=Europe/Moscow
 DEPARTMENT_WORKING_HOURS_<DEPARTMENT>_DAYS=0,1,2,3,4
 DEPARTMENT_WORKING_HOURS_<DEPARTMENT>_START=09:00
 DEPARTMENT_WORKING_HOURS_<DEPARTMENT>_END=18:00
+AFTER_HOURS_PLAYBACK_TIMEOUT_SECONDS=20
+AFTER_HOURS_GUARD_DELAY_MS=400
 ```
 
 After-hours phrase mapping:
@@ -79,7 +81,10 @@ After-hours transfer-skip logic:
 2. Resolve department with the existing NODE-007/NODE-008 routing logic.
 3. Evaluate `business_hours_for_department(department)`.
 4. If `working_hours`, play the existing department transfer phrase and call `continue_safe` unchanged.
-5. If `after_hours`, play the department callback phrase, log `transfer_skipped_after_hours`, hang up, and never call `continue_safe`.
+5. If `after_hours`, play the department callback phrase and capture the returned playback id.
+6. Wait for `PlaybackFinished` with `AFTER_HOURS_PLAYBACK_TIMEOUT_SECONDS`.
+7. Apply `AFTER_HOURS_GUARD_DELAY_MS`.
+8. Log `transfer_skipped_after_hours`, hang up with `after_hours_handoff`, and never call `continue_safe`.
 
 Logging:
 
@@ -88,6 +93,7 @@ department_intent
 business_hours_decision
 transfer_phrase_resolved
 after_hours_phrase_resolved
+after_hours_playback_barrier
 transfer_skipped_after_hours
 after_hours_handoff
 ```

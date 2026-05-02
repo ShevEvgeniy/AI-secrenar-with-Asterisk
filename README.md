@@ -103,11 +103,12 @@ Working-hours contract:
 - Default schedule: `BUSINESS_HOURS_TZ=Europe/Moscow`, `BUSINESS_HOURS_DAYS=0,1,2,3,4`, `BUSINESS_HOURS_START=09:00`, `BUSINESS_HOURS_END=18:00`; days use Python weekday numbers, Monday `0` through Sunday `6`, start inclusive and end exclusive.
 - Ops/test override: `BUSINESS_HOURS_MODE=working_hours|after_hours`.
 - Per-department overrides: `DEPARTMENT_WORKING_HOURS_<DEPARTMENT>_MODE`, `_TZ`, `_DAYS`, `_START`, `_END`.
+- After-hours playback barrier: `AFTER_HOURS_PLAYBACK_TIMEOUT_SECONDS=20`, `AFTER_HOURS_GUARD_DELAY_MS=400`.
 
 After-hours behavior:
 - Mandatory data is still required first: `issue`, `name`, `city`, `phone_digits`, and `phone_confirmed=true`.
 - When the resolved department is in `after_hours`, ARI does not call `continue_safe` and does not live-transfer.
-- It plays a department-aware callback handoff phrase, logs `transfer_skipped_after_hours`, and hangs up.
+- It plays a department-aware callback handoff phrase, waits for `PlaybackFinished` with a bounded timeout, applies a short guard delay, logs `transfer_skipped_after_hours`, and hangs up.
 
 After-hours phrase/audio mapping:
 - `sales`: `sound:ai_secretary/_system/after_hours_sales` — sales is not working now and sales will call back during working hours.
@@ -116,7 +117,7 @@ After-hours phrase/audio mapping:
 
 Unclear or tied intent now triggers a bounded clarification prompt: "Уточните, пожалуйста, отдел: продажи, бухгалтерия или доставка." The caller's answer must resolve to `sales`, `accounting`, or `delivery`; then the normal data collection flow continues.
 
-Runtime events log `department_intent`, `business_hours_decision`, `transfer_phrase_resolved` or `after_hours_phrase_resolved`, the resolved transfer target, early-transfer status, missing required fields, after-hours transfer skip, and clarification results before the `transfer` or `after_hours_handoff` event.
+Runtime events log `department_intent`, `business_hours_decision`, `transfer_phrase_resolved` or `after_hours_phrase_resolved`, `after_hours_playback_barrier`, the resolved transfer target, early-transfer status, missing required fields, after-hours transfer skip, and clarification results before the `transfer` or `after_hours_handoff` event.
 
 Bounded retry policy:
 - `ISSUE`: empty/silence retries up to 2 total, then moves to `INTENT_CLARIFY`.

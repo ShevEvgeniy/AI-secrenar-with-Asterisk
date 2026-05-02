@@ -61,6 +61,8 @@ DEFAULT_PHONE_CONFIRM_GUARD_DELAY_MS = 400
 DEFAULT_PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS = 15
 DEFAULT_NAME_GUARD_DELAY_MS = 400
 DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS = 15
+DEFAULT_AFTER_HOURS_GUARD_DELAY_MS = 400
+DEFAULT_AFTER_HOURS_PLAYBACK_TIMEOUT_SECONDS = 20
 NAME_STT_LANGUAGE = "ru"
 NAME_STT_PROMPT = (
     "Русская речь. Ожидается короткий ответ с именем клиента: имя, имя и отчество "
@@ -320,6 +322,15 @@ def _name_guard_delay_ms() -> int:
 def _name_playback_timeout_sec() -> int:
     value = _env_int("NAME_PLAYBACK_TIMEOUT_SECONDS", DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS)
     return value if value > 0 else DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS
+
+
+def _after_hours_guard_delay_ms() -> int:
+    return _env_int("AFTER_HOURS_GUARD_DELAY_MS", DEFAULT_AFTER_HOURS_GUARD_DELAY_MS)
+
+
+def _after_hours_playback_timeout_sec() -> int:
+    value = _env_int("AFTER_HOURS_PLAYBACK_TIMEOUT_SECONDS", DEFAULT_AFTER_HOURS_PLAYBACK_TIMEOUT_SECONDS)
+    return value if value > 0 else DEFAULT_AFTER_HOURS_PLAYBACK_TIMEOUT_SECONDS
 
 
 def _system_sounds_publish_timeout_sec() -> int:
@@ -750,6 +761,7 @@ async def _play_transfer_and_continue(
     session: CallSession,
     system_sounds: dict[str, bool],
     moh_started: bool,
+    app_name: str = "",
 ) -> tuple[bool, bool]:
     missing_fields = required_fields_missing(session.dialog.profile)
     if missing_fields:
@@ -832,6 +844,7 @@ async def _play_transfer_and_continue(
         started = time.perf_counter()
         moh_started = await _maybe_stop_moh(client, session, moh_started)
         play_result = await client.play_safe(session.channel_id, after_hours_media)
+        playback_id = _playback_id_from_result(play_result)
         dur_ms = int((time.perf_counter() - started) * 1000)
         session.log_event(
             action="play_after_hours_phrase",
@@ -850,8 +863,20 @@ async def _play_transfer_and_continue(
                 "phrase_text": after_hours_phrase,
                 "department_sound_id": after_hours_sound_id,
                 "resolved_sound_id": after_hours_media,
+                "playback_id": playback_id,
             },
         )
+        barrier_ok = False
+        if play_result["ok"]:
+            barrier_ok = await _wait_for_after_hours_playback_barrier(
+                client,
+                app_name,
+                session,
+                after_hours_media,
+                playback_id,
+                department=transfer_target.department,
+                phrase_text=after_hours_phrase,
+            )
         session.log_event(
             action="transfer_skipped_after_hours",
             status="ok",
@@ -860,6 +885,8 @@ async def _play_transfer_and_continue(
                 "intent": routing_decision.intent,
                 "intent_reason": routing_decision.reason,
                 "business_hours_mode": hours_decision.mode,
+                "playback_id": playback_id,
+                "after_hours_playback_completed": barrier_ok,
                 "transfer_skipped": True,
             },
         )
@@ -876,6 +903,8 @@ async def _play_transfer_and_continue(
                 **(hangup_result.get("details") or {}),
                 "department": transfer_target.department,
                 "business_hours_mode": hours_decision.mode,
+                "playback_id": playback_id,
+                "after_hours_playback_completed": barrier_ok,
                 "transfer_skipped": True,
             },
         )
@@ -978,6 +1007,81 @@ async def _play_transfer_and_continue(
         },
     )
     return False, moh_started
+
+
+async def _wait_for_after_hours_playback_barrier(
+    client: AriClient,
+    app_name: str,
+    session: CallSession,
+    media: str,
+    playback_id: str,
+    *,
+    department: Department,
+    phrase_text: str,
+) -> bool:
+    """Wait for after-hours handoff playback before hanging up."""
+    barrier_timeout = _after_hours_playback_timeout_sec()
+    guard_ms = _after_hours_guard_delay_ms()
+    if not playback_id:
+        session.log_event(
+            action="after_hours_playback_barrier",
+            status="fail",
+            reason="playback_id_missing",
+            media=media,
+            sound_id=media,
+            details={
+                "department": department,
+                "phrase_text": phrase_text,
+                "playback_id": playback_id,
+                "timeout_seconds": barrier_timeout,
+                "guard_delay_ms": guard_ms,
+            },
+        )
+        return False
+
+    barrier_start = time.perf_counter()
+    try:
+        barrier_event = await client.wait_for_playback_finished(app_name, playback_id, timeout=barrier_timeout)
+    except TimeoutError:
+        barrier_event = {"type": "timeout"}
+    except asyncio.TimeoutError:
+        barrier_event = {"type": "timeout"}
+    barrier_ms = int((time.perf_counter() - barrier_start) * 1000)
+    if barrier_event.get("type") != "PlaybackFinished":
+        session.log_event(
+            action="after_hours_playback_barrier",
+            status="fail",
+            reason=str(barrier_event.get("type") or "playback_event_missing"),
+            media=media,
+            sound_id=media,
+            dur_ms=barrier_ms,
+            details={
+                "department": department,
+                "phrase_text": phrase_text,
+                "playback_id": playback_id,
+                "timeout_seconds": barrier_timeout,
+                "guard_delay_ms": guard_ms,
+            },
+        )
+        return False
+
+    if guard_ms > 0:
+        await asyncio.sleep(guard_ms / 1000)
+    session.log_event(
+        action="after_hours_playback_barrier",
+        status="ok",
+        media=media,
+        sound_id=media,
+        dur_ms=barrier_ms,
+        details={
+            "department": department,
+            "phrase_text": phrase_text,
+            "playback_id": playback_id,
+            "timeout_seconds": barrier_timeout,
+            "guard_delay_ms": guard_ms,
+        },
+    )
+    return True
 
 
 async def _play_phone_confirmation_prompt(
@@ -1787,6 +1891,7 @@ async def handle_call(
                         session,
                         system_sounds,
                         moh_started,
+                        app_name=app_name,
                     )
                     if transferred:
                         return
@@ -1830,7 +1935,13 @@ async def handle_call(
                 await client.hangup_safe(channel_id)
                 return
             if session.dialog.stage == DialogStage.DONE:
-                transferred, moh_started = await _play_transfer_and_continue(client, session, system_sounds, moh_started)
+                transferred, moh_started = await _play_transfer_and_continue(
+                    client,
+                    session,
+                    system_sounds,
+                    moh_started,
+                    app_name=app_name,
+                )
                 if transferred:
                     return
                 _played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
