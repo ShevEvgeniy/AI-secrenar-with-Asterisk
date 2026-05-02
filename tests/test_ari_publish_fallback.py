@@ -228,6 +228,13 @@ def test_transfer_media_uses_controlled_transfer_fallback_when_transfer_unavaila
     monkeypatch.delenv("TRANSFER_PRIORITY", raising=False)
     artifact_dir = tmp_path / "artifacts" / "call-transfer-fallback"
     session = CallSession(call_id="call-transfer-fallback", channel_id="ch-transfer", artifact_dir=artifact_dir)
+    session.dialog.profile = {
+        "issue": "Need cylinders",
+        "name": "Ivan Petrov",
+        "city": "Moscow",
+        "phone_digits": "9200320355",
+        "phone_confirmed": True,
+    }
     client = _FakeClient()
 
     transferred, _moh_started = asyncio.run(

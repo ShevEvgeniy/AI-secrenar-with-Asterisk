@@ -42,6 +42,13 @@ def test_transfer_defaults_to_sales_real_route(monkeypatch, tmp_path: Path) -> N
     monkeypatch.delenv("TRANSFER_PRIORITY", raising=False)
     client = _TransferClient()
     session = CallSession(call_id="call-sales-real", channel_id="ch-sales-real", artifact_dir=tmp_path)
+    session.dialog.profile = {
+        "issue": "Need cylinders",
+        "name": "Ivan Petrov",
+        "city": "Moscow",
+        "phone_digits": "9200320355",
+        "phone_confirmed": True,
+    }
 
     transferred, moh_started = asyncio.run(
         ari_app._play_transfer_and_continue(

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .call_session import DialogStage
-from .routing import classify_department_intent
+from .routing import ALLOWED_DEPARTMENTS, classify_department_intent
 
 MIN_CITY_LETTERS = 4
 PHONE_DIGIT_LENGTHS = {10, 11}
@@ -133,12 +133,46 @@ RU_DIGIT_WORDS = {
 
 PROMPTS: dict[DialogStage, str] = {
     DialogStage.ISSUE: "Здравствуйте! Я Анна, виртуальный секретарь. По какому вопросу вы обращаетесь?",
+    DialogStage.INTENT_CLARIFY: "Уточните, пожалуйста, отдел: продажи, бухгалтерия или доставка.",
     DialogStage.NAME: "Назовите, пожалуйста, ваше имя.",
     DialogStage.CITY: "Из какого города или региона вы звоните?",
     DialogStage.PHONE: "Подскажите номер телефона для связи.",
     DialogStage.PHONE_CONFIRM: "Правильно ли я записала ваш номер?",
     DialogStage.DONE: "хорошо я соединяю вас с отделом продаж.",
 }
+
+EARLY_TRANSFER_PROMPTS: dict[DialogStage, str] = {
+    DialogStage.ISSUE: (
+        "Хорошо, я могу вас соединить. Но сначала мне нужно записать ваши данные и передать их специалисту. "
+        "Назовите, пожалуйста, ваше имя."
+    ),
+    DialogStage.NAME: (
+        "Хорошо, я могу вас соединить. Специалисту нужно знать, как к вам обращаться. "
+        "Назовите, пожалуйста, ваше имя."
+    ),
+    DialogStage.CITY: (
+        "Хорошо, я могу вас соединить. Нужен ваш город, чтобы правильный специалист мог ответить. "
+        "Из какого города или региона вы звоните?"
+    ),
+    DialogStage.PHONE: (
+        "Хорошо, я могу вас соединить. Нужен контактный телефон, чтобы специалист мог с вами связаться. "
+        "Подскажите номер телефона для связи."
+    ),
+}
+
+CLARIFICATION_PROMPT = PROMPTS[DialogStage.INTENT_CLARIFY]
+
+TRANSFER_REQUEST_PATTERNS = (
+    r"\bconnect\b",
+    r"\btransfer\b",
+    r"\bswitch\s+me\b",
+    r"соедин",
+    r"переключ",
+    r"перевед",
+    r"нужен\s+отдел",
+    r"нужна\s+бухгалтер",
+    r"в\s+отдел\s+",
+)
 
 
 @dataclass(frozen=True)
@@ -161,6 +195,9 @@ class TurnRecord:
 
 def next_prompt(state: DialogStage, profile: dict[str, Any]) -> str:
     """Return prompt text for current state."""
+    early_prompt = profile.get("early_transfer_prompt")
+    if isinstance(early_prompt, str) and early_prompt:
+        return early_prompt
     if state == DialogStage.NAME:
         retry_prompt = profile.get("name_retry_prompt")
         if isinstance(retry_prompt, str) and retry_prompt:
@@ -174,6 +211,78 @@ def next_prompt(state: DialogStage, profile: dict[str, Any]) -> str:
         if phone_text:
             return phone_text
     return PROMPTS.get(state, PROMPTS[DialogStage.DONE])
+
+
+def required_fields_missing(profile: dict[str, Any]) -> list[str]:
+    """Return required transfer fields that are not ready yet."""
+    missing: list[str] = []
+    if not profile.get("name"):
+        missing.append("name")
+    if not profile.get("city"):
+        missing.append("city")
+    if not profile.get("phone_digits"):
+        missing.append("phone")
+    elif profile.get("phone_confirmed") is not True:
+        missing.append("phone_confirmed")
+    return missing
+
+
+def _clear_early_transfer_prompt(profile: dict[str, Any]) -> None:
+    profile.pop("early_transfer_prompt", None)
+
+
+def _is_transfer_requested(text: str) -> bool:
+    normalized = text.strip().lower()
+    if not normalized:
+        return False
+    if any(re.search(pattern, normalized) for pattern in TRANSFER_REQUEST_PATTERNS):
+        return True
+    has_department_word = any(
+        keyword in normalized
+        for keyword in (
+            "отдел продаж",
+            "продажи",
+            "бухгалтер",
+            "достав",
+            "accounting",
+            "delivery",
+            "sales",
+        )
+    )
+    return has_department_word and bool(re.search(r"\bneed\b|\bwant\b|нуж|хочу", normalized))
+
+
+def _store_department_decision(profile: dict[str, Any], text: str, *, clarified: bool) -> bool:
+    decision = classify_department_intent(text)
+    profile["department_intent"] = decision.intent
+    profile["department"] = decision.department
+    profile["department_intent_reason"] = decision.reason
+    profile["department_intent_scores"] = decision.scores
+    if clarified:
+        profile["department_clarification_result"] = decision.department
+        profile["department_clarification_reason"] = decision.reason
+    return decision.intent in ALLOWED_DEPARTMENTS
+
+
+def _mark_early_transfer_request(
+    profile: dict[str, Any],
+    stage: DialogStage,
+    text: str,
+    *,
+    prompt_stage: DialogStage | None = None,
+) -> None:
+    profile["early_transfer_requested"] = True
+    profile["early_transfer_requested_stage"] = stage.value
+    profile["early_transfer_requested_text"] = text
+    profile["early_transfer_missing_fields"] = required_fields_missing(profile)
+    if prompt_stage in EARLY_TRANSFER_PROMPTS:
+        profile["early_transfer_prompt"] = EARLY_TRANSFER_PROMPTS[prompt_stage]
+
+
+def _request_department_clarification(profile: dict[str, Any], resume_stage: DialogStage) -> None:
+    profile["department_clarification_needed"] = True
+    profile["department_clarification_resume_stage"] = resume_stage.value
+    profile["department_clarification_prompt"] = CLARIFICATION_PROMPT
 
 
 def _canonicalize_name_token(token: str) -> str:
@@ -425,18 +534,51 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
     """Update profile and next state from one transcript."""
     updated = dict(profile)
     text = transcript_text.strip()
+    _clear_early_transfer_prompt(updated)
 
     if state == DialogStage.ISSUE and text:
         updated["issue"] = text
-        decision = classify_department_intent(text)
-        updated["department_intent"] = decision.intent
-        updated["department"] = decision.department
-        updated["department_intent_reason"] = decision.reason
-        updated["department_intent_scores"] = decision.scores
+        transfer_requested = _is_transfer_requested(text)
+        clarified = _store_department_decision(updated, text, clarified=False)
+        if transfer_requested:
+            _mark_early_transfer_request(updated, state, text, prompt_stage=DialogStage.ISSUE if clarified else None)
+        if not clarified:
+            _request_department_clarification(updated, DialogStage.NAME)
+            return DialogStage.INTENT_CLARIFY, updated
         return DialogStage.NAME, updated
     if state == DialogStage.ISSUE:
         return DialogStage.ISSUE, updated
+    if state == DialogStage.INTENT_CLARIFY:
+        if _store_department_decision(updated, text, clarified=True):
+            updated["department_clarification_needed"] = False
+            updated["department_clarified"] = True
+            resume_stage_name = str(updated.get("department_clarification_resume_stage") or DialogStage.NAME.value)
+            resume_stage = DialogStage(resume_stage_name) if resume_stage_name in DialogStage._value2member_map_ else DialogStage.NAME
+            updated.pop("department_clarification_prompt", None)
+            updated.pop("department_clarification_resume_stage", None)
+            if updated.get("early_transfer_requested"):
+                updated["early_transfer_missing_fields"] = required_fields_missing(updated)
+                prompt_stage_name = str(updated.get("early_transfer_requested_stage") or resume_stage.value)
+                prompt_stage = (
+                    DialogStage(prompt_stage_name)
+                    if prompt_stage_name in DialogStage._value2member_map_
+                    else resume_stage
+                )
+                if prompt_stage in EARLY_TRANSFER_PROMPTS:
+                    updated["early_transfer_prompt"] = EARLY_TRANSFER_PROMPTS[prompt_stage]
+            return resume_stage, updated
+        updated["department_clarification_needed"] = True
+        updated["department_clarification_result"] = "unclear"
+        updated["department_clarification_prompt"] = CLARIFICATION_PROMPT
+        return DialogStage.INTENT_CLARIFY, updated
     if state == DialogStage.NAME:
+        if _is_transfer_requested(text):
+            clarified = _store_department_decision(updated, text, clarified=False)
+            _mark_early_transfer_request(updated, state, text, prompt_stage=DialogStage.NAME if clarified else None)
+            if not clarified:
+                _request_department_clarification(updated, DialogStage.NAME)
+                return DialogStage.INTENT_CLARIFY, updated
+            return DialogStage.NAME, updated
         if _is_name_meta_repair(text):
             _set_name_retry_prompt(updated, "meta_repair")
             return DialogStage.NAME, updated
@@ -453,12 +595,26 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             return DialogStage.CITY, updated
         return DialogStage.NAME, updated
     if state == DialogStage.CITY:
+        if _is_transfer_requested(text):
+            clarified = _store_department_decision(updated, text, clarified=False)
+            _mark_early_transfer_request(updated, state, text, prompt_stage=DialogStage.CITY if clarified else None)
+            if not clarified:
+                _request_department_clarification(updated, DialogStage.CITY)
+                return DialogStage.INTENT_CLARIFY, updated
+            return DialogStage.CITY, updated
         city = _extract_city(text)
         if city:
             updated["city"] = city
             return DialogStage.PHONE, updated
         return DialogStage.CITY, updated
     if state == DialogStage.PHONE:
+        if _is_transfer_requested(text):
+            clarified = _store_department_decision(updated, text, clarified=False)
+            _mark_early_transfer_request(updated, state, text, prompt_stage=DialogStage.PHONE if clarified else None)
+            if not clarified:
+                _request_department_clarification(updated, DialogStage.PHONE)
+                return DialogStage.INTENT_CLARIFY, updated
+            return DialogStage.PHONE, updated
         phone = _extract_phone(text)
         if phone:
             digits, formatted = phone

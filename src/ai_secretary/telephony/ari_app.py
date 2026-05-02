@@ -20,7 +20,7 @@ from ..storage.files import save_bytes, save_json
 from ..tts.silero import SileroTTS
 from .ari_client import AriClient
 from .call_session import CallSession, CallState, DialogStage
-from .dialog import PROMPTS, apply_turn, build_turn_record, next_prompt, should_stop_dialog
+from .dialog import PROMPTS, apply_turn, build_turn_record, next_prompt, required_fields_missing, should_stop_dialog
 from .publish_to_asterisk import publish_wav_to_asterisk
 from .routing import (
     Department,
@@ -28,9 +28,11 @@ from .routing import (
     DEFAULT_TRANSFER_EXTEN,
     DEFAULT_TRANSFER_PRIORITY,
     classify_department_intent,
+    route_for_department,
 )
 
 PROMPT_1_SOUND_ID = "sound:ai_secretary/_system/prompt_1"
+PROMPT_CLARIFY_SOUND_ID = "sound:ai_secretary/_system/prompt_intent_clarify"
 PROMPT_2_SOUND_ID = "sound:ai_secretary/_system/prompt_2"
 PROMPT_3_SOUND_ID = "sound:ai_secretary/_system/prompt_3"
 PROMPT_4_SOUND_ID = "sound:ai_secretary/_system/prompt_4_v2"
@@ -40,6 +42,7 @@ TRANSFER_ACCOUNTING_SOUND_ID = "sound:ai_secretary/_system/transfer_accounting"
 TRANSFER_DELIVERY_SOUND_ID = "sound:ai_secretary/_system/transfer_delivery"
 PROMPT_FALLBACK_SOUND_IDS: dict[DialogStage, str] = {
     DialogStage.ISSUE: "sound:ai_secretary/_system/fallback_prompt_1",
+    DialogStage.INTENT_CLARIFY: "sound:ai_secretary/_system/fallback_prompt_intent_clarify",
     DialogStage.NAME: "sound:ai_secretary/_system/fallback_prompt_2",
     DialogStage.CITY: "sound:ai_secretary/_system/fallback_prompt_3",
     DialogStage.PHONE: "sound:ai_secretary/_system/fallback_prompt_4",
@@ -77,10 +80,12 @@ TRANSFER_PHRASES: dict[Department, str] = {
 
 _SYSTEM_SOUND_TEXTS: dict[str, str] = {
     PROMPT_1_SOUND_ID: PROMPTS[DialogStage.ISSUE],
+    PROMPT_CLARIFY_SOUND_ID: PROMPTS[DialogStage.INTENT_CLARIFY],
     PROMPT_2_SOUND_ID: PROMPTS[DialogStage.NAME],
     PROMPT_3_SOUND_ID: PROMPTS[DialogStage.CITY],
     PROMPT_4_SOUND_ID: PROMPTS[DialogStage.PHONE],
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.ISSUE]: PROMPTS[DialogStage.ISSUE],
+    PROMPT_FALLBACK_SOUND_IDS[DialogStage.INTENT_CLARIFY]: PROMPTS[DialogStage.INTENT_CLARIFY],
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.NAME]: PROMPTS[DialogStage.NAME],
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.CITY]: PROMPTS[DialogStage.CITY],
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.PHONE]: PROMPTS[DialogStage.PHONE],
@@ -519,6 +524,8 @@ async def _play_fallback(
 def _prompt_media_for_stage(stage: DialogStage, system_sounds: dict[str, bool]) -> str:
     if stage == DialogStage.ISSUE and system_sounds.get(PROMPT_1_SOUND_ID, False):
         return PROMPT_1_SOUND_ID
+    if stage == DialogStage.INTENT_CLARIFY and system_sounds.get(PROMPT_CLARIFY_SOUND_ID, False):
+        return PROMPT_CLARIFY_SOUND_ID
     if stage == DialogStage.NAME and system_sounds.get(PROMPT_2_SOUND_ID, False):
         return PROMPT_2_SOUND_ID
     if stage == DialogStage.CITY and system_sounds.get(PROMPT_3_SOUND_ID, False):
@@ -539,9 +546,27 @@ async def _play_transfer_and_continue(
     system_sounds: dict[str, bool],
     moh_started: bool,
 ) -> tuple[bool, bool]:
+    missing_fields = required_fields_missing(session.dialog.profile)
+    if missing_fields:
+        session.log_event(
+            action="transfer_blocked_missing_required_data",
+            status="ok",
+            details={
+                "missing_required_fields": missing_fields,
+                "early_transfer_requested": bool(session.dialog.profile.get("early_transfer_requested")),
+                "department": session.dialog.profile.get("department"),
+                "department_intent": session.dialog.profile.get("department_intent"),
+            },
+        )
+        return False, moh_started
+
     issue_text = str(session.dialog.profile.get("issue") or "")
     routing_decision = classify_department_intent(issue_text)
-    transfer_target = routing_decision.target
+    profile_department = session.dialog.profile.get("department")
+    if profile_department in TRANSFER_PHRASES:
+        transfer_target = route_for_department(profile_department)
+    else:
+        transfer_target = routing_decision.target
     transfer_phrase = TRANSFER_PHRASES[transfer_target.department]
     transfer_sound_id = TRANSFER_SOUND_IDS[transfer_target.department]
     if system_sounds.get(transfer_sound_id, False):
@@ -556,6 +581,11 @@ async def _play_transfer_and_continue(
         details={
             **routing_decision.to_dict(),
             "issue": issue_text,
+            "profile_department": profile_department,
+            "resolved_department": transfer_target.department,
+            "early_transfer_requested": bool(session.dialog.profile.get("early_transfer_requested")),
+            "missing_required_fields": missing_fields,
+            "clarification_result": session.dialog.profile.get("department_clarification_result"),
         },
     )
     session.log_event(
@@ -567,6 +597,8 @@ async def _play_transfer_and_continue(
             "department": transfer_target.department,
             "intent": routing_decision.intent,
             "intent_reason": routing_decision.reason,
+            "early_transfer_requested": bool(session.dialog.profile.get("early_transfer_requested")),
+            "missing_required_fields": missing_fields,
             "phrase_text": transfer_phrase,
             "department_sound_id": transfer_sound_id,
             "resolved_sound_id": media,
@@ -1391,6 +1423,12 @@ async def handle_call(
                         "to_stage": new_stage.value,
                         "turn_idx": turn_idx,
                         "profile_fields": sorted(new_profile.keys()),
+                        "department": new_profile.get("department"),
+                        "department_intent": new_profile.get("department_intent"),
+                        "early_transfer_requested": bool(new_profile.get("early_transfer_requested")),
+                        "missing_required_fields": required_fields_missing(new_profile),
+                        "clarification_needed": bool(new_profile.get("department_clarification_needed")),
+                        "clarification_result": new_profile.get("department_clarification_result"),
                     },
                 )
                 session.dialog.stage = new_stage

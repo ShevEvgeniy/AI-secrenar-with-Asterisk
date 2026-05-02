@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from ai_secretary.telephony.call_session import DialogStage
 from ai_secretary.telephony.dialog import (
+    CLARIFICATION_PROMPT,
+    EARLY_TRANSFER_PROMPTS,
     NAME_MAX_RETRIES,
     NAME_RETRY_PROMPTS,
     PHONE_RETRY_PROMPTS,
@@ -63,6 +65,66 @@ def test_empty_issue_transcript_does_not_complete_dialog() -> None:
 
     assert state == DialogStage.ISSUE
     assert profile == {}
+
+
+def test_unclear_issue_intent_asks_bounded_clarification() -> None:
+    state, profile = apply_turn(DialogStage.ISSUE, {}, "I need help")
+
+    assert state == DialogStage.INTENT_CLARIFY
+    assert next_prompt(state, profile) == CLARIFICATION_PROMPT
+    assert profile["department_clarification_needed"] is True
+
+    state, profile = apply_turn(state, profile, "delivery")
+
+    assert state == DialogStage.NAME
+    assert profile["department"] == "delivery"
+    assert profile["department_clarified"] is True
+    assert profile["department_clarification_result"] == "delivery"
+
+
+def test_tied_issue_intent_asks_bounded_clarification() -> None:
+    state, profile = apply_turn(DialogStage.ISSUE, {}, "Need invoice and delivery")
+
+    assert state == DialogStage.INTENT_CLARIFY
+    assert profile["department_intent"] == "unclear"
+    assert profile["department_clarification_needed"] is True
+
+
+def test_early_transfer_at_issue_preserves_department_and_collects_name() -> None:
+    state, profile = apply_turn(DialogStage.ISSUE, {}, "соедините с бухгалтерией")
+
+    assert state == DialogStage.NAME
+    assert profile["department"] == "accounting"
+    assert profile["early_transfer_requested"] is True
+    assert profile["early_transfer_missing_fields"] == ["name", "city", "phone"]
+    assert next_prompt(state, profile) == EARLY_TRANSFER_PROMPTS[DialogStage.ISSUE]
+
+
+def test_early_transfer_at_slot_stages_keeps_collecting_missing_slot() -> None:
+    state, profile = apply_turn(DialogStage.NAME, {"issue": "Need cylinders"}, "соедините с отделом продаж")
+
+    assert state == DialogStage.NAME
+    assert profile["department"] == "sales"
+    assert profile["early_transfer_missing_fields"] == ["name", "city", "phone"]
+    assert next_prompt(state, profile) == EARLY_TRANSFER_PROMPTS[DialogStage.NAME]
+
+    state, profile = apply_turn(DialogStage.CITY, {"issue": "Need cylinders", "name": "Ivan"}, "мне нужен отдел доставки")
+
+    assert state == DialogStage.CITY
+    assert profile["department"] == "delivery"
+    assert profile["early_transfer_missing_fields"] == ["city", "phone"]
+    assert next_prompt(state, profile) == EARLY_TRANSFER_PROMPTS[DialogStage.CITY]
+
+    state, profile = apply_turn(
+        DialogStage.PHONE,
+        {"issue": "Need cylinders", "name": "Ivan", "city": "Moscow"},
+        "соедините с бухгалтерией",
+    )
+
+    assert state == DialogStage.PHONE
+    assert profile["department"] == "accounting"
+    assert profile["early_transfer_missing_fields"] == ["phone"]
+    assert next_prompt(state, profile) == EARLY_TRANSFER_PROMPTS[DialogStage.PHONE]
 
 
 def test_dialog_done_prompt_exact_transfer_phrase() -> None:

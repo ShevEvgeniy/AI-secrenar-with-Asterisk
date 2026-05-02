@@ -27,6 +27,7 @@ class DialogStage(str, Enum):
     """Dialog slot-filling stages."""
 
     ISSUE = "ISSUE"
+    INTENT_CLARIFY = "INTENT_CLARIFY"
     NAME = "NAME"
     CITY = "CITY"
     PHONE = "PHONE"

@@ -76,7 +76,9 @@ Env vars:
 
 ### Department transfer routing
 
-After `PHONE_CONFIRM` succeeds, the ARI listener classifies the caller's `ISSUE` text into one bounded department intent: `sales`, `accounting`, or `delivery`.
+Before live transfer, the ARI listener must have collected `name`, `city`, and `phone_digits`, and the phone must pass `PHONE_CONFIRM`.
+
+The caller can ask for an immediate transfer early, but the dialog does not transfer until mandatory data is complete. The detected department is preserved and the active slot is collected with a bounded stage-aware prompt.
 
 Routing contract:
 - Sales default: `context=from-internal`, `extension=sales_real`, `priority=1`
@@ -95,7 +97,9 @@ Transfer phrase/audio mapping:
 - `accounting`: `sound:ai_secretary/_system/transfer_accounting` — "Хорошо, я соединяю вас с бухгалтерией."
 - `delivery`: `sound:ai_secretary/_system/transfer_delivery` — "Хорошо, я соединяю вас с отделом доставки."
 
-Unclear or tied intent defaults explicitly to `sales`. This can be changed only to another bounded department with `DEPARTMENT_INTENT_DEFAULT=sales|accounting|delivery`; invalid values fall back to `sales`. Runtime events log `department_intent`, `transfer_phrase_resolved`, and the resolved transfer target before the `transfer` event.
+Unclear or tied intent now triggers a bounded clarification prompt: "Уточните, пожалуйста, отдел: продажи, бухгалтерия или доставка." The caller's answer must resolve to `sales`, `accounting`, or `delivery`; then the normal data collection flow continues.
+
+Runtime events log `department_intent`, `transfer_phrase_resolved`, the resolved transfer target, early-transfer status, missing required fields, and clarification results before the `transfer` event.
 
 Command:
 `$env:PYTHONPATH="src"`
