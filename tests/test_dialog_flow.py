@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from ai_secretary.telephony.call_session import DialogStage
 from ai_secretary.telephony.dialog import (
+    NAME_MAX_RETRIES,
+    NAME_RETRY_PROMPTS,
     PHONE_RETRY_PROMPTS,
     apply_turn,
     next_prompt,
@@ -90,12 +92,55 @@ def test_name_reasks_on_obvious_stt_junk() -> None:
     state, profile = apply_turn(DialogStage.NAME, {}, "you")
 
     assert state == DialogStage.NAME
-    assert profile == {}
+    assert profile["name_retry_reason"] == "junk"
 
     state, profile = apply_turn(DialogStage.NAME, {}, "Ivan Petrov")
 
     assert state == DialogStage.CITY
     assert profile["name"] == "Ivan Petrov"
+
+
+def test_name_accepts_short_valid_russian_names() -> None:
+    for transcript, expected in (("Ян", "Ян"), ("Лев", "Лев"), ("Оля", "Оля")):
+        state, profile = apply_turn(DialogStage.NAME, {}, transcript)
+
+        assert state == DialogStage.CITY
+        assert profile["name"] == expected
+
+
+def test_name_retry_prompts_vary_by_reason_without_immediate_repeat() -> None:
+    state, profile = apply_turn(DialogStage.NAME, {}, "")
+
+    assert state == DialogStage.NAME
+    assert profile["name_retry_reason"] == "unclear"
+    assert next_prompt(state, profile) == NAME_RETRY_PROMPTS["unclear"][0]
+
+    state, profile = apply_turn(state, profile, "")
+
+    assert state == DialogStage.NAME
+    assert profile["name_retry_reason"] == "unclear"
+    assert next_prompt(state, profile) == NAME_RETRY_PROMPTS["unclear"][1]
+
+
+def test_name_meta_repair_uses_reasoned_retry_prompt() -> None:
+    state, profile = apply_turn(DialogStage.NAME, {}, "я уже сказал")
+
+    assert state == DialogStage.NAME
+    assert profile["name_retry_reason"] == "meta_repair"
+    assert next_prompt(state, profile) == NAME_RETRY_PROMPTS["meta_repair"][0]
+
+
+def test_name_retry_limit_advances_with_unavailable_marker() -> None:
+    state = DialogStage.NAME
+    profile: dict[str, object] = {}
+
+    for _ in range(NAME_MAX_RETRIES):
+        state, profile = apply_turn(state, profile, "you")
+
+    assert state == DialogStage.CITY
+    assert profile["name"] == "клиент"
+    assert profile["name_unavailable"] is True
+    assert "name_retry_prompt" not in profile
 
 
 def test_phone_confirmation_rejects_and_redictates() -> None:

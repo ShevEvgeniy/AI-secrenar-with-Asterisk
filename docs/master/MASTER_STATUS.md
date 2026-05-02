@@ -97,6 +97,7 @@ ISSUE tolerant recording -> NAME tight recording -> CITY relaxed recording -> PH
 - NODE-005 patch 4 varies PHONE retry prompts by reason (`unclear`, `incomplete`, `rejected`) and prevents immediate repeated retry phrasing.
 - NODE-005 patch 5 fixes PHONE_CONFIRM prompt construction so TTS receives spoken digit words while formatted phone text remains available for logs/debug.
 - NODE-005 patch 6 fixes PHONE_CONFIRM sequencing with an explicit `PlaybackFinished` barrier plus `400 ms` guard, expands PHONE_CONFIRM timing to `6s/3s/12s`, adds meta-repair handling, adds NAME garbage gating, and regenerates the fixed PHONE prompt as `prompt_4_v2` with `связи -> св+язи` stress preprocessing.
+- NODE-005 patch 7 fixes NAME retry-loop regression with reason-based varied NAME prompts, short Russian-name tolerance, NAME meta-repair handling, and a 3-retry bound that advances with `name_unavailable=true`.
 
 ## NODE-004 Live Smoke
 
@@ -132,7 +133,7 @@ Result: 46 passed, 6 failed. Failures were outside NODE-005: missing `src/script
 ## Next Recommended Step
 
 ```text
-Run one live re-smoke for NODE-005 patch 3. Current local patch is NOT READY for merge until CITY/PHONE turn-taking is validated live.
+Run one live re-smoke for NODE-005 patch 7. Current local patch is NOT READY for merge until NAME retry behavior, PHONE_CONFIRM sequencing, and CITY/PHONE turn-taking are validated live.
 ```
 
 Real live transcription still depends on `TELEPHONY_STT_BACKEND` being explicitly configured, for example `openai` or `whisper_api`.

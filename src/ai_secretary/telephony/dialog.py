@@ -12,6 +12,29 @@ from .call_session import DialogStage
 MIN_CITY_LETTERS = 4
 PHONE_DIGIT_LENGTHS = {10, 11}
 NAME_JUNK_TOKENS = {"you", "yeah", "yes", "no", "ok", "okay", "test"}
+NAME_MAX_RETRIES = 3
+NAME_META_REPAIR_PATTERNS = (
+    r"я уже сказал",
+    r"я уже сказала",
+    r"вы не расслышали",
+    r"не расслышали",
+    r"еще раз\??",
+    r"ещё раз\??",
+)
+NAME_RETRY_PROMPTS: dict[str, tuple[str, ...]] = {
+    "unclear": (
+        "Извините, я не расслышала имя. Как я могу к вам обращаться?",
+        "Повторите, пожалуйста, как к вам обращаться.",
+    ),
+    "junk": (
+        "Не совсем расслышала имя. Представьтесь, пожалуйста, ещё раз.",
+        "Подскажите, пожалуйста, ваше имя.",
+    ),
+    "meta_repair": (
+        "Да, возможно, я плохо расслышала. Повторите, пожалуйста, как к вам обращаться.",
+        "Хорошо, давайте уточним имя. Как я могу к вам обращаться?",
+    ),
+}
 PHONE_RETRY_PROMPTS: dict[str, tuple[str, ...]] = {
     "unclear": (
         "Возможно, я плохо расслышала. Продиктуйте, пожалуйста, номер ещё раз.",
@@ -74,6 +97,10 @@ class TurnRecord:
 
 def next_prompt(state: DialogStage, profile: dict[str, Any]) -> str:
     """Return prompt text for current state."""
+    if state == DialogStage.NAME:
+        retry_prompt = profile.get("name_retry_prompt")
+        if isinstance(retry_prompt, str) and retry_prompt:
+            return retry_prompt
     if state == DialogStage.PHONE:
         retry_prompt = profile.get("phone_retry_prompt")
         if isinstance(retry_prompt, str) and retry_prompt:
@@ -98,15 +125,53 @@ def _extract_name(text: str) -> str | None:
 
 
 def _is_name_confident(name: str, source_text: str) -> bool:
-    letters = re.findall(r"[А-ЯЁA-Zа-яёa-z]", name)
-    if len(letters) < 2:
+    cleaned = name.strip(" .,!?:;\"'")
+    letters = re.findall(r"[А-ЯЁA-Zа-яёa-z]", cleaned)
+    if len(letters) < 2 or len(letters) > 40:
         return False
-    lowered = name.strip().lower()
-    if lowered in NAME_JUNK_TOKENS:
+    lowered = cleaned.lower()
+    if lowered in NAME_JUNK_TOKENS or any(ch.isdigit() for ch in cleaned):
+        return False
+    if re.search(r"[^А-ЯЁA-Zа-яёa-z\-\s]", cleaned):
         return False
     if re.search(r"[А-ЯЁа-яё]", source_text):
         return True
-    return bool(re.match(r"^[A-Z][a-z-]+(?:\s+[A-Z][a-z-]+)?$", name.strip()))
+    return bool(re.match(r"^[A-Z][a-z-]+(?:\s+[A-Z][a-z-]+)?$", cleaned))
+
+
+def _name_retry_reason(text: str, name: str | None) -> str:
+    if _is_name_meta_repair(text):
+        return "meta_repair"
+    if not text or not name:
+        return "unclear"
+    return "junk"
+
+
+def _set_name_retry_prompt(profile: dict[str, Any], reason: str) -> None:
+    prompts = NAME_RETRY_PROMPTS[reason]
+    previous = profile.get("name_last_retry_prompt")
+    prompt = prompts[0]
+    if prompt == previous and len(prompts) > 1:
+        prompt = prompts[1]
+    retries = int(profile.get("name_retry_count") or 0) + 1
+    profile["name_retry_count"] = retries
+    profile["name_retry_reason"] = reason
+    profile["name_retry_prompt"] = prompt
+    profile["name_last_retry_prompt"] = prompt
+
+
+def _clear_name_retry_prompt(profile: dict[str, Any]) -> None:
+    profile.pop("name_retry_reason", None)
+    profile.pop("name_retry_prompt", None)
+
+
+def _is_name_retry_exhausted(profile: dict[str, Any]) -> bool:
+    return int(profile.get("name_retry_count") or 0) >= NAME_MAX_RETRIES
+
+
+def _is_name_meta_repair(text: str) -> bool:
+    normalized = text.strip().lower()
+    return any(re.search(pattern, normalized) for pattern in NAME_META_REPAIR_PATTERNS)
 
 
 def _extract_city(text: str) -> str | None:
@@ -221,9 +286,19 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
     if state == DialogStage.ISSUE:
         return DialogStage.ISSUE, updated
     if state == DialogStage.NAME:
+        if _is_name_meta_repair(text):
+            _set_name_retry_prompt(updated, "meta_repair")
+            return DialogStage.NAME, updated
         name = _extract_name(text)
         if name and _is_name_confident(name, text):
+            _clear_name_retry_prompt(updated)
             updated["name"] = name
+            return DialogStage.CITY, updated
+        _set_name_retry_prompt(updated, _name_retry_reason(text, name))
+        if _is_name_retry_exhausted(updated):
+            updated["name"] = "клиент"
+            updated["name_unavailable"] = True
+            _clear_name_retry_prompt(updated)
             return DialogStage.CITY, updated
         return DialogStage.NAME, updated
     if state == DialogStage.CITY:

@@ -49,7 +49,7 @@ Patch 4 adds polite PHONE-only retry variation:
   - `unclear`: no usable digits were captured.
   - `incomplete`: some digits were captured, but not a complete 10- or 11-digit phone.
   - `rejected`: caller rejected the number during PHONE_CONFIRM.
-- This applies only to PHONE retry/repair behavior. ISSUE, NAME, CITY, and transfer behavior are unchanged.
+- This applies only to PHONE retry/repair behavior. ISSUE, NAME, CITY, and transfer behavior are unchanged in patch 4.
 
 Patch 5 fixes PHONE_CONFIRM TTS:
 
@@ -66,6 +66,14 @@ Patch 6 fixes PHONE_CONFIRM sequencing and repair handling:
 - Meta-repair phrases such as `я уже сказал`, `вы ничего не произнесли`, `что-то не так`, and `вы не так записали` return to PHONE capture with neutral repair wording.
 - NAME now has a separate guard for obvious STT garbage such as `you`, empty input, or non-confident junk; those do not advance NAME to CITY.
 - Fixed PHONE prompt audio is forced to re-render under `prompt_4_v2`, and built-in TTS stress preprocessing maps `связи` to `св+язи`.
+
+Patch 7 fixes NAME retry-loop regression:
+
+- NAME retry prompts are now reason-based (`unclear`, `junk`, `meta_repair`) and rotate without repeating the same retry phrase twice in a row.
+- NAME meta-repair phrases such as `я уже сказал`, `вы не расслышали`, and `ещё раз?` keep the caller in NAME with neutral retry wording.
+- Short Russian names with at least two Cyrillic letters, such as `Ян`, `Лев`, and `Оля`, are accepted.
+- Obvious junk, digits, non-name punctuation, and known STT noise such as `you` remain blocked.
+- NAME retries are bounded at `3`; after that the profile records `name="клиент"` and `name_unavailable=true`, then advances to CITY to avoid an infinite prompt_2 loop.
 
 Patch 2 adds explicit confirmation only for PHONE:
 
@@ -146,6 +154,7 @@ Added focused coverage proving:
 - PHONE_CONFIRM prompt construction uses spoken digit text for TTS while preserving formatted digits separately.
 - PHONE_CONFIRM recording starts only after `PlaybackFinished` plus guard delay.
 - NAME rejects obvious STT garbage instead of advancing to CITY.
+- NAME retries are bounded and use varied reason-based repair prompts.
 - Fixed PHONE system prompt is regenerated with corrected stress preprocessing for `связи`.
 - Recording wait timeouts track the stage profile instead of fixed `30s`.
 - The successful PHONE path transfers only after positive PHONE confirmation.
