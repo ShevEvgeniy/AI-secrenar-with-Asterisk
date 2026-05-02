@@ -101,6 +101,14 @@ Unclear or tied intent now triggers a bounded clarification prompt: "Уточн�
 
 Runtime events log `department_intent`, `transfer_phrase_resolved`, the resolved transfer target, early-transfer status, missing required fields, and clarification results before the `transfer` event.
 
+Bounded retry policy:
+- `ISSUE`: empty/silence retries up to 2 total, then moves to `INTENT_CLARIFY`.
+- `INTENT_CLARIFY`: empty/silence/unclear retries up to 2 total, then resolves to `DEPARTMENT_INTENT_DEFAULT` and continues collection.
+- `NAME`, `CITY`, `PHONE`: retry up to 3 total, then safe-finish without transfer.
+- `PHONE_CONFIRM`: retry confirmation up to 2 total, then returns to `PHONE`; if phone collection still cannot complete, safe-finish applies.
+
+Safe-finish is terminal and does not transfer. It logs `safe_finish_reason`, retry count/limit, and missing required fields, plays fallback media when available, and hangs up.
+
 Command:
 `$env:PYTHONPATH="src"`
 `python -m ai_secretary.telephony.ari_app`

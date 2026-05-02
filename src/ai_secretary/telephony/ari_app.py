@@ -792,7 +792,12 @@ async def _play_phone_confirmation_prompt(
 
     barrier_start = time.perf_counter()
     barrier_timeout = _phone_confirm_playback_timeout_sec()
-    barrier_event = await client.wait_for_playback_finished(app_name, playback_id, timeout=barrier_timeout)
+    try:
+        barrier_event = await client.wait_for_playback_finished(app_name, playback_id, timeout=barrier_timeout)
+    except TimeoutError:
+        barrier_event = {"type": "timeout"}
+    except asyncio.TimeoutError:
+        barrier_event = {"type": "timeout"}
     barrier_ms = int((time.perf_counter() - barrier_start) * 1000)
     if barrier_event.get("type") != "PlaybackFinished":
         session.log_event(
@@ -866,7 +871,12 @@ async def _wait_for_name_playback_barrier(
 
     barrier_start = time.perf_counter()
     barrier_timeout = _name_playback_timeout_sec()
-    barrier_event = await client.wait_for_playback_finished(app_name, playback_id, timeout=barrier_timeout)
+    try:
+        barrier_event = await client.wait_for_playback_finished(app_name, playback_id, timeout=barrier_timeout)
+    except TimeoutError:
+        barrier_event = {"type": "timeout"}
+    except asyncio.TimeoutError:
+        barrier_event = {"type": "timeout"}
     barrier_ms = int((time.perf_counter() - barrier_start) * 1000)
     if barrier_event.get("type") != "PlaybackFinished":
         session.log_event(
@@ -1344,62 +1354,92 @@ async def handle_call(
                     )
                     return
 
-                event = await client.wait_for_recording_finished(
-                    app_name,
-                    record_name,
-                    timeout=record_profile.wait_timeout_seconds,
-                )
+                try:
+                    event = await client.wait_for_recording_finished(
+                        app_name,
+                        record_name,
+                        timeout=record_profile.wait_timeout_seconds,
+                    )
+                except TimeoutError:
+                    event = {"type": "timeout"}
+                except asyncio.TimeoutError:
+                    event = {"type": "timeout"}
                 dur_ms = int((time.perf_counter() - record_start) * 1000)
+                transcript_text = ""
+                transcript_details: dict[str, Any]
+                stt_ms = 0
                 if event.get("type") != "RecordingFinished":
                     reason = event.get("type") or "recording_event_missing"
-                    session.transition(
-                        CallState.FAILED,
+                    session.log_event(
                         action="record_wait",
-                        status="fail",
+                        status="handled",
                         reason=reason,
                         dur_ms=dur_ms,
-                        details={"stage": stage.value, "turn_idx": turn_idx, **record_profile.details()},
+                        details={
+                            "stage": stage.value,
+                            "turn_idx": turn_idx,
+                            "record_name": record_name,
+                            "normal_stage_outcome": True,
+                            **record_profile.details(),
+                        },
                     )
-                    return
-                session.log_event(
-                    action="record_done",
-                    status="ok",
-                    dur_ms=dur_ms,
-                    details={
+                    transcript_details = {
                         "stage": stage.value,
                         "turn_idx": turn_idx,
                         "record_name": record_name,
-                        **record_profile.details(),
-                    },
-                )
-
-                turn_audio = artifact_dir / f"turn_{turn_idx}.wav"
-                try:
-                    artifact = await _download_transcription_artifact(
-                        client,
-                        session,
-                        stage,
-                        turn_idx,
-                        record_name,
-                        turn_audio,
+                        "reason": reason,
+                        "normal_stage_outcome": True,
+                    }
+                else:
+                    session.log_event(
+                        action="record_done",
+                        status="ok",
+                        dur_ms=dur_ms,
+                        details={
+                            "stage": stage.value,
+                            "turn_idx": turn_idx,
+                            "record_name": record_name,
+                            **record_profile.details(),
+                        },
                     )
-                except Exception as exc:
-                    session.transition(
-                        CallState.FAILED,
-                        action="download_recording",
-                        status="fail",
-                        reason=repr(exc),
-                        details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
-                    )
-                    return
 
-                stt_start = time.perf_counter()
-                transcript_text, transcript_details = await asyncio.to_thread(
-                    _transcribe_audio_artifact,
-                    settings,
-                    artifact,
-                )
-                stt_ms = int((time.perf_counter() - stt_start) * 1000)
+                    turn_audio = artifact_dir / f"turn_{turn_idx}.wav"
+                    try:
+                        artifact = await _download_transcription_artifact(
+                            client,
+                            session,
+                            stage,
+                            turn_idx,
+                            record_name,
+                            turn_audio,
+                        )
+                    except Exception as exc:
+                        session.log_event(
+                            action="download_recording",
+                            status="handled",
+                            reason=repr(exc),
+                            details={
+                                "stage": stage.value,
+                                "turn_idx": turn_idx,
+                                "record_name": record_name,
+                                "normal_stage_outcome": True,
+                            },
+                        )
+                        transcript_details = {
+                            "stage": stage.value,
+                            "turn_idx": turn_idx,
+                            "record_name": record_name,
+                            "reason": "recording_download_unavailable",
+                            "normal_stage_outcome": True,
+                        }
+                    else:
+                        stt_start = time.perf_counter()
+                        transcript_text, transcript_details = await asyncio.to_thread(
+                            _transcribe_audio_artifact,
+                            settings,
+                            artifact,
+                        )
+                        stt_ms = int((time.perf_counter() - stt_start) * 1000)
                 transcript_status = "ok" if transcript_text else "unavailable"
                 session.log_event(
                     action="user_transcribed",
@@ -1429,6 +1469,11 @@ async def handle_call(
                         "missing_required_fields": required_fields_missing(new_profile),
                         "clarification_needed": bool(new_profile.get("department_clarification_needed")),
                         "clarification_result": new_profile.get("department_clarification_result"),
+                        "retry_count": new_profile.get("last_retry_count"),
+                        "retry_limit": new_profile.get("last_retry_limit"),
+                        "retry_reason": new_profile.get("last_retry_reason"),
+                        "safe_finish_reason": new_profile.get("safe_finish_reason"),
+                        "default_resolution": new_profile.get("department_defaulted"),
                     },
                 )
                 session.dialog.stage = new_stage
@@ -1454,6 +1499,25 @@ async def handle_call(
 
             transcript_for_pipeline = "\n".join(dialogue_lines)
             profile_for_pipeline = dict(session.dialog.profile)
+            if session.dialog.stage == DialogStage.SAFE_FINISH or session.dialog.turns_done >= max_turns:
+                reason = str(session.dialog.profile.get("safe_finish_reason") or "dialog_retry_limit")
+                session.transition(
+                    CallState.DONE,
+                    action="safe_finish",
+                    status="ok",
+                    reason=reason,
+                    details={
+                        "stage": session.dialog.stage.value,
+                        "turns_done": session.dialog.turns_done,
+                        "safe_finish_reason": reason,
+                        "missing_required_fields": required_fields_missing(session.dialog.profile),
+                        "retry_count": session.dialog.profile.get("last_retry_count"),
+                        "retry_limit": session.dialog.profile.get("last_retry_limit"),
+                    },
+                )
+                _played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
+                await client.hangup_safe(channel_id)
+                return
             if session.dialog.stage == DialogStage.DONE:
                 transferred, moh_started = await _play_transfer_and_continue(client, session, system_sounds, moh_started)
                 if transferred:

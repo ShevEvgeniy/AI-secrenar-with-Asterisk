@@ -97,6 +97,13 @@ class _UnconfirmedPhoneClient(_PhoneTransferClient):
         return {"ok": True}
 
 
+class _IntentClarifyTimeoutClient(_PhoneTransferClient):
+    async def wait_for_recording_finished(self, _app_name: str, record_name: str, **_kwargs: Any) -> dict[str, Any]:
+        if "_intent_clarify_" in record_name:
+            raise TimeoutError()
+        return {"type": "RecordingFinished"}
+
+
 def test_successful_phone_capture_transfers_without_generic_pipeline(monkeypatch, tmp_path: Path) -> None:
     ari_app._reset_fallback_cache_for_tests()
     monkeypatch.setenv("PLAY_TEST", "0")
@@ -215,5 +222,62 @@ def test_unconfirmed_phone_does_not_fall_through_to_generic_pipeline(monkeypatch
     events = _read_events(session)
 
     assert client.hangups == 1
-    assert any(event["action"] == "phone_unconfirmed_no_generic_pipeline" for event in events)
+    assert any(event["action"] == "safe_finish" and event["reason"] == "phone_retry_limit" for event in events)
+    assert client.continue_calls == []
     assert not any(event["action"] in {"pipeline_start", "build_response", "publish", "playback"} for event in events)
+
+
+def test_intent_clarify_recording_timeout_defaults_without_call_flow_exception(monkeypatch, tmp_path: Path) -> None:
+    ari_app._reset_fallback_cache_for_tests()
+    monkeypatch.setenv("PLAY_TEST", "0")
+    monkeypatch.setenv("PHONE_CONFIRM_GUARD_DELAY_MS", "0")
+    monkeypatch.delenv("DEPARTMENT_INTENT_DEFAULT", raising=False)
+    for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sound_id] = True
+
+    transcripts = {
+        DialogStage.ISSUE: "I need help",
+        DialogStage.NAME: "Ivan Petrov",
+        DialogStage.CITY: "from Moscow",
+        DialogStage.PHONE: "920.032.0355",
+        DialogStage.PHONE_CONFIRM: "да",
+    }
+
+    def fake_transcribe(_settings: Settings, artifact: ari_app.TranscriptionArtifact) -> tuple[str, dict[str, Any]]:
+        return transcripts.get(artifact.stage, ""), artifact.details()
+
+    class _FakeTTS:
+        def synthesize(self, _text: str) -> bytes:
+            return b"RIFFconfirm"
+
+    monkeypatch.setattr(ari_app, "_transcribe_audio_artifact", fake_transcribe)
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: {
+            "ok": True,
+            "sound_id": "sound:ai_secretary/call-clarify-timeout/phone_confirm_prompt",
+            "remote_path": "/tmp/phone_confirm_prompt.wav",
+            "error": None,
+            "details": {},
+        },
+    )
+
+    session = CallSession(call_id="call-clarify-timeout", channel_id="ch-clarify-timeout", artifact_dir=tmp_path / "artifacts")
+    client = _IntentClarifyTimeoutClient()
+
+    asyncio.run(ari_app.handle_call(client, _settings(tmp_path), "app", session))
+    events = _read_events(session)
+    profile = json.loads((session.artifact_dir / "profile.json").read_text(encoding="utf-8"))
+
+    assert profile["department"] == "sales"
+    assert profile["department_defaulted"] is True
+    assert client.continue_calls
+    assert not any(event["action"] == "call_flow_exception" for event in events)
+    handled_timeout = [event for event in events if event["action"] == "record_wait" and event["reason"] == "timeout"]
+    assert len(handled_timeout) == 2
+    decision = [event for event in events if event["action"] == "dialog_decision" and event["details"]["from_stage"] == "INTENT_CLARIFY"][-1]
+    assert decision["details"]["retry_count"] == 2
+    assert decision["details"]["retry_limit"] == 2
+    assert decision["details"]["default_resolution"] is True

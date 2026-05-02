@@ -12,6 +12,10 @@ from .routing import ALLOWED_DEPARTMENTS, classify_department_intent
 
 MIN_CITY_LETTERS = 4
 PHONE_DIGIT_LENGTHS = {10, 11}
+ISSUE_MAX_RETRIES = 2
+INTENT_CLARIFY_MAX_RETRIES = 2
+REQUIRED_STAGE_MAX_RETRIES = 3
+PHONE_CONFIRM_MAX_RETRIES = 2
 NAME_JUNK_TOKENS = {"you", "yeah", "yes", "yep", "yup", "no", "ok", "okay", "test", "hello", "hi"}
 NAME_MAX_RETRIES = 3
 NAME_LEXICON: dict[str, str] = {
@@ -138,6 +142,7 @@ PROMPTS: dict[DialogStage, str] = {
     DialogStage.CITY: "Из какого города или региона вы звоните?",
     DialogStage.PHONE: "Подскажите номер телефона для связи.",
     DialogStage.PHONE_CONFIRM: "Правильно ли я записала ваш номер?",
+    DialogStage.SAFE_FINISH: "Спасибо за обращение. Сейчас не удалось надежно записать данные, поэтому я завершу звонок.",
     DialogStage.DONE: "хорошо я соединяю вас с отделом продаж.",
 }
 
@@ -227,6 +232,49 @@ def required_fields_missing(profile: dict[str, Any]) -> list[str]:
     return missing
 
 
+def retry_limit_for_stage(stage: DialogStage) -> int:
+    if stage == DialogStage.ISSUE:
+        return ISSUE_MAX_RETRIES
+    if stage == DialogStage.INTENT_CLARIFY:
+        return INTENT_CLARIFY_MAX_RETRIES
+    if stage == DialogStage.PHONE_CONFIRM:
+        return PHONE_CONFIRM_MAX_RETRIES
+    if stage in {DialogStage.NAME, DialogStage.CITY, DialogStage.PHONE}:
+        return REQUIRED_STAGE_MAX_RETRIES
+    return 0
+
+
+def _retry_key(stage: DialogStage) -> str:
+    return f"{stage.value.lower()}_retry_count"
+
+
+def _stage_retry(profile: dict[str, Any], stage: DialogStage, reason: str) -> int:
+    retry_count = int(profile.get(_retry_key(stage)) or 0) + 1
+    retry_limit = retry_limit_for_stage(stage)
+    profile[_retry_key(stage)] = retry_count
+    profile["last_retry_stage"] = stage.value
+    profile["last_retry_count"] = retry_count
+    profile["last_retry_limit"] = retry_limit
+    profile["last_retry_reason"] = reason
+    return retry_count
+
+
+def _clear_stage_retry(profile: dict[str, Any], stage: DialogStage) -> None:
+    profile.pop(_retry_key(stage), None)
+
+
+def _safe_finish(profile: dict[str, Any], reason: str, stage: DialogStage) -> tuple[DialogStage, dict[str, Any]]:
+    profile["safe_finish"] = True
+    profile["safe_finish_reason"] = reason
+    profile["safe_finish_stage"] = stage.value
+    profile["safe_finish_missing_fields"] = required_fields_missing(profile)
+    return DialogStage.SAFE_FINISH, profile
+
+
+def _is_empty_or_timeout(text: str) -> bool:
+    return not text.strip()
+
+
 def _clear_early_transfer_prompt(profile: dict[str, Any]) -> None:
     profile.pop("early_transfer_prompt", None)
 
@@ -262,6 +310,19 @@ def _store_department_decision(profile: dict[str, Any], text: str, *, clarified:
         profile["department_clarification_result"] = decision.department
         profile["department_clarification_reason"] = decision.reason
     return decision.intent in ALLOWED_DEPARTMENTS
+
+
+def _resolve_default_department(profile: dict[str, Any], reason: str) -> None:
+    decision = classify_department_intent("")
+    profile["department_intent"] = "unclear"
+    profile["department"] = decision.department
+    profile["department_intent_reason"] = reason
+    profile["department_intent_scores"] = decision.scores
+    profile["department_clarification_needed"] = False
+    profile["department_clarified"] = False
+    profile["department_clarification_result"] = decision.department
+    profile["department_clarification_reason"] = reason
+    profile["department_defaulted"] = True
 
 
 def _mark_early_transfer_request(
@@ -375,10 +436,15 @@ def _set_name_retry_prompt(profile: dict[str, Any], reason: str) -> None:
     if prompt == previous and len(prompts) > 1:
         prompt = prompts[1]
     retries = int(profile.get("name_retry_count") or 0) + 1
+    retry_limit = retry_limit_for_stage(DialogStage.NAME)
     profile["name_retry_count"] = retries
     profile["name_retry_reason"] = reason
     profile["name_retry_prompt"] = prompt
     profile["name_last_retry_prompt"] = prompt
+    profile["last_retry_stage"] = DialogStage.NAME.value
+    profile["last_retry_count"] = retries
+    profile["last_retry_limit"] = retry_limit
+    profile["last_retry_reason"] = reason
 
 
 def _clear_name_retry_prompt(profile: dict[str, Any]) -> None:
@@ -547,9 +613,24 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             return DialogStage.INTENT_CLARIFY, updated
         return DialogStage.NAME, updated
     if state == DialogStage.ISSUE:
+        retry_count = _stage_retry(updated, state, "empty_transcript")
+        if retry_count >= retry_limit_for_stage(state):
+            _request_department_clarification(updated, DialogStage.NAME)
+            updated["issue_defaulted_to_clarification"] = True
+            return DialogStage.INTENT_CLARIFY, updated
         return DialogStage.ISSUE, updated
     if state == DialogStage.INTENT_CLARIFY:
+        if _is_empty_or_timeout(text):
+            retry_count = _stage_retry(updated, state, "empty_transcript")
+            if retry_count >= retry_limit_for_stage(state):
+                _resolve_default_department(updated, "default_after_intent_clarify_retries")
+                updated.pop("department_clarification_prompt", None)
+                resume_stage_name = str(updated.pop("department_clarification_resume_stage", DialogStage.NAME.value))
+                resume_stage = DialogStage(resume_stage_name) if resume_stage_name in DialogStage._value2member_map_ else DialogStage.NAME
+                return resume_stage, updated
+            return DialogStage.INTENT_CLARIFY, updated
         if _store_department_decision(updated, text, clarified=True):
+            _clear_stage_retry(updated, state)
             updated["department_clarification_needed"] = False
             updated["department_clarified"] = True
             resume_stage_name = str(updated.get("department_clarification_resume_stage") or DialogStage.NAME.value)
@@ -566,6 +647,13 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
                 )
                 if prompt_stage in EARLY_TRANSFER_PROMPTS:
                     updated["early_transfer_prompt"] = EARLY_TRANSFER_PROMPTS[prompt_stage]
+            return resume_stage, updated
+        retry_count = _stage_retry(updated, state, "unclear_transcript")
+        if retry_count >= retry_limit_for_stage(state):
+            _resolve_default_department(updated, "default_after_intent_clarify_retries")
+            updated.pop("department_clarification_prompt", None)
+            resume_stage_name = str(updated.pop("department_clarification_resume_stage", DialogStage.NAME.value))
+            resume_stage = DialogStage(resume_stage_name) if resume_stage_name in DialogStage._value2member_map_ else DialogStage.NAME
             return resume_stage, updated
         updated["department_clarification_needed"] = True
         updated["department_clarification_result"] = "unclear"
@@ -585,14 +673,13 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
         name = _extract_name(text)
         if name and _is_name_confident(name, text):
             _clear_name_retry_prompt(updated)
+            _clear_stage_retry(updated, state)
             updated["name"] = name
             return DialogStage.CITY, updated
         _set_name_retry_prompt(updated, _name_retry_reason(text, name))
         if _is_name_retry_exhausted(updated):
-            updated["name"] = "клиент"
-            updated["name_unavailable"] = True
             _clear_name_retry_prompt(updated)
-            return DialogStage.CITY, updated
+            return _safe_finish(updated, "name_retry_limit", state)
         return DialogStage.NAME, updated
     if state == DialogStage.CITY:
         if _is_transfer_requested(text):
@@ -604,8 +691,12 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             return DialogStage.CITY, updated
         city = _extract_city(text)
         if city:
+            _clear_stage_retry(updated, state)
             updated["city"] = city
             return DialogStage.PHONE, updated
+        retry_count = _stage_retry(updated, state, "empty_transcript" if _is_empty_or_timeout(text) else "unclear_transcript")
+        if retry_count >= retry_limit_for_stage(state):
+            return _safe_finish(updated, "city_retry_limit", state)
         return DialogStage.CITY, updated
     if state == DialogStage.PHONE:
         if _is_transfer_requested(text):
@@ -623,11 +714,18 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             updated["phone_spoken"] = phone_digits_to_spoken_ru(digits)
             updated["phone_confirmed"] = False
             _clear_phone_retry_prompt(updated)
+            _clear_stage_retry(updated, state)
             return DialogStage.PHONE_CONFIRM, updated
         if _is_meta_repair(text):
             _set_phone_retry_prompt(updated, "meta_repair")
+            retry_count = _stage_retry(updated, state, "meta_repair")
+            if retry_count >= retry_limit_for_stage(state):
+                return _safe_finish(updated, "phone_retry_limit", state)
             return DialogStage.PHONE, updated
         _set_phone_retry_prompt(updated, _phone_retry_reason(text))
+        retry_count = _stage_retry(updated, state, "empty_transcript" if _is_empty_or_timeout(text) else _phone_retry_reason(text))
+        if retry_count >= retry_limit_for_stage(state):
+            return _safe_finish(updated, "phone_retry_limit", state)
         return DialogStage.PHONE, updated
     if state == DialogStage.PHONE_CONFIRM:
         phone = _extract_phone(text)
@@ -638,6 +736,7 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             updated["phone_spoken"] = phone_digits_to_spoken_ru(digits)
             updated["phone_confirmed"] = False
             _clear_phone_retry_prompt(updated)
+            _clear_stage_retry(updated, state)
             return DialogStage.PHONE_CONFIRM, updated
         if _is_meta_repair(text):
             updated["phone_confirmed"] = False
@@ -648,8 +747,14 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             _set_phone_retry_prompt(updated, "rejected")
             return DialogStage.PHONE, updated
         if _is_positive_confirmation(text) and updated.get("phone_digits"):
+            _clear_stage_retry(updated, state)
             updated["phone_confirmed"] = True
             return DialogStage.DONE, updated
+        retry_count = _stage_retry(updated, state, "empty_transcript" if _is_empty_or_timeout(text) else "unclear_confirmation")
+        if retry_count >= retry_limit_for_stage(state):
+            updated["phone_confirmed"] = False
+            _set_phone_retry_prompt(updated, "unclear")
+            return DialogStage.PHONE, updated
         return DialogStage.PHONE_CONFIRM, updated
     return DialogStage.DONE, updated
 
@@ -664,4 +769,4 @@ def build_turn_record(state: DialogStage, prompt_text: str, transcript_text: str
 
 
 def should_stop_dialog(state: DialogStage, turns_done: int, max_turns: int) -> bool:
-    return state == DialogStage.DONE or turns_done >= max_turns
+    return state in {DialogStage.DONE, DialogStage.SAFE_FINISH} or turns_done >= max_turns

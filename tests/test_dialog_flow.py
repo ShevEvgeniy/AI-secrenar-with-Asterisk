@@ -6,9 +6,13 @@ from ai_secretary.telephony.call_session import DialogStage
 from ai_secretary.telephony.dialog import (
     CLARIFICATION_PROMPT,
     EARLY_TRANSFER_PROMPTS,
+    INTENT_CLARIFY_MAX_RETRIES,
+    ISSUE_MAX_RETRIES,
     NAME_MAX_RETRIES,
     NAME_RETRY_PROMPTS,
+    PHONE_CONFIRM_MAX_RETRIES,
     PHONE_RETRY_PROMPTS,
+    REQUIRED_STAGE_MAX_RETRIES,
     apply_turn,
     normalize_name_candidate,
     next_prompt,
@@ -64,7 +68,8 @@ def test_empty_issue_transcript_does_not_complete_dialog() -> None:
     state, profile = apply_turn(DialogStage.ISSUE, {}, "")
 
     assert state == DialogStage.ISSUE
-    assert profile == {}
+    assert profile["issue_retry_count"] == 1
+    assert profile["last_retry_reason"] == "empty_transcript"
 
 
 def test_unclear_issue_intent_asks_bounded_clarification() -> None:
@@ -174,12 +179,13 @@ def test_city_reasks_when_not_confident() -> None:
     state, profile = apply_turn(DialogStage.CITY, {}, "12345")
 
     assert state == DialogStage.CITY
-    assert profile == {}
+    assert profile["city_retry_count"] == 1
+    assert profile["last_retry_reason"] == "unclear_transcript"
 
     state, profile = apply_turn(DialogStage.CITY, {}, "Мос")
 
     assert state == DialogStage.CITY
-    assert profile == {}
+    assert profile["city_retry_count"] == 1
 
 
 def test_name_reasks_on_obvious_stt_junk() -> None:
@@ -239,10 +245,69 @@ def test_name_retry_limit_advances_with_unavailable_marker() -> None:
     for _ in range(NAME_MAX_RETRIES):
         state, profile = apply_turn(state, profile, "you")
 
-    assert state == DialogStage.CITY
-    assert profile["name"] == "клиент"
-    assert profile["name_unavailable"] is True
+    assert state == DialogStage.SAFE_FINISH
+    assert profile["safe_finish_reason"] == "name_retry_limit"
     assert "name_retry_prompt" not in profile
+
+
+def test_issue_empty_retries_then_moves_to_clarification() -> None:
+    state = DialogStage.ISSUE
+    profile: dict[str, object] = {}
+
+    for attempt in range(ISSUE_MAX_RETRIES):
+        state, profile = apply_turn(state, profile, "")
+        if attempt + 1 < ISSUE_MAX_RETRIES:
+            assert state == DialogStage.ISSUE
+
+    assert state == DialogStage.INTENT_CLARIFY
+    assert profile["last_retry_count"] == ISSUE_MAX_RETRIES
+    assert profile["last_retry_limit"] == ISSUE_MAX_RETRIES
+
+
+def test_intent_clarify_empty_retries_then_defaults_department() -> None:
+    state = DialogStage.INTENT_CLARIFY
+    profile: dict[str, object] = {
+        "department_clarification_needed": True,
+        "department_clarification_resume_stage": DialogStage.NAME.value,
+    }
+
+    for attempt in range(INTENT_CLARIFY_MAX_RETRIES):
+        state, profile = apply_turn(state, profile, "")
+        if attempt + 1 < INTENT_CLARIFY_MAX_RETRIES:
+            assert state == DialogStage.INTENT_CLARIFY
+
+    assert state == DialogStage.NAME
+    assert profile["department"] == "sales"
+    assert profile["department_defaulted"] is True
+    assert profile["department_clarification_reason"] == "default_after_intent_clarify_retries"
+
+
+def test_required_stage_retries_safe_finish_without_transfer() -> None:
+    state = DialogStage.CITY
+    profile: dict[str, object] = {"issue": "Need cylinders", "name": "Ivan"}
+
+    for attempt in range(REQUIRED_STAGE_MAX_RETRIES):
+        state, profile = apply_turn(state, profile, "")
+        if attempt + 1 < REQUIRED_STAGE_MAX_RETRIES:
+            assert state == DialogStage.CITY
+
+    assert state == DialogStage.SAFE_FINISH
+    assert profile["safe_finish_reason"] == "city_retry_limit"
+    assert profile["safe_finish_missing_fields"] == ["city", "phone"]
+
+
+def test_phone_confirm_retries_return_to_phone_before_safe_finish() -> None:
+    state = DialogStage.PHONE_CONFIRM
+    profile: dict[str, object] = {"phone_digits": "9200320355", "phone_confirmed": False}
+
+    for attempt in range(PHONE_CONFIRM_MAX_RETRIES):
+        state, profile = apply_turn(state, profile, "")
+        if attempt + 1 < PHONE_CONFIRM_MAX_RETRIES:
+            assert state == DialogStage.PHONE_CONFIRM
+
+    assert state == DialogStage.PHONE
+    assert profile["phone_retry_reason"] == "unclear"
+    assert profile["last_retry_count"] == PHONE_CONFIRM_MAX_RETRIES
 
 
 def test_phone_confirmation_rejects_and_redictates() -> None:
