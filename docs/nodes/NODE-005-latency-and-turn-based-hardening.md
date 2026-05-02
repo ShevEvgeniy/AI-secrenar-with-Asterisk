@@ -24,7 +24,7 @@ Default real-call recording profiles are now stage-specific:
 
 ```text
 ISSUE: max_duration=8s, max_silence=2s, wait_timeout=13s
-NAME:  max_duration=4s, max_silence=1s, wait_timeout=8s
+NAME:  max_duration=6s, max_silence=2s, wait_timeout=11s
 CITY:  max_duration=7s, max_silence=3s, wait_timeout=13s
 PHONE: max_duration=14s, max_silence=4s, wait_timeout=21s
 PHONE_CONFIRM: max_duration=6s, max_silence=3s, wait_timeout=12s
@@ -83,6 +83,15 @@ Patch 8 fixes live PHONE acceptance/repair regression:
 - PHONE-stage meta-repair phrases such as `я уже продиктовал номер для связи`, `я уже назвал`, and `номер для связи` now use the `meta_repair` PHONE retry reason directly instead of falling through to generic unclear/incomplete retry.
 - PHONE retry prompts are now actually played as dynamic synthesized call-specific prompts. Static `prompt_4_v2` is used only for the base PHONE prompt, not for retry/repair prompts.
 - NAME rejects short English filler such as `Yep.`, `ok`, and `Hi`, while still accepting short valid Russian names.
+
+Patch 9 fixes NAME prompt/record overlap:
+
+- Base NAME prompt playback now waits for explicit ARI `PlaybackFinished` before the NAME recording starts.
+- Dynamic NAME retry prompt playback uses the same barrier.
+- After `PlaybackFinished`, runtime applies `NAME_GUARD_DELAY_MS`, default `400 ms`, before `record_start`.
+- `NAME_PLAYBACK_TIMEOUT_SECONDS` defaults to `15`.
+- NAME recording is relaxed to `max_duration=6s`, `max_silence=2s`, `wait_timeout=11s`.
+- PHONE_CONFIRM sequencing is unchanged.
 
 Patch 2 adds explicit confirmation only for PHONE:
 
@@ -155,7 +164,7 @@ For turn-based calls, repeated actions such as `play_prompt`, `record_done`, `do
 Added focused coverage proving:
 
 - ISSUE uses a tolerant opening profile.
-- NAME stays tighter than CITY and PHONE.
+- NAME is still shorter than CITY and PHONE, but now uses `6s/2s/11s` plus a playback barrier to avoid recording while the prompt is still playing.
 - CITY and PHONE use relaxed end-of-speech profiles.
 - CITY has a minimum speech floor before advancing.
 - PHONE has a complete digit floor before PHONE_CONFIRM.
@@ -165,6 +174,7 @@ Added focused coverage proving:
 - NAME rejects obvious STT garbage instead of advancing to CITY.
 - NAME retries are bounded and use varied reason-based repair prompts.
 - PHONE retry prompts play dynamically instead of replaying fixed `prompt_4_v2`.
+- NAME base and retry prompts wait for `PlaybackFinished` plus guard delay before recording.
 - Fixed PHONE system prompt is regenerated with corrected stress preprocessing for `связи`.
 - Recording wait timeouts track the stage profile instead of fixed `30s`.
 - The successful PHONE path transfers only after positive PHONE confirmation.

@@ -114,7 +114,7 @@ user_transcribed(PHONE) -> play_transfer_phrase -> transfer(context=from-interna
 
 ```text
 ISSUE: max_duration=8s, max_silence=2s, wait_timeout=13s
-NAME:  max_duration=4s, max_silence=1s, wait_timeout=8s
+NAME:  max_duration=6s, max_silence=2s, wait_timeout=11s
 CITY:  max_duration=7s, max_silence=3s, wait_timeout=13s
 PHONE: max_duration=14s, max_silence=4s, wait_timeout=21s
 PHONE_CONFIRM: max_duration=6s, max_silence=3s, wait_timeout=12s
@@ -137,3 +137,4 @@ PHONE_CONFIRM: max_duration=6s, max_silence=3s, wait_timeout=12s
 - NODE-005 patch 6 expands PHONE_CONFIRM capture to `6s/3s/12s`, handles meta-repair phrases neutrally, adds a NAME garbage guard, and forces the fixed PHONE system prompt to `prompt_4_v2` with built-in stress preprocessing for `связи -> св+язи`.
 - NODE-005 patch 7 fixes NAME retry-loop regression. NAME retries are reason-based (`unclear`, `junk`, `meta_repair`), varied without immediate repetition, tolerant of short valid Russian names, and capped at 3 retries before advancing with `name="клиент"` and `name_unavailable=true`.
 - NODE-005 patch 8 fixes PHONE-stage acceptance/repair. Comma/dot grouped STT such as `920, 0.32, 0.3, 0.55` normalizes to `9200320355`, PHONE-stage meta-repair uses `meta_repair`, dynamic PHONE retry prompts are synthesized/published per call instead of replaying `prompt_4_v2`, and NAME now rejects short English filler such as `Yep.`.
+- NODE-005 patch 9 adds a NAME playback barrier for both base NAME prompt and dynamic NAME retry prompts. NAME recording starts only after `PlaybackFinished` plus `NAME_GUARD_DELAY_MS`, default `400 ms`; NAME timing is now `6s/2s/11s`.

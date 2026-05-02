@@ -84,6 +84,7 @@ class _LatencyClient:
 def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tmp_path: Path) -> None:
     ari_app._reset_fallback_cache_for_tests()
     monkeypatch.setenv("PLAY_TEST", "0")
+    monkeypatch.setenv("NAME_GUARD_DELAY_MS", "0")
     monkeypatch.setenv("PHONE_CONFIRM_GUARD_DELAY_MS", "0")
     for name in (
         "RECORD_MAX_DURATION_SECONDS",
@@ -134,15 +135,18 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
 
     assert [(call["max_duration_seconds"], call["max_silence_seconds"]) for call in client.record_calls] == [
         (8, 2),
-        (4, 1),
+        (6, 2),
         (7, 3),
         (14, 4),
         (6, 3),
     ]
-    assert client.wait_timeouts == [13, 8, 13, 21, 12]
+    assert client.wait_timeouts == [13, 11, 13, 21, 12]
+    name_record_idx = next(i for i, call in enumerate(client.calls) if "name" in call)
+    name_barrier_idx = client.calls.index("playback_finished")
+    assert name_barrier_idx < name_record_idx
     confirm_record_idx = next(i for i, call in enumerate(client.calls) if "phone_confirm" in call)
-    barrier_idx = client.calls.index("playback_finished")
-    assert barrier_idx < confirm_record_idx
+    confirm_barrier_idx = [i for i, call in enumerate(client.calls) if call == "playback_finished"][-1]
+    assert confirm_barrier_idx < confirm_record_idx
 
     events = _read_events(session)
     for action in (
@@ -160,8 +164,67 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
 
     record_starts = [event for event in events if event["action"] == "record_start"]
     assert record_starts[0]["details"]["max_duration_seconds"] == 8
-    assert record_starts[1]["details"]["max_silence_seconds"] == 1
+    assert record_starts[1]["details"]["max_silence_seconds"] == 2
     assert not any(event["action"] == "pipeline_start" for event in events)
+
+    name_barriers = [
+        event for event in events if event["action"] == "name_playback_barrier" and event["status"] == "ok"
+    ]
+    assert name_barriers
+    assert name_barriers[0]["details"]["guard_delay_ms"] == 0
+    assert name_barriers[0]["details"]["dynamic"] is False
+
+
+def test_name_retry_prompt_waits_for_playback_barrier(monkeypatch, tmp_path: Path) -> None:
+    ari_app._reset_fallback_cache_for_tests()
+    monkeypatch.setenv("NAME_GUARD_DELAY_MS", "0")
+    for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sound_id] = True
+
+    class _FakeTTS:
+        def synthesize(self, text: str) -> bytes:
+            assert "РёРјСЏ" in text
+            return b"RIFFname"
+
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: {
+            "ok": True,
+            "sound_id": "sound:ai_secretary/call-node-005/name_retry_prompt",
+            "remote_path": "/tmp/name_retry_prompt.wav",
+            "error": None,
+            "details": {},
+        },
+    )
+
+    session = CallSession(call_id="call-node-005", channel_id="ch-node-005", artifact_dir=tmp_path / "artifacts")
+    session.dialog.stage = DialogStage.NAME
+    session.dialog.profile = {"name_retry_prompt": "РџРѕРґСЃРєР°Р¶РёС‚Рµ, РїРѕР¶Р°Р»СѓР№СЃС‚Р°, РІР°С€Рµ РёРјСЏ."}
+    client = _LatencyClient()
+
+    ok, _moh_started = asyncio.run(
+        ari_app._play_prompt(
+            client,
+            _settings(tmp_path),
+            "app",
+            session,
+            DialogStage.NAME,
+            ari_app._system_sounds_snapshot(),
+            False,
+        )
+    )
+
+    assert ok is True
+    assert client.calls == ["play", "playback_finished"]
+    events = _read_events(session)
+    name_barriers = [
+        event for event in events if event["action"] == "name_playback_barrier" and event["status"] == "ok"
+    ]
+    assert name_barriers
+    assert name_barriers[-1]["details"]["dynamic"] is True
+    assert name_barriers[-1]["details"]["guard_delay_ms"] == 0
 
 
 def test_phone_retry_prompt_plays_dynamic_prompt_instead_of_static_phone_prompt(monkeypatch, tmp_path: Path) -> None:

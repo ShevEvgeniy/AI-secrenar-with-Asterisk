@@ -42,6 +42,8 @@ DEFAULT_TRANSFER_PRIORITY = 1
 DEFAULT_RECORD_WAIT_PAD_SECONDS = 3
 DEFAULT_PHONE_CONFIRM_GUARD_DELAY_MS = 400
 DEFAULT_PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS = 15
+DEFAULT_NAME_GUARD_DELAY_MS = 400
+DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS = 15
 BUILTIN_GENERAL_FALLBACK_MEDIA = ("sound:please-try-again", "sound:pls-try-call-later")
 BUILTIN_PROMPT_FALLBACK_MEDIA: dict[DialogStage, str] = {
     DialogStage.ISSUE: "sound:please-try-again",
@@ -149,7 +151,7 @@ def _record_profile_for_stage(stage: DialogStage) -> RecordProfile:
     """Return stage-specific turn-recording limits without changing architecture."""
     defaults = {
         DialogStage.ISSUE: (8, 2),
-        DialogStage.NAME: (4, 1),
+        DialogStage.NAME: (6, 2),
         DialogStage.CITY: (7, 3),
         DialogStage.PHONE: (14, 4),
         DialogStage.PHONE_CONFIRM: (6, 3),
@@ -178,6 +180,15 @@ def _phone_confirm_guard_delay_ms() -> int:
 def _phone_confirm_playback_timeout_sec() -> int:
     value = _env_int("PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS", DEFAULT_PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS)
     return value if value > 0 else DEFAULT_PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS
+
+
+def _name_guard_delay_ms() -> int:
+    return _env_int("NAME_GUARD_DELAY_MS", DEFAULT_NAME_GUARD_DELAY_MS)
+
+
+def _name_playback_timeout_sec() -> int:
+    value = _env_int("NAME_PLAYBACK_TIMEOUT_SECONDS", DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS)
+    return value if value > 0 else DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS
 
 
 def _system_sounds_publish_timeout_sec() -> int:
@@ -720,9 +731,79 @@ async def _play_phone_confirmation_prompt(
     return True, moh_started
 
 
+async def _wait_for_name_playback_barrier(
+    client: AriClient,
+    app_name: str,
+    session: CallSession,
+    media: str,
+    playback_id: str,
+    prompt_text: str,
+    *,
+    dynamic: bool,
+) -> bool:
+    """Wait for NAME prompt playback to finish before recording can start."""
+    if not playback_id:
+        session.log_event(
+            action="name_playback_barrier",
+            status="fail",
+            reason="playback_id_missing",
+            media=media,
+            sound_id=media,
+            details={
+                "stage": DialogStage.NAME.value,
+                "prompt_text": prompt_text,
+                "dynamic": dynamic,
+            },
+        )
+        return False
+
+    barrier_start = time.perf_counter()
+    barrier_timeout = _name_playback_timeout_sec()
+    barrier_event = await client.wait_for_playback_finished(app_name, playback_id, timeout=barrier_timeout)
+    barrier_ms = int((time.perf_counter() - barrier_start) * 1000)
+    if barrier_event.get("type") != "PlaybackFinished":
+        session.log_event(
+            action="name_playback_barrier",
+            status="fail",
+            reason=barrier_event.get("type") or "playback_event_missing",
+            media=media,
+            sound_id=media,
+            dur_ms=barrier_ms,
+            details={
+                "stage": DialogStage.NAME.value,
+                "playback_id": playback_id,
+                "prompt_text": prompt_text,
+                "dynamic": dynamic,
+                "timeout_seconds": barrier_timeout,
+            },
+        )
+        return False
+
+    guard_ms = _name_guard_delay_ms()
+    if guard_ms > 0:
+        await asyncio.sleep(guard_ms / 1000)
+    session.log_event(
+        action="name_playback_barrier",
+        status="ok",
+        media=media,
+        sound_id=media,
+        dur_ms=barrier_ms,
+        details={
+            "stage": DialogStage.NAME.value,
+            "playback_id": playback_id,
+            "prompt_text": prompt_text,
+            "dynamic": dynamic,
+            "guard_delay_ms": guard_ms,
+            "timeout_seconds": barrier_timeout,
+        },
+    )
+    return True
+
+
 async def _play_dynamic_prompt(
     client: AriClient,
     settings: Settings,
+    app_name: str,
     session: CallSession,
     stage: DialogStage,
     prompt_text: str,
@@ -799,8 +880,20 @@ async def _play_dynamic_prompt(
 
     moh_started = await _maybe_stop_moh(client, session, moh_started)
     result = await client.play_safe(session.channel_id, media)
-    dur_ms = int((time.perf_counter() - started) * 1000)
     if result["ok"]:
+        if stage == DialogStage.NAME:
+            playback_id = _playback_id_from_result(result)
+            if not await _wait_for_name_playback_barrier(
+                client,
+                app_name,
+                session,
+                media,
+                playback_id,
+                prompt_text,
+                dynamic=True,
+            ):
+                return False, moh_started
+        dur_ms = int((time.perf_counter() - started) * 1000)
         session.log_event(
             action="play_prompt",
             status="ok",
@@ -811,6 +904,7 @@ async def _play_dynamic_prompt(
         )
         return True, moh_started
 
+    dur_ms = int((time.perf_counter() - started) * 1000)
     session.log_event(
         action="play_prompt",
         status="fail",
@@ -838,15 +932,27 @@ async def _play_prompt(
 
     prompt_text = next_prompt(stage, session.dialog.profile)
     if prompt_text != PROMPTS.get(stage):
-        return await _play_dynamic_prompt(client, settings, session, stage, prompt_text, moh_started)
+        return await _play_dynamic_prompt(client, settings, app_name, session, stage, prompt_text, moh_started)
 
     media = _prompt_media_for_stage(stage, system_sounds)
     started = time.perf_counter()
     moh_started = await _maybe_stop_moh(client, session, moh_started)
     result = await client.play_safe(session.channel_id, media)
-    dur_ms = int((time.perf_counter() - started) * 1000)
 
     if result["ok"]:
+        if stage == DialogStage.NAME:
+            playback_id = _playback_id_from_result(result)
+            if not await _wait_for_name_playback_barrier(
+                client,
+                app_name,
+                session,
+                media,
+                playback_id,
+                prompt_text,
+                dynamic=False,
+            ):
+                return False, moh_started
+        dur_ms = int((time.perf_counter() - started) * 1000)
         session.log_event(
             action="play_prompt",
             status="ok",
@@ -857,6 +963,7 @@ async def _play_prompt(
         )
         return True, moh_started
 
+    dur_ms = int((time.perf_counter() - started) * 1000)
     session.log_event(
         action="play_prompt",
         status="fail",
