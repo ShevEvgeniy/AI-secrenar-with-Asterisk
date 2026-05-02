@@ -70,11 +70,11 @@ AFTER_HOURS_GUARD_DELAY_MS=400
 After-hours phrase mapping:
 
 ```text
-sales      -> sound:ai_secretary/_system/after_hours_sales
+sales      -> sound:ai_secretary/_system/after_hours_sales_v2
               "Отдел продаж сейчас не работает. Мы записали ваше обращение, и отдел продаж перезвонит вам в рабочее время. Спасибо за звонок. До свидания."
-accounting -> sound:ai_secretary/_system/after_hours_accounting
+accounting -> sound:ai_secretary/_system/after_hours_accounting_v2
               "Бухгалтерия сейчас не работает. Мы записали ваше обращение, и бухгалтерия перезвонит вам в рабочее время. Спасибо за звонок. До свидания."
-delivery   -> sound:ai_secretary/_system/after_hours_delivery
+delivery   -> sound:ai_secretary/_system/after_hours_delivery_v2
               "Отдел доставки сейчас не работает. Мы записали ваше обращение, и отдел доставки перезвонит вам в рабочее время. Спасибо за звонок. До свидания."
 ```
 

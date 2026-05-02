@@ -91,10 +91,13 @@ def test_department_transfer_phrase_mapping_is_bounded() -> None:
 
 def test_after_hours_phrase_mapping_is_bounded() -> None:
     assert ari_app.AFTER_HOURS_SOUND_IDS == {
-        "sales": ari_app.AFTER_HOURS_SALES_SOUND_ID,
-        "accounting": ari_app.AFTER_HOURS_ACCOUNTING_SOUND_ID,
-        "delivery": ari_app.AFTER_HOURS_DELIVERY_SOUND_ID,
+        "sales": "sound:ai_secretary/_system/after_hours_sales_v2",
+        "accounting": "sound:ai_secretary/_system/after_hours_accounting_v2",
+        "delivery": "sound:ai_secretary/_system/after_hours_delivery_v2",
     }
+    assert ari_app.AFTER_HOURS_SALES_SOUND_ID == "sound:ai_secretary/_system/after_hours_sales_v2"
+    assert ari_app.AFTER_HOURS_ACCOUNTING_SOUND_ID == "sound:ai_secretary/_system/after_hours_accounting_v2"
+    assert ari_app.AFTER_HOURS_DELIVERY_SOUND_ID == "sound:ai_secretary/_system/after_hours_delivery_v2"
     assert ari_app.AFTER_HOURS_PHRASES == {
         "sales": (
             "Отдел продаж сейчас не работает. Мы записали ваше обращение, и отдел продаж "
