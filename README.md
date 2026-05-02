@@ -74,6 +74,24 @@ Env vars:
 - `ASTERISK_SOUNDS_SUBDIR`
 - `ASTERISK_DOCKER_CONTAINER` (если Asterisk в контейнере)
 
+### Department transfer routing
+
+After `PHONE_CONFIRM` succeeds, the ARI listener classifies the caller's `ISSUE` text into one bounded department intent: `sales`, `accounting`, or `delivery`.
+
+Routing contract:
+- Sales default: `context=from-internal`, `extension=sales_real`, `priority=1`
+- Accounting default: `context=from-internal`, `extension=accounting`, `priority=1`
+- Delivery default: `context=from-internal`, `extension=delivery`, `priority=1`
+- Per-department overrides: `DEPARTMENT_ROUTE_<DEPARTMENT>_CONTEXT`, `DEPARTMENT_ROUTE_<DEPARTMENT>_EXTEN`, `DEPARTMENT_ROUTE_<DEPARTMENT>_PRIORITY`
+- Sales also honors legacy `TRANSFER_CONTEXT`, `TRANSFER_EXTEN`, and `TRANSFER_PRIORITY` when the new sales-specific vars are not set.
+
+Intent rules are deterministic keyword matches:
+- `sales`: buy/purchase/price/quote/new order/product/cylinder and Russian продаж/купить/цена/заказать/товар/баллон/цилиндр terms.
+- `accounting`: accounting/billing/invoice/payment/receipt/documents/reconciliation and Russian бухгалтер/счет/счёт/оплат/платеж/документ/сверк terms.
+- `delivery`: delivery/shipping/arrival/logistics/courier/tracking/order status and Russian достав/отгруз/логист/курьер/груз/трек/где заказ terms.
+
+Unclear or tied intent defaults explicitly to `sales`. This can be changed only to another bounded department with `DEPARTMENT_INTENT_DEFAULT=sales|accounting|delivery`; invalid values fall back to `sales`. Runtime events log `department_intent` and the resolved transfer target before the `transfer` event.
+
 Command:
 `$env:PYTHONPATH="src"`
 `python -m ai_secretary.telephony.ari_app`
@@ -149,5 +167,4 @@ exten => 5999,1,NoOp(System prompt test)
 `scripts\check_env.cmd`
 
 `scripts\run_ari.cmd`
-
 

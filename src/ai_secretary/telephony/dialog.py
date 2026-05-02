@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .call_session import DialogStage
+from .routing import classify_department_intent
 
 MIN_CITY_LETTERS = 4
 PHONE_DIGIT_LENGTHS = {10, 11}
@@ -427,6 +428,11 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
 
     if state == DialogStage.ISSUE and text:
         updated["issue"] = text
+        decision = classify_department_intent(text)
+        updated["department_intent"] = decision.intent
+        updated["department"] = decision.department
+        updated["department_intent_reason"] = decision.reason
+        updated["department_intent_scores"] = decision.scores
         return DialogStage.NAME, updated
     if state == DialogStage.ISSUE:
         return DialogStage.ISSUE, updated

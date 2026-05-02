@@ -22,6 +22,12 @@ from .ari_client import AriClient
 from .call_session import CallSession, CallState, DialogStage
 from .dialog import PROMPTS, apply_turn, build_turn_record, next_prompt, should_stop_dialog
 from .publish_to_asterisk import publish_wav_to_asterisk
+from .routing import (
+    DEFAULT_TRANSFER_CONTEXT,
+    DEFAULT_TRANSFER_EXTEN,
+    DEFAULT_TRANSFER_PRIORITY,
+    classify_department_intent,
+)
 
 PROMPT_1_SOUND_ID = "sound:ai_secretary/_system/prompt_1"
 PROMPT_2_SOUND_ID = "sound:ai_secretary/_system/prompt_2"
@@ -36,9 +42,6 @@ PROMPT_FALLBACK_SOUND_IDS: dict[DialogStage, str] = {
     DialogStage.PHONE: "sound:ai_secretary/_system/fallback_prompt_4",
 }
 TRANSFER_FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback_transfer"
-DEFAULT_TRANSFER_CONTEXT = "from-internal"
-DEFAULT_TRANSFER_EXTEN = "sales_real"
-DEFAULT_TRANSFER_PRIORITY = 1
 DEFAULT_RECORD_WAIT_PAD_SECONDS = 3
 DEFAULT_PHONE_CONFIRM_GUARD_DELAY_MS = 400
 DEFAULT_PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS = 15
@@ -545,15 +548,23 @@ async def _play_transfer_and_continue(
         return False, moh_started
 
     session.log_event(action="play_transfer_phrase", status="ok", media=media, sound_id=media, dur_ms=dur_ms)
-    transfer_context = os.getenv("TRANSFER_CONTEXT", DEFAULT_TRANSFER_CONTEXT).strip() or DEFAULT_TRANSFER_CONTEXT
-    transfer_exten = os.getenv("TRANSFER_EXTEN", DEFAULT_TRANSFER_EXTEN).strip() or DEFAULT_TRANSFER_EXTEN
-    transfer_priority = _env_int("TRANSFER_PRIORITY", DEFAULT_TRANSFER_PRIORITY)
+    issue_text = str(session.dialog.profile.get("issue") or "")
+    routing_decision = classify_department_intent(issue_text)
+    transfer_target = routing_decision.target
+    session.log_event(
+        action="department_intent",
+        status="ok",
+        details={
+            **routing_decision.to_dict(),
+            "issue": issue_text,
+        },
+    )
     transfer_start = time.perf_counter()
     cont_result = await client.continue_safe(
         session.channel_id,
-        context=transfer_context,
-        extension=transfer_exten,
-        priority=transfer_priority,
+        context=transfer_target.context,
+        extension=transfer_target.extension,
+        priority=transfer_target.priority,
     )
     transfer_ms = int((time.perf_counter() - transfer_start) * 1000)
     if cont_result["ok"]:
@@ -563,9 +574,9 @@ async def _play_transfer_and_continue(
             status="ok",
             dur_ms=transfer_ms,
             details={
-                "context": transfer_context,
-                "extension": transfer_exten,
-                "priority": transfer_priority,
+                **transfer_target.to_dict(),
+                "intent": routing_decision.intent,
+                "intent_reason": routing_decision.reason,
             },
         )
         return True, moh_started
@@ -577,7 +588,12 @@ async def _play_transfer_and_continue(
         reason=cont_result.get("reason"),
         http_status=cont_result.get("http_status"),
         dur_ms=transfer_ms,
-        details=cont_result.get("details"),
+        details={
+            **(cont_result.get("details") or {}),
+            **transfer_target.to_dict(),
+            "intent": routing_decision.intent,
+            "intent_reason": routing_decision.reason,
+        },
     )
     return False, moh_started
 
