@@ -8,6 +8,7 @@ from ai_secretary.telephony.dialog import (
     NAME_RETRY_PROMPTS,
     PHONE_RETRY_PROMPTS,
     apply_turn,
+    normalize_name_candidate,
     next_prompt,
     phone_confirm_prompt_text,
     phone_digits_to_spoken_ru,
@@ -76,6 +77,29 @@ def test_phone_stage_accepts_dotted_mobile_transcription() -> None:
     assert profile["phone_formatted"] == "+7 920 032-03-55"
 
 
+def test_name_prompt_asks_for_just_name() -> None:
+    assert next_prompt(DialogStage.NAME, {}) == "Назовите, пожалуйста, ваше имя."
+
+
+def test_russian_name_lexicon_normalizes_common_forms() -> None:
+    cases = {
+        "саня": "Александр",
+        "меня зовут дима": "Дмитрий",
+        "это серёжа петрович": "Сергей Петрович",
+        "ну света ивановна спасибо": "Светлана Ивановна",
+        "мое имя оля": "Ольга",
+    }
+    for transcript, expected in cases.items():
+        assert normalize_name_candidate(transcript) == expected
+
+
+def test_name_stage_stores_normalized_russian_name() -> None:
+    state, profile = apply_turn(DialogStage.NAME, {}, "это саня иваныч")
+
+    assert state == DialogStage.CITY
+    assert profile["name"] == "Александр Иванович"
+
+
 def test_phone_stage_accepts_comma_grouped_digit_dictation() -> None:
     state, profile = apply_turn(DialogStage.PHONE, {}, "920, 0.32, 0.3, 0.55")
 
@@ -117,7 +141,7 @@ def test_name_rejects_short_english_filler() -> None:
 
 
 def test_name_accepts_short_valid_russian_names() -> None:
-    for transcript, expected in (("Ян", "Ян"), ("Лев", "Лев"), ("Оля", "Оля")):
+    for transcript, expected in (("Ян", "Ян"), ("Лев", "Лев"), ("Оля", "Ольга")):
         state, profile = apply_turn(DialogStage.NAME, {}, transcript)
 
         assert state == DialogStage.CITY

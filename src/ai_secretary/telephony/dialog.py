@@ -13,6 +13,69 @@ MIN_CITY_LETTERS = 4
 PHONE_DIGIT_LENGTHS = {10, 11}
 NAME_JUNK_TOKENS = {"you", "yeah", "yes", "yep", "yup", "no", "ok", "okay", "test", "hello", "hi"}
 NAME_MAX_RETRIES = 3
+NAME_LEXICON: dict[str, str] = {
+    "александр": "Александр",
+    "саша": "Александр",
+    "саня": "Александр",
+    "александра": "Александра",
+    "дмитрий": "Дмитрий",
+    "димитрий": "Дмитрий",
+    "дима": "Дмитрий",
+    "сергей": "Сергей",
+    "сережа": "Сергей",
+    "серёжа": "Сергей",
+    "иван": "Иван",
+    "ваня": "Иван",
+    "петр": "Пётр",
+    "пётр": "Пётр",
+    "петя": "Пётр",
+    "николай": "Николай",
+    "коля": "Николай",
+    "михаил": "Михаил",
+    "миша": "Михаил",
+    "владимир": "Владимир",
+    "вова": "Владимир",
+    "олег": "Олег",
+    "андрей": "Андрей",
+    "мария": "Мария",
+    "маша": "Мария",
+    "екатерина": "Екатерина",
+    "катя": "Екатерина",
+    "анастасия": "Анастасия",
+    "настя": "Анастасия",
+    "ольга": "Ольга",
+    "оля": "Ольга",
+    "татьяна": "Татьяна",
+    "таня": "Татьяна",
+    "наталья": "Наталья",
+    "наташа": "Наталья",
+    "светлана": "Светлана",
+    "света": "Светлана",
+    "елена": "Елена",
+    "лена": "Елена",
+    "иванович": "Иванович",
+    "иваныч": "Иванович",
+    "ивановна": "Ивановна",
+    "петрович": "Петрович",
+    "петровна": "Петровна",
+    "сергеевич": "Сергеевич",
+    "сергеевна": "Сергеевна",
+    "александрович": "Александрович",
+    "александровна": "Александровна",
+    "николаевич": "Николаевич",
+    "николаевна": "Николаевна",
+    "владимирович": "Владимирович",
+    "владимировна": "Владимировна",
+}
+NAME_CONVERSATIONAL_PREFIXES = (
+    "меня зовут",
+    "мое имя",
+    "моё имя",
+    "это",
+    "я",
+)
+NAME_FILLER_TOKENS = {"ну", "ээ", "э", "здравствуйте", "добрый", "день"}
+NAME_STOP_TOKENS = {"спасибо", "слушаю", "говорю", "повторяю", "перезвоните"}
 NAME_META_REPAIR_PATTERNS = (
     r"я уже сказал",
     r"я уже сказала",
@@ -69,7 +132,7 @@ RU_DIGIT_WORDS = {
 
 PROMPTS: dict[DialogStage, str] = {
     DialogStage.ISSUE: "Здравствуйте! Я Анна, виртуальный секретарь. По какому вопросу вы обращаетесь?",
-    DialogStage.NAME: "Как я могу к вам обращаться?",
+    DialogStage.NAME: "Назовите, пожалуйста, ваше имя.",
     DialogStage.CITY: "Из какого города или региона вы звоните?",
     DialogStage.PHONE: "Подскажите номер телефона для связи.",
     DialogStage.PHONE_CONFIRM: "Правильно ли я записала ваш номер?",
@@ -112,11 +175,57 @@ def next_prompt(state: DialogStage, profile: dict[str, Any]) -> str:
     return PROMPTS.get(state, PROMPTS[DialogStage.DONE])
 
 
+def _canonicalize_name_token(token: str) -> str:
+    lowered = token.lower()
+    canonical = NAME_LEXICON.get(lowered)
+    if canonical:
+        return canonical
+    return "-".join(part[:1].upper() + part[1:].lower() for part in token.split("-") if part)
+
+
+def _strip_name_conversational_prefixes(text: str) -> str:
+    candidate = text.strip(" .,!?:;\"'")
+    lowered = candidate.lower()
+    for prefix in NAME_CONVERSATIONAL_PREFIXES:
+        if lowered == prefix:
+            return ""
+        if lowered.startswith(prefix + " "):
+            return candidate[len(prefix) :].strip()
+    return candidate
+
+
+def normalize_name_candidate(text: str) -> str | None:
+    """Return a bounded canonical Russian NAME candidate from post-STT text."""
+    candidate = _strip_name_conversational_prefixes(text)
+    tokens = re.findall(r"[А-ЯЁа-яёA-Za-z]+(?:-[А-ЯЁа-яёA-Za-z]+)?", candidate)
+    normalized_tokens: list[str] = []
+    for token in tokens:
+        lowered = token.lower()
+        if lowered in NAME_FILLER_TOKENS:
+            continue
+        if lowered in NAME_STOP_TOKENS:
+            break
+        normalized_tokens.append(_canonicalize_name_token(token))
+        if len(normalized_tokens) == 3:
+            break
+    if not normalized_tokens:
+        return None
+    return " ".join(normalized_tokens)
+
+
 def _extract_name(text: str) -> str | None:
-    m = re.search(r"(?:меня зовут|это)\s+([А-ЯЁA-Z][а-яёa-z-]+(?:\s+[А-ЯЁA-Z][а-яёa-z-]+)?)", text, flags=re.IGNORECASE)
+    m = re.search(
+        r"(?:меня\s+зовут|мо[её]\s+имя|это|я)\s+(.+)",
+        text,
+        flags=re.IGNORECASE,
+    )
     if m:
-        return m.group(1).strip()
-    words = [w.strip(".,!?") for w in text.split() if w.strip(".,!?")]
+        return normalize_name_candidate(m.group(1))
+    normalized = normalize_name_candidate(text)
+    if normalized:
+        words = normalized.split()
+    else:
+        words = [w.strip(".,!?") for w in text.split() if w.strip(".,!?")]
     if not words:
         return None
     if len(words) >= 2:

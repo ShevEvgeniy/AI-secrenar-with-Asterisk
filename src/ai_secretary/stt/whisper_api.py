@@ -20,14 +20,26 @@ class WhisperAPIClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
-    def transcribe(self, audio_bytes: bytes, filename: str = "audio.wav") -> str:
+    def transcribe(
+        self,
+        audio_bytes: bytes,
+        filename: str = "audio.wav",
+        *,
+        language: str | None = None,
+        prompt: str | None = None,
+    ) -> str:
         """Transcribe audio bytes to text."""
         if not self.api_key:
             raise ValueError("OpenAI API key is required for Whisper transcription")
+        data = {"model": self.model}
+        if language:
+            data["language"] = language
+        if prompt:
+            data["prompt"] = prompt
         response = httpx.post(
             f"{self.base_url}/audio/transcriptions",
             headers={"Authorization": f"Bearer {self.api_key}"},
-            data={"model": self.model},
+            data=data,
             files={"file": (filename, audio_bytes, "audio/wav")},
             timeout=self.timeout,
         )

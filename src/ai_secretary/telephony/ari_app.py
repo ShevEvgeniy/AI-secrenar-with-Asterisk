@@ -44,6 +44,12 @@ DEFAULT_PHONE_CONFIRM_GUARD_DELAY_MS = 400
 DEFAULT_PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS = 15
 DEFAULT_NAME_GUARD_DELAY_MS = 400
 DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS = 15
+NAME_STT_LANGUAGE = "ru"
+NAME_STT_PROMPT = (
+    "Русская речь. Ожидается короткий ответ с именем клиента: имя, имя и отчество "
+    "или разговорная форма имени. Примеры: Иван, Александр, Саня, Дмитрий, Ольга, "
+    "Светлана Ивановна, Сергей Петрович."
+)
 BUILTIN_GENERAL_FALLBACK_MEDIA = ("sound:please-try-again", "sound:pls-try-call-later")
 BUILTIN_PROMPT_FALLBACK_MEDIA: dict[DialogStage, str] = {
     DialogStage.ISSUE: "sound:please-try-again",
@@ -1081,15 +1087,26 @@ def _transcribe_audio_artifact(_settings: Settings, artifact: TranscriptionArtif
     if backend in {"openai", "whisper", "whisper_api"}:
         model = os.getenv("OPENAI_TRANSCRIBE_MODEL", "whisper-1").strip() or "whisper-1"
         base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").strip()
+        language = NAME_STT_LANGUAGE if artifact.stage == DialogStage.NAME else None
+        prompt = NAME_STT_PROMPT if artifact.stage == DialogStage.NAME else None
         try:
             audio_bytes = artifact.path.read_bytes()
             client = WhisperAPIClient(api_key=_settings.openai_api_key, model=model, base_url=base_url)
-            text = client.transcribe(audio_bytes, filename=artifact.path.name)
+            text = client.transcribe(
+                audio_bytes,
+                filename=artifact.path.name,
+                language=language,
+                prompt=prompt,
+            )
         except Exception as exc:
             details["reason"] = "stt_transcribe_failed"
             details["error"] = repr(exc)
             return "", details
         details["stt_model"] = model
+        if language:
+            details["stt_language"] = language
+        if prompt:
+            details["stt_prompt"] = prompt
         return text, details
 
     details["reason"] = "unsupported_stt_backend"
