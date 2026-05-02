@@ -42,6 +42,12 @@ NODE-004 completed and validated post-PHONE transfer flow restoration:
 successful PHONE capture -> play_transfer_phrase -> transfer status=ok
 ```
 
+NODE-005 completed and validated latency plus turn-based hardening:
+
+```text
+ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase -> transfer
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -54,7 +60,7 @@ successful PHONE capture -> play_transfer_phrase -> transfer status=ok
 
 ## Current Action Plan
 
-1. Treat NODE-001, NODE-002, NODE-003, and NODE-004 as complete and merged into `master`.
+1. Treat NODE-001, NODE-002, NODE-003, NODE-004, and NODE-005 as complete and merged into `master`.
 2. Preserve the validated runtime transfer target:
 
 ```text
@@ -74,14 +80,29 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 6. Preserve NODE-003 transcription artifact traceability through `call_id`, `stage`, `turn_idx`, `audio_path`, `audio_size_bytes`, and `audio_sha256`.
 7. Preserve controlled meaningful fallback phrases for stage and transfer fallback paths.
 8. Preserve NODE-004 post-PHONE transfer behavior so the generic reply pipeline is not taken after successful PHONE capture.
+9. Preserve NODE-005 turn-taking contour, NAME playback barrier, PHONE_CONFIRM behavior, and spoken-digit confirmation prompt.
 
 ## Next Recommended Step
 
 ```text
-Push master after NODE-004 handoff.
+Start NODE-006 / name-capture-and-normalization-hardening.
 ```
 
-Real live transcription still depends on `TELEPHONY_STT_BACKEND` being explicitly configured, for example `openai` or `whisper_api`.
+Planned NODE-006 scope:
+
+1. Explicitly set `language="ru"`.
+2. Add STT prompt for Russian names.
+3. Add bounded name/patronymic lexicon and post-STT normalizer.
+4. Simplify the NAME prompt wording.
+5. Only if needed, test `gpt-4o-mini-transcribe` for NAME.
+
+Planned node after NODE-006:
+
+```text
+NODE-007 / intent-routing-and-department-transfer
+```
+
+NODE-007 should detect department intent from topic and map to sales, accounting, or delivery instead of always `sales_real`.
 
 ## Node Completion Report Format
 

@@ -7,9 +7,8 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-004-restore-post-phone-transfer-flow`
-- Latest completed node commit: `8ec82c5790cc513a9d5428abb75a90dbce9b5420`
-- Current node branch: `feat/node-005-latency-and-turn-based-hardening`
+- Latest completed node branch: `feat/node-005-latency-and-turn-based-hardening`
+- Latest completed node commit: `43790b1`
 
 ## Confirmed Working
 
@@ -30,6 +29,11 @@
 - Turn-based real-call recording now uses stage-specific contours to reduce dead air.
 - PHONE now requires explicit confirmation before validated completion and transfer.
 - Runtime events now trace prompt, record, download, STT, decision, transfer phrase, and transfer latency.
+- Turn-taking contour is stabilized for the current flow.
+- NAME no longer breaks the whole flow.
+- NAME playback barrier is in place.
+- PHONE and PHONE_CONFIRM work in live flow.
+- Confirmation prompt now speaks the phone number as spoken digits.
 - NODE-001 live smoke validation passed:
   - stage prompts progressed correctly;
   - user speech was transcribed for ISSUE / NAME / CITY / PHONE;
@@ -76,6 +80,7 @@ ISSUE tolerant recording -> NAME playback barrier and relaxed recording -> CITY 
 - NODE-002 is merged into `master`.
 - NODE-003 is merged into `master`.
 - NODE-004 is merged into `master`.
+- NODE-005 is merged into `master`.
 - During NODE-002 validation, SSH to `92.118.85.117:22` timed out while publishing `prompt_3` and transfer system sounds.
 - Despite the partial publish failure, the listener reached `READY_WAITING_FOR_CALLS`.
 - Fallback media was used during the live call for missing `prompt_3` and transfer phrase.
@@ -100,6 +105,7 @@ ISSUE tolerant recording -> NAME playback barrier and relaxed recording -> CITY 
 - NODE-005 patch 7 fixes NAME retry-loop regression with reason-based varied NAME prompts, short Russian-name tolerance, NAME meta-repair handling, and a 3-retry bound that advances with `name_unavailable=true`.
 - NODE-005 patch 8 fixes PHONE-stage normalization for comma/dot grouped dictation, handles PHONE-stage meta-repair directly, makes dynamic PHONE retry prompts drive playback instead of fixed `prompt_4_v2`, and rejects short English NAME filler such as `Yep.`.
 - NODE-005 patch 9 fixes NAME prompt/record overlap with an explicit `PlaybackFinished` barrier plus `400 ms` guard for base NAME and dynamic NAME retry prompts, and relaxes NAME recording to `6s/2s/11s`.
+- NODE-005 live smoke confirmed the current full flow reaches `ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase -> transfer`.
 
 ## NODE-004 Live Smoke
 
@@ -116,7 +122,7 @@ priority=1
 
 - `pipeline_start`, `build_response`, and `reply.wav` did not occur after PHONE in the validated call.
 
-## NODE-005 Local Validation
+## NODE-005 Validation
 
 - Focused regression suite passed:
 
@@ -132,10 +138,27 @@ python -m pytest
 
 Result: 46 passed, 6 failed. Failures were outside NODE-005: missing `src/scripts/make_demo_audio.py` for synth pipeline tests, and a blocked Hugging Face model fetch in `test_events_and_artifacts_overrides_use_single_directory`.
 
+- Live validation reference:
+  - `call_id`: `1777717705.10`
+  - ISSUE captured successfully.
+  - NAME required one retry, then was accepted.
+  - CITY captured successfully.
+  - PHONE captured successfully.
+  - PHONE_CONFIRM accepted positive confirmation.
+  - Transfer completed with `status=ok`.
+
+Current validated transfer target:
+
+```text
+context=from-internal
+extension=sales_real
+priority=1
+```
+
 ## Next Recommended Step
 
 ```text
-Run one live re-smoke for NODE-005 patch 9. Current local patch is NOT READY for merge until NAME prompt barrier, NAME junk rejection, dynamic PHONE retry playback, PHONE grouped-number acceptance, PHONE_CONFIRM sequencing, and CITY/PHONE turn-taking are validated live.
+Start NODE-006 / name-capture-and-normalization-hardening.
 ```
 
-Real live transcription still depends on `TELEPHONY_STT_BACKEND` being explicitly configured, for example `openai` or `whisper_api`.
+NODE-005 solved the latency and turn-taking contour for the current flow, but NAME quality still needs improvement as a separate follow-up.

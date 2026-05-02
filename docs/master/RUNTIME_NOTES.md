@@ -109,6 +109,29 @@ user_transcribed(PHONE) -> play_transfer_phrase -> transfer(context=from-interna
 
 ## NODE-005 Runtime Notes
 
+- Turn-taking contour is stabilized for the current live flow.
+- NAME no longer breaks the whole flow.
+- NAME playback barrier is in place.
+- PHONE and PHONE_CONFIRM work in live flow.
+- Confirmation prompt speaks the phone number as spoken digits.
+- Live validation `1777717705.10` reached:
+
+```text
+ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase -> transfer
+```
+
+- Runtime transfer target remains:
+
+```text
+context=from-internal
+extension=sales_real
+priority=1
+```
+
+- NODE-005 solved the latency and turn-taking contour for the current flow, but NAME quality still needs improvement in NODE-006.
+
+## NODE-005 Runtime Notes
+
 - NODE-005 keeps the current turn-based architecture and the NODE-004 post-PHONE transfer flow.
 - Real-call recording is now stage-specific:
 

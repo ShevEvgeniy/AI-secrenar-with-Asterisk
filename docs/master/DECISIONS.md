@@ -66,3 +66,28 @@ Accepted runtime behavior:
 - Stage and transfer fallback paths must use controlled meaningful fallback phrases.
 
 Real live transcription depends on `TELEPHONY_STT_BACKEND` being explicitly configured, for example `openai` or `whisper_api`.
+
+## Turn-Based Latency And Confirmation Flow
+
+NODE-005 completed latency and turn-based hardening for the current dialog flow.
+
+Accepted runtime behavior:
+
+- The current successful live path is:
+
+```text
+ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase -> transfer
+```
+
+- NAME prompt playback must complete before NAME recording starts.
+- PHONE and PHONE_CONFIRM must work in live flow.
+- PHONE_CONFIRM must speak the phone number as spoken digits, not symbolic formatting.
+- Successful transfer must continue to:
+
+```text
+context=from-internal
+extension=sales_real
+priority=1
+```
+
+NODE-005 validation confirmed transfer with `status=ok` for live call `1777717705.10`. NAME quality still needs a separate focused follow-up in NODE-006.

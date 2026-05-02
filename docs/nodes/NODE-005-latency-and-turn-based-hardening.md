@@ -196,4 +196,51 @@ Full-suite validation was attempted with `python -m pytest`; it failed outside t
 
 ## Status
 
-READY for live smoke validation.
+READY and merged into `master`.
+
+## Validated Result
+
+- Turn-taking contour is stabilized.
+- NAME no longer breaks the whole flow.
+- NAME playback barrier is in place.
+- PHONE and PHONE_CONFIRM work in live flow.
+- Confirmation prompt now speaks the phone number as spoken digits.
+- Successful live call reached:
+
+```text
+ISSUE -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> play_transfer_phrase -> transfer
+```
+
+## Live Validation
+
+- `call_id`: `1777717705.10`
+- ISSUE captured successfully.
+- NAME required one retry, then was accepted.
+- CITY captured successfully.
+- PHONE captured successfully.
+- PHONE_CONFIRM accepted positive confirmation.
+- Transfer completed with `status=ok`.
+
+Current validated transfer target:
+
+```text
+context=from-internal
+extension=sales_real
+priority=1
+```
+
+## Follow-Up
+
+NODE-005 solved the latency and turn-taking contour for the current flow, but NAME quality still needs improvement as a separate follow-up.
+
+Next planned node:
+
+```text
+NODE-006 / name-capture-and-normalization-hardening
+```
+
+Planned node after NODE-006:
+
+```text
+NODE-007 / intent-routing-and-department-transfer
+```
