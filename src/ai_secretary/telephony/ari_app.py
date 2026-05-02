@@ -27,6 +27,7 @@ from .routing import (
     DEFAULT_TRANSFER_CONTEXT,
     DEFAULT_TRANSFER_EXTEN,
     DEFAULT_TRANSFER_PRIORITY,
+    business_hours_for_department,
     classify_department_intent,
     route_for_department,
 )
@@ -40,6 +41,9 @@ FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback"
 TRANSFER_SOUND_ID = "sound:ai_secretary/_system/transfer"
 TRANSFER_ACCOUNTING_SOUND_ID = "sound:ai_secretary/_system/transfer_accounting"
 TRANSFER_DELIVERY_SOUND_ID = "sound:ai_secretary/_system/transfer_delivery"
+AFTER_HOURS_SALES_SOUND_ID = "sound:ai_secretary/_system/after_hours_sales"
+AFTER_HOURS_ACCOUNTING_SOUND_ID = "sound:ai_secretary/_system/after_hours_accounting"
+AFTER_HOURS_DELIVERY_SOUND_ID = "sound:ai_secretary/_system/after_hours_delivery"
 SAFE_FINISH_BASELINE_SOUND_ID = "sound:ai_secretary/_system/safe_finish"
 SAFE_FINISH_MISSING_REQUIRED_SOUND_ID = "sound:ai_secretary/_system/safe_finish_missing_required_data"
 SAFE_FINISH_INTENT_NOT_RESOLVED_SOUND_ID = "sound:ai_secretary/_system/safe_finish_intent_not_resolved"
@@ -80,6 +84,34 @@ TRANSFER_PHRASES: dict[Department, str] = {
     "sales": "\u0425\u043e\u0440\u043e\u0448\u043e, \u044f \u0441\u043e\u0435\u0434\u0438\u043d\u044f\u044e \u0432\u0430\u0441 \u0441 \u043e\u0442\u0434\u0435\u043b\u043e\u043c \u043f\u0440\u043e\u0434\u0430\u0436.",
     "accounting": "\u0425\u043e\u0440\u043e\u0448\u043e, \u044f \u0441\u043e\u0435\u0434\u0438\u043d\u044f\u044e \u0432\u0430\u0441 \u0441 \u0431\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0438\u0435\u0439.",
     "delivery": "\u0425\u043e\u0440\u043e\u0448\u043e, \u044f \u0441\u043e\u0435\u0434\u0438\u043d\u044f\u044e \u0432\u0430\u0441 \u0441 \u043e\u0442\u0434\u0435\u043b\u043e\u043c \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0438.",
+}
+AFTER_HOURS_SOUND_IDS: dict[Department, str] = {
+    "sales": AFTER_HOURS_SALES_SOUND_ID,
+    "accounting": AFTER_HOURS_ACCOUNTING_SOUND_ID,
+    "delivery": AFTER_HOURS_DELIVERY_SOUND_ID,
+}
+AFTER_HOURS_PHRASES: dict[Department, str] = {
+    "sales": (
+        "\u041e\u0442\u0434\u0435\u043b \u043f\u0440\u043e\u0434\u0430\u0436 \u0441\u0435\u0439\u0447\u0430\u0441 "
+        "\u043d\u0435 \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442. \u041c\u044b \u0437\u0430\u043f\u0438\u0441\u0430\u043b\u0438 "
+        "\u0432\u0430\u0448\u0435 \u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0435, \u0438 \u043e\u0442\u0434\u0435\u043b "
+        "\u043f\u0440\u043e\u0434\u0430\u0436 \u043f\u0435\u0440\u0435\u0437\u0432\u043e\u043d\u0438\u0442 \u0432\u0430\u043c "
+        "\u0432 \u0440\u0430\u0431\u043e\u0447\u0435\u0435 \u0432\u0440\u0435\u043c\u044f."
+    ),
+    "accounting": (
+        "\u0411\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0438\u044f \u0441\u0435\u0439\u0447\u0430\u0441 "
+        "\u043d\u0435 \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442. \u041c\u044b \u0437\u0430\u043f\u0438\u0441\u0430\u043b\u0438 "
+        "\u0432\u0430\u0448\u0435 \u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0435, \u0438 \u0431\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0438\u044f "
+        "\u043f\u0435\u0440\u0435\u0437\u0432\u043e\u043d\u0438\u0442 \u0432\u0430\u043c \u0432 \u0440\u0430\u0431\u043e\u0447\u0435\u0435 "
+        "\u0432\u0440\u0435\u043c\u044f."
+    ),
+    "delivery": (
+        "\u041e\u0442\u0434\u0435\u043b \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0438 \u0441\u0435\u0439\u0447\u0430\u0441 "
+        "\u043d\u0435 \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442. \u041c\u044b \u0437\u0430\u043f\u0438\u0441\u0430\u043b\u0438 "
+        "\u0432\u0430\u0448\u0435 \u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0435, \u0438 \u043e\u0442\u0434\u0435\u043b "
+        "\u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0438 \u043f\u0435\u0440\u0435\u0437\u0432\u043e\u043d\u0438\u0442 \u0432\u0430\u043c "
+        "\u0432 \u0440\u0430\u0431\u043e\u0447\u0435\u0435 \u0432\u0440\u0435\u043c\u044f."
+    ),
 }
 SAFE_FINISH_BASELINE_PHRASE = (
     "\u0418\u0437\u0432\u0438\u043d\u0438\u0442\u0435, \u044f \u043d\u0435 \u0441\u043c\u043e\u0433\u043b\u0430 "
@@ -156,6 +188,9 @@ _SYSTEM_SOUND_TEXTS: dict[str, str] = {
     TRANSFER_SOUND_ID: TRANSFER_PHRASES["sales"],
     TRANSFER_ACCOUNTING_SOUND_ID: TRANSFER_PHRASES["accounting"],
     TRANSFER_DELIVERY_SOUND_ID: TRANSFER_PHRASES["delivery"],
+    AFTER_HOURS_SALES_SOUND_ID: AFTER_HOURS_PHRASES["sales"],
+    AFTER_HOURS_ACCOUNTING_SOUND_ID: AFTER_HOURS_PHRASES["accounting"],
+    AFTER_HOURS_DELIVERY_SOUND_ID: AFTER_HOURS_PHRASES["delivery"],
     TRANSFER_FALLBACK_SOUND_ID: TRANSFER_PHRASES["sales"],
     SAFE_FINISH_BASELINE_SOUND_ID: SAFE_FINISH_PHRASES["baseline"],
     SAFE_FINISH_MISSING_REQUIRED_SOUND_ID: SAFE_FINISH_PHRASES["missing_required_data"],
@@ -739,6 +774,7 @@ async def _play_transfer_and_continue(
         transfer_target = routing_decision.target
     transfer_phrase = TRANSFER_PHRASES[transfer_target.department]
     transfer_sound_id = TRANSFER_SOUND_IDS[transfer_target.department]
+    hours_decision = business_hours_for_department(transfer_target.department)
     if system_sounds.get(transfer_sound_id, False):
         media = transfer_sound_id
     elif system_sounds.get(TRANSFER_FALLBACK_SOUND_ID, False):
@@ -753,11 +789,97 @@ async def _play_transfer_and_continue(
             "issue": issue_text,
             "profile_department": profile_department,
             "resolved_department": transfer_target.department,
+            "business_hours_mode": hours_decision.mode,
             "early_transfer_requested": bool(session.dialog.profile.get("early_transfer_requested")),
             "missing_required_fields": missing_fields,
             "clarification_result": session.dialog.profile.get("department_clarification_result"),
         },
     )
+    session.log_event(
+        action="business_hours_decision",
+        status="ok",
+        details={
+            **hours_decision.to_dict(),
+            "resolved_department": transfer_target.department,
+            "transfer_target": transfer_target.to_dict(),
+        },
+    )
+    if hours_decision.mode == "after_hours":
+        after_hours_phrase = AFTER_HOURS_PHRASES[transfer_target.department]
+        after_hours_sound_id = AFTER_HOURS_SOUND_IDS[transfer_target.department]
+        if system_sounds.get(after_hours_sound_id, False):
+            after_hours_media = after_hours_sound_id
+        elif system_sounds.get(FALLBACK_SOUND_ID, False):
+            after_hours_media = FALLBACK_SOUND_ID
+        else:
+            after_hours_media = BUILTIN_GENERAL_FALLBACK_MEDIA[0]
+        session.log_event(
+            action="after_hours_phrase_resolved",
+            status="ok",
+            media=after_hours_media,
+            sound_id=after_hours_media,
+            details={
+                "department": transfer_target.department,
+                "intent": routing_decision.intent,
+                "intent_reason": routing_decision.reason,
+                "business_hours_mode": hours_decision.mode,
+                "phrase_text": after_hours_phrase,
+                "department_sound_id": after_hours_sound_id,
+                "resolved_sound_id": after_hours_media,
+                "static_media_available": system_sounds.get(after_hours_sound_id, False),
+            },
+        )
+        started = time.perf_counter()
+        moh_started = await _maybe_stop_moh(client, session, moh_started)
+        play_result = await client.play_safe(session.channel_id, after_hours_media)
+        dur_ms = int((time.perf_counter() - started) * 1000)
+        session.log_event(
+            action="play_after_hours_phrase",
+            status="ok" if play_result["ok"] else "fail",
+            reason=None if play_result["ok"] else play_result.get("reason"),
+            http_status=None if play_result["ok"] else play_result.get("http_status"),
+            media=after_hours_media,
+            sound_id=after_hours_media,
+            dur_ms=dur_ms,
+            details={
+                **(play_result.get("details") or {}),
+                "department": transfer_target.department,
+                "intent": routing_decision.intent,
+                "intent_reason": routing_decision.reason,
+                "business_hours_mode": hours_decision.mode,
+                "phrase_text": after_hours_phrase,
+                "department_sound_id": after_hours_sound_id,
+                "resolved_sound_id": after_hours_media,
+            },
+        )
+        session.log_event(
+            action="transfer_skipped_after_hours",
+            status="ok",
+            details={
+                **transfer_target.to_dict(),
+                "intent": routing_decision.intent,
+                "intent_reason": routing_decision.reason,
+                "business_hours_mode": hours_decision.mode,
+                "transfer_skipped": True,
+            },
+        )
+        hangup_start = time.perf_counter()
+        hangup_result = await client.hangup_safe(session.channel_id)
+        session.transition(
+            CallState.DONE if hangup_result.get("ok") else CallState.FAILED,
+            action="after_hours_handoff",
+            status="ok" if hangup_result.get("ok") else "fail",
+            reason=None if hangup_result.get("ok") else hangup_result.get("reason"),
+            http_status=None if hangup_result.get("ok") else hangup_result.get("http_status"),
+            dur_ms=int((time.perf_counter() - hangup_start) * 1000),
+            details={
+                **(hangup_result.get("details") or {}),
+                "department": transfer_target.department,
+                "business_hours_mode": hours_decision.mode,
+                "transfer_skipped": True,
+            },
+        )
+        return True, moh_started
     session.log_event(
         action="transfer_phrase_resolved",
         status="ok",
@@ -767,6 +889,7 @@ async def _play_transfer_and_continue(
             "department": transfer_target.department,
             "intent": routing_decision.intent,
             "intent_reason": routing_decision.reason,
+            "business_hours_mode": hours_decision.mode,
             "early_transfer_requested": bool(session.dialog.profile.get("early_transfer_requested")),
             "missing_required_fields": missing_fields,
             "phrase_text": transfer_phrase,
@@ -792,6 +915,7 @@ async def _play_transfer_and_continue(
                 "department": transfer_target.department,
                 "intent": routing_decision.intent,
                 "intent_reason": routing_decision.reason,
+                "business_hours_mode": hours_decision.mode,
                 "phrase_text": transfer_phrase,
                 "department_sound_id": transfer_sound_id,
                 "resolved_sound_id": media,
@@ -809,6 +933,7 @@ async def _play_transfer_and_continue(
             "department": transfer_target.department,
             "intent": routing_decision.intent,
             "intent_reason": routing_decision.reason,
+            "business_hours_mode": hours_decision.mode,
             "phrase_text": transfer_phrase,
             "department_sound_id": transfer_sound_id,
             "resolved_sound_id": media,
@@ -832,6 +957,7 @@ async def _play_transfer_and_continue(
                 **transfer_target.to_dict(),
                 "intent": routing_decision.intent,
                 "intent_reason": routing_decision.reason,
+                "business_hours_mode": hours_decision.mode,
             },
         )
         return True, moh_started
@@ -848,6 +974,7 @@ async def _play_transfer_and_continue(
             **transfer_target.to_dict(),
             "intent": routing_decision.intent,
             "intent_reason": routing_decision.reason,
+            "business_hours_mode": hours_decision.mode,
         },
     )
     return False, moh_started

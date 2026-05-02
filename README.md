@@ -97,9 +97,26 @@ Transfer phrase/audio mapping:
 - `accounting`: `sound:ai_secretary/_system/transfer_accounting` — "Хорошо, я соединяю вас с бухгалтерией."
 - `delivery`: `sound:ai_secretary/_system/transfer_delivery` — "Хорошо, я соединяю вас с отделом доставки."
 
+Working-hours contract:
+- Final handoff resolves the department first, then evaluates working hours for that department.
+- Modes are bounded to `working_hours` and `after_hours`.
+- Default schedule: `BUSINESS_HOURS_TZ=Europe/Moscow`, `BUSINESS_HOURS_DAYS=0,1,2,3,4`, `BUSINESS_HOURS_START=09:00`, `BUSINESS_HOURS_END=18:00`; days use Python weekday numbers, Monday `0` through Sunday `6`, start inclusive and end exclusive.
+- Ops/test override: `BUSINESS_HOURS_MODE=working_hours|after_hours`.
+- Per-department overrides: `DEPARTMENT_WORKING_HOURS_<DEPARTMENT>_MODE`, `_TZ`, `_DAYS`, `_START`, `_END`.
+
+After-hours behavior:
+- Mandatory data is still required first: `issue`, `name`, `city`, `phone_digits`, and `phone_confirmed=true`.
+- When the resolved department is in `after_hours`, ARI does not call `continue_safe` and does not live-transfer.
+- It plays a department-aware callback handoff phrase, logs `transfer_skipped_after_hours`, and hangs up.
+
+After-hours phrase/audio mapping:
+- `sales`: `sound:ai_secretary/_system/after_hours_sales` — sales is not working now and sales will call back during working hours.
+- `accounting`: `sound:ai_secretary/_system/after_hours_accounting` — accounting is not working now and accounting will call back during working hours.
+- `delivery`: `sound:ai_secretary/_system/after_hours_delivery` — delivery is not working now and delivery will call back during working hours.
+
 Unclear or tied intent now triggers a bounded clarification prompt: "Уточните, пожалуйста, отдел: продажи, бухгалтерия или доставка." The caller's answer must resolve to `sales`, `accounting`, or `delivery`; then the normal data collection flow continues.
 
-Runtime events log `department_intent`, `transfer_phrase_resolved`, the resolved transfer target, early-transfer status, missing required fields, and clarification results before the `transfer` event.
+Runtime events log `department_intent`, `business_hours_decision`, `transfer_phrase_resolved` or `after_hours_phrase_resolved`, the resolved transfer target, early-transfer status, missing required fields, after-hours transfer skip, and clarification results before the `transfer` or `after_hours_handoff` event.
 
 Bounded retry policy:
 - `ISSUE`: empty/silence retries up to 2 total, then moves to `INTENT_CLARIFY`.

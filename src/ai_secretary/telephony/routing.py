@@ -5,16 +5,24 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Literal, cast
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 Department = Literal["sales", "accounting", "delivery"]
 Intent = Literal["sales", "accounting", "delivery", "unclear"]
+BusinessHoursMode = Literal["working_hours", "after_hours"]
 
 DEFAULT_TRANSFER_CONTEXT = "from-internal"
 DEFAULT_TRANSFER_EXTEN = "sales_real"
 DEFAULT_TRANSFER_PRIORITY = 1
 DEFAULT_DEPARTMENT: Department = "sales"
 ALLOWED_DEPARTMENTS: tuple[Department, ...] = ("sales", "accounting", "delivery")
+ALLOWED_BUSINESS_HOURS_MODES: tuple[BusinessHoursMode, ...] = ("working_hours", "after_hours")
+DEFAULT_BUSINESS_HOURS_TZ = "Europe/Moscow"
+DEFAULT_BUSINESS_HOURS_START = "09:00"
+DEFAULT_BUSINESS_HOURS_END = "18:00"
+DEFAULT_BUSINESS_HOURS_DAYS = (0, 1, 2, 3, 4)
 
 _DEFAULT_ROUTE_EXTENSIONS: dict[Department, str] = {
     "sales": DEFAULT_TRANSFER_EXTEN,
@@ -131,6 +139,32 @@ class IntentDecision:
         }
 
 
+@dataclass(frozen=True)
+class BusinessHoursDecision:
+    """Bounded working-hours result for one department route."""
+
+    department: Department
+    mode: BusinessHoursMode
+    reason: str
+    timezone: str
+    local_time: str
+    start: str
+    end: str
+    days: tuple[int, ...]
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "department": self.department,
+            "mode": self.mode,
+            "reason": self.reason,
+            "timezone": self.timezone,
+            "local_time": self.local_time,
+            "start": self.start,
+            "end": self.end,
+            "days": list(self.days),
+        }
+
+
 def _env_int(name: str, default: int) -> int:
     raw = os.getenv(name, str(default)).strip()
     try:
@@ -142,6 +176,14 @@ def _env_int(name: str, default: int) -> int:
 
 def _env_text(name: str, default: str) -> str:
     return os.getenv(name, default).strip() or default
+
+
+def _env_text_optional(*names: str) -> str | None:
+    for name in names:
+        raw = os.getenv(name)
+        if raw is not None and raw.strip():
+            return raw.strip()
+    return None
 
 
 def _default_department() -> Department:
@@ -162,6 +204,111 @@ def route_for_department(department: Department) -> TransferTarget:
         extension = _env_text(prefix + "EXTEN", default_extension)
         priority = _env_int(prefix + "PRIORITY", DEFAULT_TRANSFER_PRIORITY)
     return TransferTarget(department=department, context=context, extension=extension, priority=priority)
+
+
+def _business_hours_mode_override(department: Department) -> BusinessHoursMode | None:
+    raw = _env_text_optional(
+        f"DEPARTMENT_WORKING_HOURS_{department.upper()}_MODE",
+        "BUSINESS_HOURS_MODE",
+    )
+    if raw is None:
+        return None
+    normalized = raw.strip().lower()
+    return cast(BusinessHoursMode, normalized) if normalized in ALLOWED_BUSINESS_HOURS_MODES else None
+
+
+def _parse_hhmm(value: str, default: str) -> tuple[int, int, str]:
+    candidate = value.strip() or default
+    match = re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", candidate)
+    if not match:
+        candidate = default
+        match = re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", candidate)
+    assert match is not None
+    return int(match.group(1)), int(match.group(2)), f"{int(match.group(1)):02d}:{int(match.group(2)):02d}"
+
+
+def _parse_days(value: str | None) -> tuple[int, ...]:
+    if not value:
+        return DEFAULT_BUSINESS_HOURS_DAYS
+    days: list[int] = []
+    for item in re.split(r"[,;\s]+", value):
+        if not item:
+            continue
+        try:
+            day = int(item)
+        except ValueError:
+            return DEFAULT_BUSINESS_HOURS_DAYS
+        if day < 0 or day > 6:
+            return DEFAULT_BUSINESS_HOURS_DAYS
+        days.append(day)
+    return tuple(dict.fromkeys(days)) or DEFAULT_BUSINESS_HOURS_DAYS
+
+
+def _timezone_for_name(tz_name: str) -> tuple[tzinfo, str, str | None]:
+    try:
+        return ZoneInfo(tz_name), tz_name, None
+    except ZoneInfoNotFoundError:
+        if tz_name == DEFAULT_BUSINESS_HOURS_TZ:
+            return timezone(timedelta(hours=3)), tz_name, "fixed_utc_plus_03_fallback"
+        return timezone(timedelta(hours=3)), DEFAULT_BUSINESS_HOURS_TZ, "invalid_timezone_defaulted"
+
+
+def business_hours_for_department(
+    department: Department,
+    *,
+    now: datetime | None = None,
+) -> BusinessHoursDecision:
+    """Resolve working-hours vs after-hours for a bounded department schedule."""
+    override = _business_hours_mode_override(department)
+    tz_name = _env_text_optional(
+        f"DEPARTMENT_WORKING_HOURS_{department.upper()}_TZ",
+        "BUSINESS_HOURS_TZ",
+    ) or DEFAULT_BUSINESS_HOURS_TZ
+    tz, tz_name, _timezone_reason = _timezone_for_name(tz_name)
+
+    local_now = (now or datetime.now(tz)).astimezone(tz)
+    start_hour, start_minute, start_text = _parse_hhmm(
+        _env_text_optional(f"DEPARTMENT_WORKING_HOURS_{department.upper()}_START", "BUSINESS_HOURS_START")
+        or DEFAULT_BUSINESS_HOURS_START,
+        DEFAULT_BUSINESS_HOURS_START,
+    )
+    end_hour, end_minute, end_text = _parse_hhmm(
+        _env_text_optional(f"DEPARTMENT_WORKING_HOURS_{department.upper()}_END", "BUSINESS_HOURS_END")
+        or DEFAULT_BUSINESS_HOURS_END,
+        DEFAULT_BUSINESS_HOURS_END,
+    )
+    days = _parse_days(
+        _env_text_optional(f"DEPARTMENT_WORKING_HOURS_{department.upper()}_DAYS", "BUSINESS_HOURS_DAYS")
+    )
+    if override is not None:
+        return BusinessHoursDecision(
+            department=department,
+            mode=override,
+            reason="mode_override",
+            timezone=tz_name,
+            local_time=local_now.isoformat(),
+            start=start_text,
+            end=end_text,
+            days=days,
+        )
+
+    start_minutes = start_hour * 60 + start_minute
+    end_minutes = end_hour * 60 + end_minute
+    current_minutes = local_now.hour * 60 + local_now.minute
+    in_day = local_now.weekday() in days
+    in_time = start_minutes <= current_minutes < end_minutes if start_minutes < end_minutes else False
+    mode: BusinessHoursMode = "working_hours" if in_day and in_time else "after_hours"
+    reason = "within_schedule" if mode == "working_hours" else "outside_schedule"
+    return BusinessHoursDecision(
+        department=department,
+        mode=mode,
+        reason=reason,
+        timezone=tz_name,
+        local_time=local_now.isoformat(),
+        start=start_text,
+        end=end_text,
+        days=days,
+    )
 
 
 def _keyword_matches(text: str, keyword: str) -> bool:

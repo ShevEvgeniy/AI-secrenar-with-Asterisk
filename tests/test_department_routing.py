@@ -4,19 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from ai_secretary.telephony import ari_app
 from ai_secretary.telephony.call_session import CallSession, CallState, DialogStage
 from ai_secretary.telephony.dialog import apply_turn
-from ai_secretary.telephony.routing import classify_department_intent, route_for_department
+from ai_secretary.telephony.routing import business_hours_for_department, classify_department_intent, route_for_department
 
 
 class _TransferClient:
     def __init__(self) -> None:
         self.play_calls: list[tuple[str, str]] = []
         self.continue_calls: list[dict[str, Any]] = []
+        self.hangup_calls: list[str] = []
 
     async def moh_stop_safe(self, _channel_id: str) -> dict[str, Any]:
         return {"ok": True}
@@ -34,6 +36,10 @@ class _TransferClient:
                 "priority": priority,
             }
         )
+        return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
+
+    async def hangup_safe(self, channel_id: str) -> dict[str, Any]:
+        self.hangup_calls.append(channel_id)
         return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
 
 
@@ -66,6 +72,42 @@ def test_department_transfer_phrase_mapping_is_bounded() -> None:
         "accounting": ari_app.TRANSFER_ACCOUNTING_SOUND_ID,
         "delivery": ari_app.TRANSFER_DELIVERY_SOUND_ID,
     }
+
+
+def test_after_hours_phrase_mapping_is_bounded() -> None:
+    assert ari_app.AFTER_HOURS_SOUND_IDS == {
+        "sales": ari_app.AFTER_HOURS_SALES_SOUND_ID,
+        "accounting": ari_app.AFTER_HOURS_ACCOUNTING_SOUND_ID,
+        "delivery": ari_app.AFTER_HOURS_DELIVERY_SOUND_ID,
+    }
+    assert "\u043e\u0442\u0434\u0435\u043b \u043f\u0440\u043e\u0434\u0430\u0436" in ari_app.AFTER_HOURS_PHRASES["sales"].lower()
+    assert "\u0431\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0438\u044f" in ari_app.AFTER_HOURS_PHRASES["accounting"].lower()
+    assert "\u043e\u0442\u0434\u0435\u043b \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0438" in ari_app.AFTER_HOURS_PHRASES["delivery"].lower()
+    assert all("\u0440\u0430\u0431\u043e\u0447\u0435\u0435 \u0432\u0440\u0435\u043c\u044f" in phrase for phrase in ari_app.AFTER_HOURS_PHRASES.values())
+
+
+def test_business_hours_contract_supports_schedule_and_override(monkeypatch) -> None:
+    monkeypatch.delenv("BUSINESS_HOURS_MODE", raising=False)
+    monkeypatch.setenv("BUSINESS_HOURS_TZ", "Europe/Moscow")
+    moscow_tz = timezone(timedelta(hours=3))
+    monday_10 = datetime(2026, 5, 4, 10, 0, tzinfo=moscow_tz)
+    saturday_10 = datetime(2026, 5, 2, 10, 0, tzinfo=moscow_tz)
+
+    working = business_hours_for_department("sales", now=monday_10)
+    after = business_hours_for_department("sales", now=saturday_10)
+
+    assert working.mode == "working_hours"
+    assert working.reason == "within_schedule"
+    assert working.start == "09:00"
+    assert working.end == "18:00"
+    assert working.days == (0, 1, 2, 3, 4)
+    assert after.mode == "after_hours"
+    assert after.reason == "outside_schedule"
+
+    monkeypatch.setenv("DEPARTMENT_WORKING_HOURS_SALES_MODE", "after_hours")
+    forced = business_hours_for_department("sales", now=monday_10)
+    assert forced.mode == "after_hours"
+    assert forced.reason == "mode_override"
 
 
 def test_unclear_department_intent_explicitly_defaults_to_sales(monkeypatch) -> None:
@@ -105,6 +147,7 @@ def test_issue_turn_persists_department_intent_artifact_fields() -> None:
 
 
 def test_transfer_uses_detected_department_target_and_logs_decision(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("BUSINESS_HOURS_MODE", "working_hours")
     monkeypatch.setenv("DEPARTMENT_ROUTE_DELIVERY_CONTEXT", "from-logistics")
     monkeypatch.setenv("DEPARTMENT_ROUTE_DELIVERY_EXTEN", "delivery_real")
     monkeypatch.setenv("DEPARTMENT_ROUTE_DELIVERY_PRIORITY", "2")
@@ -154,6 +197,9 @@ def test_transfer_uses_detected_department_target_and_logs_decision(monkeypatch,
     assert phrase_event["details"]["resolved_sound_id"] == ari_app.TRANSFER_DELIVERY_SOUND_ID
     transfer_event = next(event for event in events if event["action"] == "transfer")
     assert transfer_event["details"]["department"] == "delivery"
+    hours_event = next(event for event in events if event["action"] == "business_hours_decision")
+    assert hours_event["details"]["mode"] == "working_hours"
+    assert phrase_event["details"]["business_hours_mode"] == "working_hours"
 
 
 def test_transfer_is_blocked_without_mandatory_name_city_and_confirmed_phone(tmp_path: Path) -> None:
@@ -177,6 +223,79 @@ def test_transfer_is_blocked_without_mandatory_name_city_and_confirmed_phone(tmp
     blocked = next(event for event in events if event["action"] == "transfer_blocked_missing_required_data")
     assert blocked["details"]["missing_required_fields"] == ["name", "city", "phone_confirmed"]
     assert blocked["details"]["early_transfer_requested"] is True
+
+
+def test_after_hours_skips_transfer_after_required_data(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("BUSINESS_HOURS_MODE", "after_hours")
+    client = _TransferClient()
+    session = CallSession(call_id="call-after-hours", channel_id="ch-after-hours", artifact_dir=tmp_path)
+    session.dialog.profile = {
+        "issue": "Invoice payment question",
+        "name": "Ivan Petrov",
+        "city": "Moscow",
+        "phone_digits": "9200320355",
+        "phone_confirmed": True,
+        "department": "accounting",
+        "department_intent": "accounting",
+    }
+
+    handled, moh_started = asyncio.run(
+        ari_app._play_transfer_and_continue(
+            client,
+            session,
+            {ari_app.AFTER_HOURS_ACCOUNTING_SOUND_ID: True, ari_app.TRANSFER_ACCOUNTING_SOUND_ID: True},
+            moh_started=True,
+        )
+    )
+
+    assert handled is True
+    assert moh_started is False
+    assert client.play_calls == [("ch-after-hours", ari_app.AFTER_HOURS_ACCOUNTING_SOUND_ID)]
+    assert client.continue_calls == []
+    assert client.hangup_calls == ["ch-after-hours"]
+    assert session.state == CallState.DONE
+    events = _events(session)
+    hours_event = next(event for event in events if event["action"] == "business_hours_decision")
+    assert hours_event["details"]["mode"] == "after_hours"
+    phrase_event = next(event for event in events if event["action"] == "after_hours_phrase_resolved")
+    assert phrase_event["details"]["department"] == "accounting"
+    assert phrase_event["details"]["department_sound_id"] == ari_app.AFTER_HOURS_ACCOUNTING_SOUND_ID
+    assert "\u0431\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0438\u044f" in phrase_event["details"]["phrase_text"].lower()
+    skipped = next(event for event in events if event["action"] == "transfer_skipped_after_hours")
+    assert skipped["details"]["transfer_skipped"] is True
+    assert skipped["details"]["business_hours_mode"] == "after_hours"
+    assert not any(event["action"] == "transfer" for event in events)
+
+
+def test_after_hours_completion_is_blocked_until_required_data(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("BUSINESS_HOURS_MODE", "after_hours")
+    client = _TransferClient()
+    session = CallSession(call_id="call-after-hours-missing", channel_id="ch-after-hours-missing", artifact_dir=tmp_path)
+    session.dialog.profile = {
+        "issue": "Need delivery tracking",
+        "city": "Moscow",
+        "phone_digits": "9200320355",
+        "phone_confirmed": True,
+        "department": "delivery",
+    }
+
+    handled, _moh_started = asyncio.run(
+        ari_app._play_transfer_and_continue(
+            client,
+            session,
+            {ari_app.AFTER_HOURS_DELIVERY_SOUND_ID: True},
+            moh_started=False,
+        )
+    )
+
+    assert handled is False
+    assert client.play_calls == []
+    assert client.continue_calls == []
+    assert client.hangup_calls == []
+    events = _events(session)
+    blocked = next(event for event in events if event["action"] == "transfer_blocked_missing_required_data")
+    assert blocked["details"]["missing_required_fields"] == ["name"]
+    assert not any(event["action"] == "after_hours_phrase_resolved" for event in events)
 
 
 def test_unclear_intent_transfer_phrase_matches_default_department(monkeypatch, tmp_path: Path) -> None:
