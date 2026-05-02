@@ -76,6 +76,14 @@ def test_phone_stage_accepts_dotted_mobile_transcription() -> None:
     assert profile["phone_formatted"] == "+7 920 032-03-55"
 
 
+def test_phone_stage_accepts_comma_grouped_digit_dictation() -> None:
+    state, profile = apply_turn(DialogStage.PHONE, {}, "920, 0.32, 0.3, 0.55")
+
+    assert state == DialogStage.PHONE_CONFIRM
+    assert profile["phone_digits"] == "9200320355"
+    assert profile["phone_formatted"] == "+7 920 032-03-55"
+
+
 def test_city_reasks_when_not_confident() -> None:
     state, profile = apply_turn(DialogStage.CITY, {}, "12345")
 
@@ -98,6 +106,14 @@ def test_name_reasks_on_obvious_stt_junk() -> None:
 
     assert state == DialogStage.CITY
     assert profile["name"] == "Ivan Petrov"
+
+
+def test_name_rejects_short_english_filler() -> None:
+    for transcript in ("Yep.", "ok", "Hi"):
+        state, profile = apply_turn(DialogStage.NAME, {}, transcript)
+
+        assert state == DialogStage.NAME
+        assert profile["name_retry_reason"] == "junk"
 
 
 def test_name_accepts_short_valid_russian_names() -> None:
@@ -186,6 +202,14 @@ def test_phone_retry_prompts_vary_by_reason_without_immediate_repeat() -> None:
     assert state == DialogStage.PHONE
     assert profile["phone_retry_reason"] == "unclear"
     assert next_prompt(state, profile) == PHONE_RETRY_PROMPTS["unclear"][1]
+
+
+def test_phone_stage_meta_repair_uses_reasoned_retry_prompt() -> None:
+    state, profile = apply_turn(DialogStage.PHONE, {}, "я уже продиктовал номер для связи")
+
+    assert state == DialogStage.PHONE
+    assert profile["phone_retry_reason"] == "meta_repair"
+    assert next_prompt(state, profile) == PHONE_RETRY_PROMPTS["meta_repair"][0]
 
 
 def test_negative_phone_confirmation_uses_rejected_retry_prompt() -> None:

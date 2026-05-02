@@ -45,6 +45,7 @@ class _LatencyClient:
         self.record_calls: list[dict[str, Any]] = []
         self.wait_timeouts: list[float] = []
         self.calls: list[str] = []
+        self.played_media: list[str] = []
 
     async def record_safe(self, _channel_id: str, record_name: str, **kwargs: Any) -> dict[str, Any]:
         self.calls.append(f"record:{record_name}")
@@ -64,8 +65,9 @@ class _LatencyClient:
     async def moh_stop_safe(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
         return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
 
-    async def play_safe(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+    async def play_safe(self, _channel_id: str, media: str, **_kwargs: Any) -> dict[str, Any]:
         self.calls.append("play")
+        self.played_media.append(media)
         return {"ok": True, "reason": "ok", "http_status": 200, "details": {"payload": {"id": f"play-{len(self.calls)}"}}}
 
     async def wait_for_playback_finished(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
@@ -160,3 +162,54 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
     assert record_starts[0]["details"]["max_duration_seconds"] == 8
     assert record_starts[1]["details"]["max_silence_seconds"] == 1
     assert not any(event["action"] == "pipeline_start" for event in events)
+
+
+def test_phone_retry_prompt_plays_dynamic_prompt_instead_of_static_phone_prompt(monkeypatch, tmp_path: Path) -> None:
+    ari_app._reset_fallback_cache_for_tests()
+    for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sound_id] = True
+
+    class _FakeTTS:
+        def synthesize(self, text: str) -> bytes:
+            assert "Продиктуйте" in text
+            return b"RIFFretry"
+
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: {
+            "ok": True,
+            "sound_id": "sound:ai_secretary/call-node-005/phone_retry_prompt",
+            "remote_path": "/tmp/phone_retry_prompt.wav",
+            "error": None,
+            "details": {},
+        },
+    )
+
+    session = CallSession(call_id="call-node-005", channel_id="ch-node-005", artifact_dir=tmp_path / "artifacts")
+    session.dialog.stage = DialogStage.PHONE
+    session.dialog.profile = {"phone_retry_prompt": "Продиктуйте, пожалуйста, ещё раз ваш номер телефона."}
+    client = _LatencyClient()
+
+    ok, _moh_started = asyncio.run(
+        ari_app._play_prompt(
+            client,
+            _settings(tmp_path),
+            "app",
+            session,
+            DialogStage.PHONE,
+            ari_app._system_sounds_snapshot(),
+            False,
+        )
+    )
+
+    assert ok is True
+    assert client.played_media == ["sound:ai_secretary/call-node-005/phone_retry_prompt"]
+    assert ari_app.PROMPT_4_SOUND_ID not in client.played_media
+
+    events = _read_events(session)
+    assert any(event["action"] == "dynamic_prompt_tts" and event["status"] == "ok" for event in events)
+    play_events = [event for event in events if event["action"] == "play_prompt"]
+    assert play_events[-1]["details"]["dynamic"] is True
+    assert play_events[-1]["details"]["prompt_text"] == "Продиктуйте, пожалуйста, ещё раз ваш номер телефона."

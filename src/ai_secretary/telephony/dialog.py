@@ -11,7 +11,7 @@ from .call_session import DialogStage
 
 MIN_CITY_LETTERS = 4
 PHONE_DIGIT_LENGTHS = {10, 11}
-NAME_JUNK_TOKENS = {"you", "yeah", "yes", "no", "ok", "okay", "test"}
+NAME_JUNK_TOKENS = {"you", "yeah", "yes", "yep", "yup", "no", "ok", "okay", "test", "hello", "hi"}
 NAME_MAX_RETRIES = 3
 NAME_META_REPAIR_PATTERNS = (
     r"я уже сказал",
@@ -136,6 +136,8 @@ def _is_name_confident(name: str, source_text: str) -> bool:
         return False
     if re.search(r"[А-ЯЁа-яё]", source_text):
         return True
+    if " " not in cleaned and len(letters) < 4:
+        return False
     return bool(re.match(r"^[A-Z][a-z-]+(?:\s+[A-Z][a-z-]+)?$", cleaned))
 
 
@@ -187,14 +189,43 @@ def _extract_city(text: str) -> str | None:
     return candidate
 
 
+def _valid_phone_digits(digits: str) -> str | None:
+    if digits and len(digits) in PHONE_DIGIT_LENGTHS:
+        return digits
+    return None
+
+
+def _compact_grouped_phone_variant(candidate: str) -> str | None:
+    digit_groups = ["".join(ch for ch in part if ch.isdigit()) for part in re.split(r"[,;]", candidate)]
+    digit_groups = [group for group in digit_groups if group]
+    if len(digit_groups) < 2:
+        return None
+
+    raw_digits = "".join(digit_groups)
+    if len(raw_digits) != 11 or not raw_digits.startswith("9"):
+        return None
+
+    for idx in range(len(digit_groups) - 1, 0, -1):
+        group = digit_groups[idx]
+        if len(group) > 1 and group.startswith("0"):
+            compacted_groups = list(digit_groups)
+            compacted_groups[idx] = group[1:]
+            compacted = "".join(compacted_groups)
+            if len(compacted) == 10:
+                return compacted
+    return None
+
+
 def _digits_only_phone(text: str) -> str | None:
-    m = re.search(r"(\+?\d[\d\s().\-]{8,}\d)", text)
+    m = re.search(r"(\+?\d[\d\s().,\-;]{8,}\d)", text)
     if not m:
         return None
-    digits = "".join(ch for ch in m.group(1) if ch.isdigit())
-    if not digits or len(digits) not in PHONE_DIGIT_LENGTHS:
-        return None
-    return digits
+    candidate = m.group(1)
+    compacted = _compact_grouped_phone_variant(candidate)
+    if compacted:
+        return compacted
+    digits = "".join(ch for ch in candidate if ch.isdigit())
+    return _valid_phone_digits(digits)
 
 
 def _phone_retry_reason(text: str) -> str:
@@ -271,6 +302,11 @@ def _is_meta_repair(text: str) -> bool:
         r"вы не так записали",
         r"не так записали",
         r"плохо расслыш",
+        r"уже продиктовал",
+        r"уже продиктовала",
+        r"уже назвал",
+        r"уже назвала",
+        r"номер для связи",
     )
     return any(re.search(pattern, normalized) for pattern in patterns)
 
@@ -317,6 +353,9 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             updated["phone_confirmed"] = False
             _clear_phone_retry_prompt(updated)
             return DialogStage.PHONE_CONFIRM, updated
+        if _is_meta_repair(text):
+            _set_phone_retry_prompt(updated, "meta_repair")
+            return DialogStage.PHONE, updated
         _set_phone_retry_prompt(updated, _phone_retry_reason(text))
         return DialogStage.PHONE, updated
     if state == DialogStage.PHONE_CONFIRM:

@@ -75,6 +75,15 @@ Patch 7 fixes NAME retry-loop regression:
 - Obvious junk, digits, non-name punctuation, and known STT noise such as `you` remain blocked.
 - NAME retries are bounded at `3`; after that the profile records `name="клиент"` and `name_unavailable=true`, then advances to CITY to avoid an infinite prompt_2 loop.
 
+Patch 8 fixes live PHONE acceptance/repair regression:
+
+- PHONE accepts digit runs separated by spaces, dots, commas, semicolons, parentheses, and hyphens.
+- PHONE normalizes `10` digits as a local Russian mobile-style number and formats it as `+7 XXX XXX-XX-XX`.
+- PHONE keeps `11` digits as captured for existing transfer behavior, but for comma/semicolon grouped STT output that starts with `9` and is exactly one digit too long, it tries a grouped repair by dropping one leading zero from the last zero-prefixed group. This converts live STT such as `920, 0.32, 0.3, 0.55` to `9200320355`.
+- PHONE-stage meta-repair phrases such as `я уже продиктовал номер для связи`, `я уже назвал`, and `номер для связи` now use the `meta_repair` PHONE retry reason directly instead of falling through to generic unclear/incomplete retry.
+- PHONE retry prompts are now actually played as dynamic synthesized call-specific prompts. Static `prompt_4_v2` is used only for the base PHONE prompt, not for retry/repair prompts.
+- NAME rejects short English filler such as `Yep.`, `ok`, and `Hi`, while still accepting short valid Russian names.
+
 Patch 2 adds explicit confirmation only for PHONE:
 
 ```text
@@ -155,6 +164,7 @@ Added focused coverage proving:
 - PHONE_CONFIRM recording starts only after `PlaybackFinished` plus guard delay.
 - NAME rejects obvious STT garbage instead of advancing to CITY.
 - NAME retries are bounded and use varied reason-based repair prompts.
+- PHONE retry prompts play dynamically instead of replaying fixed `prompt_4_v2`.
 - Fixed PHONE system prompt is regenerated with corrected stress preprocessing for `связи`.
 - Recording wait timeouts track the stage profile instead of fixed `30s`.
 - The successful PHONE path transfers only after positive PHONE confirmation.

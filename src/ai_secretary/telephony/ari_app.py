@@ -720,6 +720,110 @@ async def _play_phone_confirmation_prompt(
     return True, moh_started
 
 
+async def _play_dynamic_prompt(
+    client: AriClient,
+    settings: Settings,
+    session: CallSession,
+    stage: DialogStage,
+    prompt_text: str,
+    moh_started: bool,
+) -> tuple[bool, bool]:
+    started = time.perf_counter()
+    safe_stage = stage.value.lower()
+    prompt_path = session.artifact_dir / f"{safe_stage}_retry_prompt.wav"
+    tts_start = time.perf_counter()
+    try:
+        tts = SileroTTS()
+        wav = await asyncio.to_thread(tts.synthesize, prompt_text)
+        save_bytes(prompt_path, wav)
+    except Exception as exc:
+        session.log_event(
+            action="dynamic_prompt_tts",
+            status="fail",
+            reason=repr(exc),
+            dur_ms=int((time.perf_counter() - tts_start) * 1000),
+            details={"stage": stage.value, "prompt_text": prompt_text},
+        )
+        return False, moh_started
+    session.log_event(
+        action="dynamic_prompt_tts",
+        status="ok",
+        dur_ms=int((time.perf_counter() - tts_start) * 1000),
+        details={"stage": stage.value, "prompt_text": prompt_text},
+    )
+
+    remote_rel_path = f"{settings.asterisk_sounds_subdir}/{session.call_id}/{safe_stage}_retry_prompt.wav"
+    publish_start = time.perf_counter()
+    publish_timeout_sec = _publish_total_timeout_sec()
+    publish_cmd_timeout_sec = _env_int("PUBLISH_CMD_TIMEOUT_SEC", 15)
+    try:
+        publish_result = await asyncio.wait_for(
+            asyncio.to_thread(
+                publish_wav_to_asterisk,
+                prompt_path,
+                remote_rel_path,
+                settings,
+                cmd_timeout_sec=publish_cmd_timeout_sec,
+            ),
+            timeout=publish_timeout_sec,
+        )
+    except asyncio.TimeoutError:
+        session.log_event(
+            action="dynamic_prompt_publish",
+            status="fail",
+            reason="publish_timeout",
+            dur_ms=int((time.perf_counter() - publish_start) * 1000),
+            details={"stage": stage.value, "prompt_text": prompt_text, "remote_rel_path": remote_rel_path},
+        )
+        return False, moh_started
+
+    publish_ms = int((time.perf_counter() - publish_start) * 1000)
+    if not publish_result.get("ok"):
+        session.log_event(
+            action="dynamic_prompt_publish",
+            status="fail",
+            reason=_publish_result_reason(publish_result),
+            dur_ms=publish_ms,
+            details={"stage": stage.value, "prompt_text": prompt_text, "publish_result": publish_result},
+        )
+        return False, moh_started
+    media = str(publish_result.get("sound_id"))
+    session.log_event(
+        action="dynamic_prompt_publish",
+        status="ok",
+        sound_id=media,
+        remote_path=str(publish_result.get("remote_path") or ""),
+        dur_ms=publish_ms,
+        details={"stage": stage.value, "prompt_text": prompt_text},
+    )
+
+    moh_started = await _maybe_stop_moh(client, session, moh_started)
+    result = await client.play_safe(session.channel_id, media)
+    dur_ms = int((time.perf_counter() - started) * 1000)
+    if result["ok"]:
+        session.log_event(
+            action="play_prompt",
+            status="ok",
+            media=media,
+            sound_id=media,
+            dur_ms=dur_ms,
+            details={"stage": stage.value, "prompt_text": prompt_text, "dynamic": True},
+        )
+        return True, moh_started
+
+    session.log_event(
+        action="play_prompt",
+        status="fail",
+        reason=result.get("reason"),
+        http_status=result.get("http_status"),
+        media=media,
+        sound_id=media,
+        dur_ms=dur_ms,
+        details={"stage": stage.value, "prompt_text": prompt_text, "dynamic": True, **(result.get("details") or {})},
+    )
+    return False, moh_started
+
+
 async def _play_prompt(
     client: AriClient,
     settings: Settings,
@@ -732,6 +836,10 @@ async def _play_prompt(
     if stage == DialogStage.PHONE_CONFIRM:
         return await _play_phone_confirmation_prompt(client, settings, app_name, session, moh_started)
 
+    prompt_text = next_prompt(stage, session.dialog.profile)
+    if prompt_text != PROMPTS.get(stage):
+        return await _play_dynamic_prompt(client, settings, session, stage, prompt_text, moh_started)
+
     media = _prompt_media_for_stage(stage, system_sounds)
     started = time.perf_counter()
     moh_started = await _maybe_stop_moh(client, session, moh_started)
@@ -739,7 +847,14 @@ async def _play_prompt(
     dur_ms = int((time.perf_counter() - started) * 1000)
 
     if result["ok"]:
-        session.log_event(action="play_prompt", status="ok", media=media, sound_id=media, dur_ms=dur_ms)
+        session.log_event(
+            action="play_prompt",
+            status="ok",
+            media=media,
+            sound_id=media,
+            dur_ms=dur_ms,
+            details={"stage": stage.value, "prompt_text": prompt_text, "dynamic": False},
+        )
         return True, moh_started
 
     session.log_event(
