@@ -55,6 +55,19 @@ def test_department_intent_keyword_mapping() -> None:
         assert decision.reason == f"matched_{expected}"
 
 
+def test_department_transfer_phrase_mapping_is_bounded() -> None:
+    assert ari_app.TRANSFER_PHRASES == {
+        "sales": "Хорошо, я соединяю вас с отделом продаж.",
+        "accounting": "Хорошо, я соединяю вас с бухгалтерией.",
+        "delivery": "Хорошо, я соединяю вас с отделом доставки.",
+    }
+    assert ari_app.TRANSFER_SOUND_IDS == {
+        "sales": ari_app.TRANSFER_SOUND_ID,
+        "accounting": ari_app.TRANSFER_ACCOUNTING_SOUND_ID,
+        "delivery": ari_app.TRANSFER_DELIVERY_SOUND_ID,
+    }
+
+
 def test_unclear_department_intent_explicitly_defaults_to_sales(monkeypatch) -> None:
     monkeypatch.delenv("DEPARTMENT_INTENT_DEFAULT", raising=False)
 
@@ -107,13 +120,14 @@ def test_transfer_uses_detected_department_target_and_logs_decision(monkeypatch,
         ari_app._play_transfer_and_continue(
             client,
             session,
-            {ari_app.TRANSFER_SOUND_ID: True},
+            {ari_app.TRANSFER_DELIVERY_SOUND_ID: True},
             moh_started=True,
         )
     )
 
     assert transferred is True
     assert moh_started is False
+    assert client.play_calls == [("ch-delivery", ari_app.TRANSFER_DELIVERY_SOUND_ID)]
     assert client.continue_calls == [
         {
             "channel_id": "ch-delivery",
@@ -132,5 +146,39 @@ def test_transfer_uses_detected_department_target_and_logs_decision(monkeypatch,
         "extension": "delivery_real",
         "priority": 2,
     }
+    phrase_event = next(event for event in events if event["action"] == "transfer_phrase_resolved")
+    assert phrase_event["details"]["phrase_text"] == "Хорошо, я соединяю вас с отделом доставки."
+    assert phrase_event["details"]["department_sound_id"] == ari_app.TRANSFER_DELIVERY_SOUND_ID
+    assert phrase_event["details"]["resolved_sound_id"] == ari_app.TRANSFER_DELIVERY_SOUND_ID
     transfer_event = next(event for event in events if event["action"] == "transfer")
     assert transfer_event["details"]["department"] == "delivery"
+
+
+def test_unclear_intent_transfer_phrase_matches_default_department(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("DEPARTMENT_INTENT_DEFAULT", "accounting")
+    monkeypatch.setenv("DEPARTMENT_ROUTE_ACCOUNTING_EXTEN", "acct_real")
+    client = _TransferClient()
+    session = CallSession(call_id="call-unclear", channel_id="ch-unclear", artifact_dir=tmp_path)
+    session.dialog.profile = {
+        "issue": "I need help",
+        "phone_digits": "9200320355",
+        "phone_confirmed": True,
+    }
+
+    transferred, _moh_started = asyncio.run(
+        ari_app._play_transfer_and_continue(
+            client,
+            session,
+            {ari_app.TRANSFER_ACCOUNTING_SOUND_ID: True},
+            moh_started=False,
+        )
+    )
+
+    assert transferred is True
+    assert client.play_calls == [("ch-unclear", ari_app.TRANSFER_ACCOUNTING_SOUND_ID)]
+    assert client.continue_calls[0]["extension"] == "acct_real"
+    events = _events(session)
+    phrase_event = next(event for event in events if event["action"] == "transfer_phrase_resolved")
+    assert phrase_event["details"]["intent"] == "unclear"
+    assert phrase_event["details"]["department"] == "accounting"
+    assert phrase_event["details"]["phrase_text"] == "Хорошо, я соединяю вас с бухгалтерией."

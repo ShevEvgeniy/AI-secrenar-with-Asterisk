@@ -23,6 +23,7 @@ from .call_session import CallSession, CallState, DialogStage
 from .dialog import PROMPTS, apply_turn, build_turn_record, next_prompt, should_stop_dialog
 from .publish_to_asterisk import publish_wav_to_asterisk
 from .routing import (
+    Department,
     DEFAULT_TRANSFER_CONTEXT,
     DEFAULT_TRANSFER_EXTEN,
     DEFAULT_TRANSFER_PRIORITY,
@@ -35,6 +36,8 @@ PROMPT_3_SOUND_ID = "sound:ai_secretary/_system/prompt_3"
 PROMPT_4_SOUND_ID = "sound:ai_secretary/_system/prompt_4_v2"
 FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback"
 TRANSFER_SOUND_ID = "sound:ai_secretary/_system/transfer"
+TRANSFER_ACCOUNTING_SOUND_ID = "sound:ai_secretary/_system/transfer_accounting"
+TRANSFER_DELIVERY_SOUND_ID = "sound:ai_secretary/_system/transfer_delivery"
 PROMPT_FALLBACK_SOUND_IDS: dict[DialogStage, str] = {
     DialogStage.ISSUE: "sound:ai_secretary/_system/fallback_prompt_1",
     DialogStage.NAME: "sound:ai_secretary/_system/fallback_prompt_2",
@@ -61,6 +64,16 @@ BUILTIN_PROMPT_FALLBACK_MEDIA: dict[DialogStage, str] = {
     DialogStage.PHONE: "sound:please-try-again",
 }
 BUILTIN_TRANSFER_FALLBACK_MEDIA = ("sound:pls-wait-connect-call", "sound:please-hold-while-try")
+TRANSFER_SOUND_IDS: dict[Department, str] = {
+    "sales": TRANSFER_SOUND_ID,
+    "accounting": TRANSFER_ACCOUNTING_SOUND_ID,
+    "delivery": TRANSFER_DELIVERY_SOUND_ID,
+}
+TRANSFER_PHRASES: dict[Department, str] = {
+    "sales": "\u0425\u043e\u0440\u043e\u0448\u043e, \u044f \u0441\u043e\u0435\u0434\u0438\u043d\u044f\u044e \u0432\u0430\u0441 \u0441 \u043e\u0442\u0434\u0435\u043b\u043e\u043c \u043f\u0440\u043e\u0434\u0430\u0436.",
+    "accounting": "\u0425\u043e\u0440\u043e\u0448\u043e, \u044f \u0441\u043e\u0435\u0434\u0438\u043d\u044f\u044e \u0432\u0430\u0441 \u0441 \u0431\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0438\u0435\u0439.",
+    "delivery": "\u0425\u043e\u0440\u043e\u0448\u043e, \u044f \u0441\u043e\u0435\u0434\u0438\u043d\u044f\u044e \u0432\u0430\u0441 \u0441 \u043e\u0442\u0434\u0435\u043b\u043e\u043c \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0438.",
+}
 
 _SYSTEM_SOUND_TEXTS: dict[str, str] = {
     PROMPT_1_SOUND_ID: PROMPTS[DialogStage.ISSUE],
@@ -72,8 +85,10 @@ _SYSTEM_SOUND_TEXTS: dict[str, str] = {
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.CITY]: PROMPTS[DialogStage.CITY],
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.PHONE]: PROMPTS[DialogStage.PHONE],
     FALLBACK_SOUND_ID: "Одну секунду, пожалуйста.",
-    TRANSFER_SOUND_ID: PROMPTS[DialogStage.DONE],
-    TRANSFER_FALLBACK_SOUND_ID: PROMPTS[DialogStage.DONE],
+    TRANSFER_SOUND_ID: TRANSFER_PHRASES["sales"],
+    TRANSFER_ACCOUNTING_SOUND_ID: TRANSFER_PHRASES["accounting"],
+    TRANSFER_DELIVERY_SOUND_ID: TRANSFER_PHRASES["delivery"],
+    TRANSFER_FALLBACK_SOUND_ID: TRANSFER_PHRASES["sales"],
 }
 _system_sound_status: dict[str, bool] = {sound_id: False for sound_id in _SYSTEM_SOUND_TEXTS}
 _system_sounds_done = False
@@ -524,12 +539,39 @@ async def _play_transfer_and_continue(
     system_sounds: dict[str, bool],
     moh_started: bool,
 ) -> tuple[bool, bool]:
-    if system_sounds.get(TRANSFER_SOUND_ID, False):
-        media = TRANSFER_SOUND_ID
+    issue_text = str(session.dialog.profile.get("issue") or "")
+    routing_decision = classify_department_intent(issue_text)
+    transfer_target = routing_decision.target
+    transfer_phrase = TRANSFER_PHRASES[transfer_target.department]
+    transfer_sound_id = TRANSFER_SOUND_IDS[transfer_target.department]
+    if system_sounds.get(transfer_sound_id, False):
+        media = transfer_sound_id
     elif system_sounds.get(TRANSFER_FALLBACK_SOUND_ID, False):
         media = TRANSFER_FALLBACK_SOUND_ID
     else:
         media = BUILTIN_TRANSFER_FALLBACK_MEDIA[0]
+    session.log_event(
+        action="department_intent",
+        status="ok",
+        details={
+            **routing_decision.to_dict(),
+            "issue": issue_text,
+        },
+    )
+    session.log_event(
+        action="transfer_phrase_resolved",
+        status="ok",
+        media=media,
+        sound_id=media,
+        details={
+            "department": transfer_target.department,
+            "intent": routing_decision.intent,
+            "intent_reason": routing_decision.reason,
+            "phrase_text": transfer_phrase,
+            "department_sound_id": transfer_sound_id,
+            "resolved_sound_id": media,
+        },
+    )
     started = time.perf_counter()
     moh_started = await _maybe_stop_moh(client, session, moh_started)
     play_result = await client.play_safe(session.channel_id, media)
@@ -543,20 +585,31 @@ async def _play_transfer_and_continue(
             media=media,
             sound_id=media,
             dur_ms=dur_ms,
-            details=play_result.get("details"),
+            details={
+                **(play_result.get("details") or {}),
+                "department": transfer_target.department,
+                "intent": routing_decision.intent,
+                "intent_reason": routing_decision.reason,
+                "phrase_text": transfer_phrase,
+                "department_sound_id": transfer_sound_id,
+                "resolved_sound_id": media,
+            },
         )
         return False, moh_started
 
-    session.log_event(action="play_transfer_phrase", status="ok", media=media, sound_id=media, dur_ms=dur_ms)
-    issue_text = str(session.dialog.profile.get("issue") or "")
-    routing_decision = classify_department_intent(issue_text)
-    transfer_target = routing_decision.target
     session.log_event(
-        action="department_intent",
+        action="play_transfer_phrase",
         status="ok",
+        media=media,
+        sound_id=media,
+        dur_ms=dur_ms,
         details={
-            **routing_decision.to_dict(),
-            "issue": issue_text,
+            "department": transfer_target.department,
+            "intent": routing_decision.intent,
+            "intent_reason": routing_decision.reason,
+            "phrase_text": transfer_phrase,
+            "department_sound_id": transfer_sound_id,
+            "resolved_sound_id": media,
         },
     )
     transfer_start = time.perf_counter()

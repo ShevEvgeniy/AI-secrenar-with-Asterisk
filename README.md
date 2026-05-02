@@ -90,7 +90,12 @@ Intent rules are deterministic keyword matches:
 - `accounting`: accounting/billing/invoice/payment/receipt/documents/reconciliation and Russian бухгалтер/счет/счёт/оплат/платеж/документ/сверк terms.
 - `delivery`: delivery/shipping/arrival/logistics/courier/tracking/order status and Russian достав/отгруз/логист/курьер/груз/трек/где заказ terms.
 
-Unclear or tied intent defaults explicitly to `sales`. This can be changed only to another bounded department with `DEPARTMENT_INTENT_DEFAULT=sales|accounting|delivery`; invalid values fall back to `sales`. Runtime events log `department_intent` and the resolved transfer target before the `transfer` event.
+Transfer phrase/audio mapping:
+- `sales`: `sound:ai_secretary/_system/transfer` — "Хорошо, я соединяю вас с отделом продаж."
+- `accounting`: `sound:ai_secretary/_system/transfer_accounting` — "Хорошо, я соединяю вас с бухгалтерией."
+- `delivery`: `sound:ai_secretary/_system/transfer_delivery` — "Хорошо, я соединяю вас с отделом доставки."
+
+Unclear or tied intent defaults explicitly to `sales`. This can be changed only to another bounded department with `DEPARTMENT_INTENT_DEFAULT=sales|accounting|delivery`; invalid values fall back to `sales`. Runtime events log `department_intent`, `transfer_phrase_resolved`, and the resolved transfer target before the `transfer` event.
 
 Command:
 `$env:PYTHONPATH="src"`
@@ -167,4 +172,3 @@ exten => 5999,1,NoOp(System prompt test)
 `scripts\check_env.cmd`
 
 `scripts\run_ari.cmd`
-
