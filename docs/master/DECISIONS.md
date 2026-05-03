@@ -199,3 +199,27 @@ sound:ai_secretary/_system/after_hours_delivery_v2
 ```
 
 NODE-009 validation recorded `21 passed` for wording/static-sound follow-up and broader focused result `56 passed`.
+
+## Callback Capture And Persistence
+
+NODE-010 completed bounded local callback persistence.
+
+Accepted runtime behavior:
+
+- Callback persistence format is JSONL, one flat JSON object per line.
+- Production path is:
+
+```text
+data/storage/callbacks/callback_records.jsonl
+```
+
+- Persisted schema includes `record_id`, `call_id`, `timestamp`, `department`, `issue`, `name`, `city`, `phone`, `outcome_type`, and `outcome_reason`.
+- Records are written for:
+  - `after_hours_callback`;
+  - `safe_finish`.
+- After-hours callback records are persisted after after-hours transfer skip and before final hangup.
+- SAFE_FINISH records are persisted with available partial data and terminal reason.
+- Persistence is fail-soft and must not crash call flow.
+- Persistence logging includes `persistence_attempt`, `persistence_success`, and `persistence_failure`.
+
+NODE-010 live validation confirmed callback persistence with `outcome_type=after_hours_callback`, `outcome_reason=mode_override`, and `record_id=f0cff987b252b77c`.

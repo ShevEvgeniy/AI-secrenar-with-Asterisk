@@ -72,6 +72,12 @@ NODE-009 completed and validated business-hours and after-hours handoff:
 working hours -> live transfer; after hours -> collect required data -> department callback phrase -> hangup without transfer
 ```
 
+NODE-010 completed and validated callback capture and persistence:
+
+```text
+after_hours_callback/safe_finish -> flat JSONL callback record -> fail-soft persistence logging
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -84,7 +90,7 @@ working hours -> live transfer; after hours -> collect required data -> departme
 
 ## Current Action Plan
 
-1. Treat NODE-001 through NODE-009 as complete and recorded in `master`.
+1. Treat NODE-001 through NODE-010 as complete and recorded in `master`.
 2. Preserve the validated sales transfer target:
 
 ```text
@@ -110,11 +116,13 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 12. Preserve bounded `INTENT_CLARIFY`, stage-local retry policy, and terminal/non-transfer `SAFE_FINISH`.
 13. Preserve NODE-009 working-hours live transfer behavior and after-hours transfer skip.
 14. Preserve department-specific after-hours phrases and the playback barrier before hangup.
+15. Preserve NODE-010 callback persistence at `data/storage/callbacks/callback_records.jsonl`.
+16. Preserve fail-soft persistence logging for `persistence_attempt`, `persistence_success`, and `persistence_failure`.
 
 ## Next Recommended Step
 
 ```text
-Open the next bounded node only after master records NODE-009 completion.
+Open the next bounded node only after master records NODE-010 completion on remote master.
 ```
 
 ## Node Completion Report Format

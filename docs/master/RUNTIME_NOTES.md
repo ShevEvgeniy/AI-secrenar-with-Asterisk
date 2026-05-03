@@ -244,6 +244,46 @@ sound:ai_secretary/_system/after_hours_accounting_v2
 sound:ai_secretary/_system/after_hours_delivery_v2
 ```
 
+## NODE-010 Runtime Notes
+
+- Bounded local callback persistence is implemented.
+- Persistence format is JSONL, one flat JSON object per line.
+- Production path:
+
+```text
+data/storage/callbacks/callback_records.jsonl
+```
+
+- Persisted schema includes:
+  - `record_id`;
+  - `call_id`;
+  - `timestamp`;
+  - `department`;
+  - `issue`;
+  - `name`;
+  - `city`;
+  - `phone`;
+  - `outcome_type`;
+  - `outcome_reason`.
+- Implemented trigger points:
+  - `after_hours_callback`;
+  - `safe_finish`.
+- After-hours callback records are persisted after after-hours transfer skip and before final hangup.
+- SAFE_FINISH records are persisted with available partial data and terminal reason.
+- Persistence is fail-soft and does not crash call flow.
+- Logging includes:
+  - `persistence_attempt`;
+  - `persistence_success`;
+  - `persistence_failure`.
+- Live validation confirmed callback persistence succeeded with:
+
+```text
+outcome_type=after_hours_callback
+outcome_reason=mode_override
+record_id=f0cff987b252b77c
+path=data/storage/callbacks/callback_records.jsonl
+```
+
 ## NODE-005 Runtime Notes
 
 - NODE-005 keeps the current turn-based architecture and the NODE-004 post-PHONE transfer flow.

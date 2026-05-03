@@ -7,8 +7,8 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-009-business-hours-and-after-hours-handoff`
-- Latest completed node commit: `b0d1efbb793c1c860e4acb8d3cf8414a73b34e93`
+- Latest completed node branch: `feat/node-010-callback-capture-and-persistence`
+- Latest completed node commit: `087ea4e0f558038576f6263605c11f30bdf8797d`
 
 ## Confirmed Working
 
@@ -52,6 +52,10 @@
 - Mandatory data collection is still enforced before after-hours completion.
 - Department-specific after-hours phrases are implemented for sales, accounting, and delivery.
 - After-hours phrase playback completes before hangup.
+- Bounded local callback persistence is implemented.
+- Callback persistence format is JSONL, one flat JSON object per line.
+- Callback records persist for `after_hours_callback` and `safe_finish` trigger points.
+- Callback persistence is fail-soft and does not crash call flow.
 - NODE-001 live smoke validation passed:
   - stage prompts progressed correctly;
   - user speech was transcribed for ISSUE / NAME / CITY / PHONE;
@@ -114,6 +118,12 @@ NODE-009 adds business-hours and after-hours handoff:
 working hours -> live transfer; after hours -> collect required data -> department callback phrase -> hangup without transfer
 ```
 
+NODE-010 adds callback capture and persistence:
+
+```text
+after_hours_callback/safe_finish -> flat JSONL callback record -> fail-soft persistence logging
+```
+
 ## Validation Notes
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
@@ -127,6 +137,7 @@ working hours -> live transfer; after hours -> collect required data -> departme
 - NODE-007 is merged into `master`.
 - NODE-008 is recorded in `master`.
 - NODE-009 is merged into `master`.
+- NODE-010 is merged into `master`.
 - During NODE-002 validation, SSH to `92.118.85.117:22` timed out while publishing `prompt_3` and transfer system sounds.
 - Despite the partial publish failure, the listener reached `READY_WAITING_FOR_CALLS`.
 - Fallback media was used during the live call for missing `prompt_3` and transfer phrase.
@@ -156,6 +167,7 @@ working hours -> live transfer; after hours -> collect required data -> departme
 - NODE-007 validates department routing and department-specific transfer prompts for sales, accounting, and delivery.
 - NODE-008 prevents transfer from bypassing required data collection and makes SAFE_FINISH terminal/non-transfer.
 - NODE-009 validates working-hours live transfer preservation and after-hours transfer skip with department-specific callback phrases.
+- NODE-010 validates local callback JSONL persistence for after-hours callback and SAFE_FINISH outcomes.
 
 ## NODE-004 Live Smoke
 
@@ -320,8 +332,38 @@ ce230c96cefb321e1e5dcabe3d9de4defa776254
 b0d1efbb793c1c860e4acb8d3cf8414a73b34e93
 ```
 
+## NODE-010 Validation
+
+Targeted tests:
+
+```text
+tests/test_department_routing.py
+tests/test_post_phone_transfer.py
+```
+
+Targeted result:
+
+```text
+21 passed
+```
+
+Broader reported full-suite result:
+
+```text
+101 passed, 6 unrelated environment failures
+```
+
+Live validation confirmed callback persistence succeeded with:
+
+```text
+outcome_type=after_hours_callback
+outcome_reason=mode_override
+record_id=f0cff987b252b77c
+path=data/storage/callbacks/callback_records.jsonl
+```
+
 ## Next Recommended Step
 
 ```text
-Open the next bounded node only after master records NODE-009 completion.
+Open the next bounded node only after master records NODE-010 completion on remote master.
 ```
