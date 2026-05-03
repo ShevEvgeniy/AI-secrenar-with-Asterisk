@@ -16,6 +16,12 @@ from ..config.settings import Settings
 from ..core.runner import run_pipeline, run_pipeline_from_transcript
 from ..rag.embeddings import warmup_embeddings
 from ..stt.whisper_api import WhisperAPIClient
+from ..storage.callbacks import (
+    CallbackOutcomeType,
+    append_callback_record,
+    build_callback_record,
+    callback_records_path,
+)
 from ..storage.files import save_bytes, save_json
 from ..tts.silero import SileroTTS
 from .ari_client import AriClient
@@ -655,6 +661,59 @@ def _resolve_safe_finish_phrase(
     return "baseline", SAFE_FINISH_BASELINE_PHRASE, baseline_media, baseline_media, system_sounds.get(baseline_media, False)
 
 
+def _persist_callback_record(
+    session: CallSession,
+    storage_dir: Path,
+    *,
+    outcome_type: CallbackOutcomeType,
+    outcome_reason: str,
+    department: str = "",
+) -> None:
+    """Fail-soft persistence for callback-worthy terminal outcomes."""
+    path = callback_records_path(storage_dir)
+    session.log_event(
+        action="persistence_attempt",
+        status="start",
+        details={
+            "outcome_type": outcome_type,
+            "outcome_reason": outcome_reason,
+            "path": str(path.as_posix()),
+        },
+    )
+    try:
+        record = build_callback_record(
+            call_id=session.call_id,
+            profile=session.dialog.profile,
+            outcome_type=outcome_type,
+            outcome_reason=outcome_reason,
+            department=department,
+        )
+        record_id = append_callback_record(path, record)
+    except Exception as exc:
+        session.log_event(
+            action="persistence_failure",
+            status="fail",
+            reason=repr(exc),
+            details={
+                "outcome_type": outcome_type,
+                "outcome_reason": outcome_reason,
+                "path": str(path.as_posix()),
+            },
+        )
+        return
+
+    session.log_event(
+        action="persistence_success",
+        status="ok",
+        details={
+            "outcome_type": outcome_type,
+            "outcome_reason": outcome_reason,
+            "record_id": record_id,
+            "path": str(path.as_posix()),
+        },
+    )
+
+
 async def _play_safe_finish_phrase(
     client: AriClient,
     settings: Settings,
@@ -765,6 +824,7 @@ async def _play_transfer_and_continue(
     system_sounds: dict[str, bool],
     moh_started: bool,
     app_name: str = "",
+    storage_dir: Path | None = None,
 ) -> tuple[bool, bool]:
     missing_fields = required_fields_missing(session.dialog.profile)
     if missing_fields:
@@ -892,6 +952,13 @@ async def _play_transfer_and_continue(
                 "after_hours_playback_completed": barrier_ok,
                 "transfer_skipped": True,
             },
+        )
+        _persist_callback_record(
+            session,
+            storage_dir or session.artifact_dir,
+            outcome_type="after_hours_callback",
+            outcome_reason=hours_decision.reason,
+            department=transfer_target.department,
         )
         hangup_start = time.perf_counter()
         hangup_result = await client.hangup_safe(session.channel_id)
@@ -1895,6 +1962,7 @@ async def handle_call(
                         system_sounds,
                         moh_started,
                         app_name=app_name,
+                        storage_dir=settings.storage_dir,
                     )
                     if transferred:
                         return
@@ -1924,6 +1992,12 @@ async def handle_call(
                         "retry_limit": session.dialog.profile.get("last_retry_limit"),
                     },
                 )
+                _persist_callback_record(
+                    session,
+                    settings.storage_dir,
+                    outcome_type="safe_finish",
+                    outcome_reason=reason,
+                )
                 played_safe_finish, moh_started = await _play_safe_finish_phrase(
                     client,
                     settings,
@@ -1944,6 +2018,7 @@ async def handle_call(
                     system_sounds,
                     moh_started,
                     app_name=app_name,
+                    storage_dir=settings.storage_dir,
                 )
                 if transferred:
                     return

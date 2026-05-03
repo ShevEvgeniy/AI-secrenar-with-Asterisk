@@ -305,6 +305,60 @@ def test_after_hours_skips_transfer_after_required_data(monkeypatch, tmp_path: P
     assert not any(event["action"] == "transfer" for event in events)
     handoff = next(event for event in events if event["action"] == "after_hours_handoff")
     assert handoff["details"]["after_hours_playback_completed"] is True
+    records_path = tmp_path / "callbacks" / "callback_records.jsonl"
+    records = [json.loads(line) for line in records_path.read_text(encoding="utf-8").splitlines()]
+    assert len(records) == 1
+    assert records[0]["call_id"] == "call-after-hours"
+    assert records[0]["department"] == "accounting"
+    assert records[0]["issue"] == "Invoice payment question"
+    assert records[0]["name"] == "Ivan Petrov"
+    assert records[0]["city"] == "Moscow"
+    assert records[0]["phone"] == "9200320355"
+    assert records[0]["outcome_type"] == "after_hours_callback"
+    assert records[0]["outcome_reason"] == "mode_override"
+    assert records[0]["record_id"]
+    assert records[0]["timestamp"]
+    assert any(event["action"] == "persistence_attempt" for event in events)
+    success = next(event for event in events if event["action"] == "persistence_success")
+    assert success["details"]["path"].endswith("callbacks/callback_records.jsonl")
+    assert success["details"]["record_id"] == records[0]["record_id"]
+
+
+def test_after_hours_persistence_failure_is_fail_soft(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("BUSINESS_HOURS_MODE", "after_hours")
+    monkeypatch.setenv("AFTER_HOURS_GUARD_DELAY_MS", "0")
+    monkeypatch.setattr(
+        ari_app,
+        "append_callback_record",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("disk unavailable")),
+    )
+    client = _TransferClient()
+    session = CallSession(call_id="call-after-hours-fail-soft", channel_id="ch-after-hours-fail-soft", artifact_dir=tmp_path)
+    session.dialog.profile = {
+        "issue": "Invoice payment question",
+        "name": "Ivan Petrov",
+        "city": "Moscow",
+        "phone_digits": "9200320355",
+        "phone_confirmed": True,
+        "department": "accounting",
+    }
+
+    handled, _moh_started = asyncio.run(
+        ari_app._play_transfer_and_continue(
+            client,
+            session,
+            {ari_app.AFTER_HOURS_ACCOUNTING_SOUND_ID: True},
+            moh_started=False,
+            app_name="app",
+        )
+    )
+
+    assert handled is True
+    assert client.call_order == ["play", "wait", "hangup"]
+    assert session.state == CallState.DONE
+    events = _events(session)
+    assert any(event["action"] == "persistence_failure" for event in events)
+    assert any(event["action"] == "after_hours_handoff" and event["status"] == "ok" for event in events)
 
 
 def test_after_hours_completion_is_blocked_until_required_data(monkeypatch, tmp_path: Path) -> None:

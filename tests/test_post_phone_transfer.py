@@ -304,6 +304,22 @@ def test_unconfirmed_phone_does_not_fall_through_to_generic_pipeline(monkeypatch
     assert client.play_calls[-1] == ari_app.SAFE_FINISH_PHONE_NOT_CONFIRMED_SOUND_ID
     assert client.continue_calls == []
     assert not any(event["action"] in {"pipeline_start", "build_response", "publish", "playback"} for event in events)
+    records_path = tmp_path / "storage" / "callbacks" / "callback_records.jsonl"
+    records = [json.loads(line) for line in records_path.read_text(encoding="utf-8").splitlines()]
+    assert len(records) == 1
+    assert records[0]["call_id"] == "call-unconfirmed"
+    assert records[0]["department"] == "sales"
+    assert records[0]["issue"] == "Need cylinders"
+    assert records[0]["name"] == "Ivan Petrov"
+    assert records[0]["city"] == "from Moscow"
+    assert records[0]["phone"] == "9200320355"
+    assert records[0]["outcome_type"] == "safe_finish"
+    assert records[0]["outcome_reason"] == "phone_retry_limit"
+    assert records[0]["record_id"]
+    assert records[0]["timestamp"]
+    success = next(event for event in events if event["action"] == "persistence_success")
+    assert success["details"]["outcome_type"] == "safe_finish"
+    assert success["details"]["record_id"] == records[0]["record_id"]
 
 
 def test_safe_finish_phrase_resolution_falls_back_to_baseline_when_reason_unknown() -> None:
