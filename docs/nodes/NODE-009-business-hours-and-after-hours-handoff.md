@@ -4,7 +4,7 @@
 
 Handle working-hours vs non-working-hours behavior without weakening the mandatory data capture flow.
 
-## Planned Scope
+## Scope
 
 - Branch:
 
@@ -21,18 +21,49 @@ feat/node-009-business-hours-and-after-hours-handoff
   - phone.
 - Tell the caller that the relevant department will call back in working hours.
 
-## Out Of Scope
+## Validated Result
 
-- Changing department intent routing beyond what is required for after-hours handoff.
-- Weakening mandatory data capture before handoff.
-- Broad call architecture changes.
+- Bounded working-hours vs after-hours behavior is implemented.
+- During working hours, the existing live-transfer flow remains unchanged.
+- During after hours, live transfer is skipped.
+- Mandatory data collection is still enforced before after-hours completion:
+  - issue;
+  - name;
+  - city;
+  - phone;
+  - `phone_confirmed=true`.
+- Department-specific after-hours phrases are implemented for:
+  - sales;
+  - accounting;
+  - delivery.
+- After-hours phrase playback now completes before hangup.
+- Transfer is explicitly skipped and logged in after-hours mode.
 
-## Success Criteria
+## UX Wording Follow-Up
 
-- Working-hours calls preserve the validated live transfer behavior.
-- Non-working-hours calls do not transfer live.
-- Non-working-hours calls still collect required callback data.
-- Caller hears a clear department-aware after-hours callback message.
+Opening prompt updated to:
+
+```text
+Здравствуйте. Меня зовут Анна. Я виртуальный секретарь. По какому вопросу вы обращаетесь?
+```
+
+After-hours phrases now end with:
+
+```text
+Спасибо за звонок. До свидания.
+```
+
+## Static Sound Refresh
+
+Versioned after-hours system sounds added:
+
+```text
+sound:ai_secretary/_system/after_hours_sales_v2
+sound:ai_secretary/_system/after_hours_accounting_v2
+sound:ai_secretary/_system/after_hours_delivery_v2
+```
+
+This ensures freshly published wav files are used for the updated after-hours wording.
 
 ## Implemented Contract
 
@@ -50,39 +81,6 @@ BUSINESS_HOURS_TZ=Europe/Moscow
 BUSINESS_HOURS_DAYS=0,1,2,3,4
 BUSINESS_HOURS_START=09:00
 BUSINESS_HOURS_END=18:00
-```
-
-`BUSINESS_HOURS_DAYS` uses Python weekday numbers: Monday `0` through Sunday `6`. Start is inclusive and end is exclusive.
-
-Overrides:
-
-```text
-BUSINESS_HOURS_MODE=working_hours|after_hours
-DEPARTMENT_WORKING_HOURS_<DEPARTMENT>_MODE=working_hours|after_hours
-DEPARTMENT_WORKING_HOURS_<DEPARTMENT>_TZ=Europe/Moscow
-DEPARTMENT_WORKING_HOURS_<DEPARTMENT>_DAYS=0,1,2,3,4
-DEPARTMENT_WORKING_HOURS_<DEPARTMENT>_START=09:00
-DEPARTMENT_WORKING_HOURS_<DEPARTMENT>_END=18:00
-AFTER_HOURS_PLAYBACK_TIMEOUT_SECONDS=20
-AFTER_HOURS_GUARD_DELAY_MS=400
-```
-
-After-hours phrase mapping:
-
-```text
-sales      -> sound:ai_secretary/_system/after_hours_sales_v2
-              "Отдел продаж сейчас не работает. Мы записали ваше обращение, и отдел продаж перезвонит вам в рабочее время. Спасибо за звонок. До свидания."
-accounting -> sound:ai_secretary/_system/after_hours_accounting_v2
-              "Бухгалтерия сейчас не работает. Мы записали ваше обращение, и бухгалтерия перезвонит вам в рабочее время. Спасибо за звонок. До свидания."
-delivery   -> sound:ai_secretary/_system/after_hours_delivery_v2
-              "Отдел доставки сейчас не работает. Мы записали ваше обращение, и отдел доставки перезвонит вам в рабочее время. Спасибо за звонок. До свидания."
-```
-
-Opening prompt:
-
-```text
-sound:ai_secretary/_system/prompt_1
-"Здравствуйте. Меня зовут Анна. Я виртуальный секретарь. По какому вопросу вы обращаетесь?"
 ```
 
 After-hours transfer-skip logic:
@@ -107,6 +105,42 @@ after_hours_playback_barrier
 transfer_skipped_after_hours
 after_hours_handoff
 ```
+
+## Validation
+
+Focused regression:
+
+```text
+tests/test_dialog_flow.py
+tests/test_department_routing.py
+tests/test_post_phone_transfer.py
+tests/test_sales_real_transfer.py
+```
+
+Wording/static-sound follow-up targeted result:
+
+```text
+21 passed
+```
+
+Broader focused result previously recorded:
+
+```text
+56 passed
+```
+
+## Traceable Implementation Commits
+
+```text
+bd63f42115224a5d9e75d2ca431bcc558b8e42ee
+5dfb0c3d61644f52bd3acf18a87f2014fdeb8ab9
+ce230c96cefb321e1e5dcabe3d9de4defa776254
+b0d1efbb793c1c860e4acb8d3cf8414a73b34e93
+```
+
+## Next Recommendation
+
+Open the next bounded node only after master records NODE-009 completion.
 
 ## Branch Name
 

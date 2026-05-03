@@ -172,3 +172,30 @@ Accepted runtime behavior:
 - `SAFE_FINISH` is terminal/non-transfer and supports reason-based phrases for `missing_required_data`, `intent_not_resolved`, and `phone_not_confirmed`.
 
 NODE-008 focused regression passed with `42 passed in 2.73s`.
+
+## Business Hours And After-Hours Handoff
+
+NODE-009 completed bounded working-hours vs after-hours behavior.
+
+Accepted runtime behavior:
+
+- During working hours, the existing live-transfer flow remains unchanged.
+- During after hours, live transfer is skipped.
+- Mandatory data collection is still enforced before after-hours completion:
+  - issue;
+  - name;
+  - city;
+  - phone;
+  - `phone_confirmed=true`.
+- Department-specific after-hours phrases exist for sales, accounting, and delivery.
+- After-hours phrase playback must complete before hangup.
+- Transfer skip must be explicit and logged in after-hours mode.
+- Versioned after-hours system sounds must be used for refreshed wording:
+
+```text
+sound:ai_secretary/_system/after_hours_sales_v2
+sound:ai_secretary/_system/after_hours_accounting_v2
+sound:ai_secretary/_system/after_hours_delivery_v2
+```
+
+NODE-009 validation recorded `21 passed` for wording/static-sound follow-up and broader focused result `56 passed`.

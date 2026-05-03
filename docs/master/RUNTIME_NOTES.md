@@ -207,6 +207,43 @@ delivery: Хорошо, я соединяю вас с отделом доста�
   - `intent_not_resolved`;
   - `phone_not_confirmed`.
 
+## NODE-009 Runtime Notes
+
+- Bounded working-hours vs after-hours behavior is implemented.
+- During working hours, the existing live-transfer flow remains unchanged.
+- During after hours, live transfer is skipped.
+- Mandatory data collection is still enforced before after-hours completion:
+  - issue;
+  - name;
+  - city;
+  - phone;
+  - `phone_confirmed=true`.
+- Department-specific after-hours phrases are implemented for:
+  - sales;
+  - accounting;
+  - delivery.
+- After-hours phrase playback completes before hangup.
+- Transfer is explicitly skipped and logged in after-hours mode.
+- Opening prompt is now:
+
+```text
+Здравствуйте. Меня зовут Анна. Я виртуальный секретарь. По какому вопросу вы обращаетесь?
+```
+
+- After-hours phrases now end with:
+
+```text
+Спасибо за звонок. До свидания.
+```
+
+- Versioned after-hours system sounds are used for refreshed wording:
+
+```text
+sound:ai_secretary/_system/after_hours_sales_v2
+sound:ai_secretary/_system/after_hours_accounting_v2
+sound:ai_secretary/_system/after_hours_delivery_v2
+```
+
 ## NODE-005 Runtime Notes
 
 - NODE-005 keeps the current turn-based architecture and the NODE-004 post-PHONE transfer flow.

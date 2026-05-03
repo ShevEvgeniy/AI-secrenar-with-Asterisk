@@ -7,8 +7,8 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-008-intent-clarification-and-mandatory-data-capture`
-- Latest completed node commit: `6380d6e`
+- Latest completed node branch: `feat/node-009-business-hours-and-after-hours-handoff`
+- Latest completed node commit: `b0d1efbb793c1c860e4acb8d3cf8414a73b34e93`
 
 ## Confirmed Working
 
@@ -46,6 +46,12 @@
 - Stage-aware responses are implemented when the caller asks for immediate transfer.
 - Bounded `INTENT_CLARIFY` is implemented for unclear or tied department intent.
 - `SAFE_FINISH` is terminal/non-transfer and uses reason-based spoken phrases before hangup.
+- Bounded working-hours vs after-hours behavior is implemented.
+- During working hours, the existing live-transfer flow remains unchanged.
+- During after hours, live transfer is skipped and logged.
+- Mandatory data collection is still enforced before after-hours completion.
+- Department-specific after-hours phrases are implemented for sales, accounting, and delivery.
+- After-hours phrase playback completes before hangup.
 - NODE-001 live smoke validation passed:
   - stage prompts progressed correctly;
   - user speech was transcribed for ISSUE / NAME / CITY / PHONE;
@@ -102,6 +108,12 @@ NODE-008 adds mandatory data capture and bounded clarification:
 immediate transfer request -> collect required data -> clarify intent/default safely -> transfer only when complete
 ```
 
+NODE-009 adds business-hours and after-hours handoff:
+
+```text
+working hours -> live transfer; after hours -> collect required data -> department callback phrase -> hangup without transfer
+```
+
 ## Validation Notes
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
@@ -114,6 +126,7 @@ immediate transfer request -> collect required data -> clarify intent/default sa
 - NODE-006 is merged into `master`.
 - NODE-007 is merged into `master`.
 - NODE-008 is recorded in `master`.
+- NODE-009 is merged into `master`.
 - During NODE-002 validation, SSH to `92.118.85.117:22` timed out while publishing `prompt_3` and transfer system sounds.
 - Despite the partial publish failure, the listener reached `READY_WAITING_FOR_CALLS`.
 - Fallback media was used during the live call for missing `prompt_3` and transfer phrase.
@@ -142,6 +155,7 @@ immediate transfer request -> collect required data -> clarify intent/default sa
 - NODE-006 improves NAME quality and stability but does not introduce multi-department routing.
 - NODE-007 validates department routing and department-specific transfer prompts for sales, accounting, and delivery.
 - NODE-008 prevents transfer from bypassing required data collection and makes SAFE_FINISH terminal/non-transfer.
+- NODE-009 validates working-hours live transfer preservation and after-hours transfer skip with department-specific callback phrases.
 
 ## NODE-004 Live Smoke
 
@@ -274,10 +288,40 @@ Implementation notes:
 - `INTENT_CLARIFY` timeout and empty outcomes are normal outcomes, not unhandled exceptions.
 - `SAFE_FINISH` supports reason-based phrases for `missing_required_data`, `intent_not_resolved`, and `phone_not_confirmed`.
 
+## NODE-009 Validation
+
+Focused regression:
+
+```text
+tests/test_dialog_flow.py
+tests/test_department_routing.py
+tests/test_post_phone_transfer.py
+tests/test_sales_real_transfer.py
+```
+
+Wording/static-sound follow-up targeted result:
+
+```text
+21 passed
+```
+
+Broader focused result previously recorded:
+
+```text
+56 passed
+```
+
+Traceable implementation commits:
+
+```text
+bd63f42115224a5d9e75d2ca431bcc558b8e42ee
+5dfb0c3d61644f52bd3acf18a87f2014fdeb8ab9
+ce230c96cefb321e1e5dcabe3d9de4defa776254
+b0d1efbb793c1c860e4acb8d3cf8414a73b34e93
+```
+
 ## Next Recommended Step
 
 ```text
-Start NODE-009 / business-hours-and-after-hours-handoff.
+Open the next bounded node only after master records NODE-009 completion.
 ```
-
-NODE-009 should detect working hours vs non-working hours. In non-working hours, it should not perform live transfer, but should still collect issue/name/city/phone and tell the caller the relevant department will call back in working hours.
