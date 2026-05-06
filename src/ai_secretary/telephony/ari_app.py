@@ -43,6 +43,7 @@ PROMPT_CLARIFY_SOUND_ID = "sound:ai_secretary/_system/prompt_intent_clarify"
 PROMPT_2_SOUND_ID = "sound:ai_secretary/_system/prompt_2"
 PROMPT_3_SOUND_ID = "sound:ai_secretary/_system/prompt_3"
 PROMPT_4_SOUND_ID = "sound:ai_secretary/_system/prompt_4_v2"
+PHONE_CONFIRM_HOLDING_SOUND_ID = "sound:ai_secretary/_system/holding_phone_check"
 FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback"
 TRANSFER_SOUND_ID = "sound:ai_secretary/_system/transfer"
 TRANSFER_ACCOUNTING_SOUND_ID = "sound:ai_secretary/_system/transfer_accounting"
@@ -69,6 +70,9 @@ DEFAULT_NAME_GUARD_DELAY_MS = 400
 DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS = 15
 DEFAULT_AFTER_HOURS_GUARD_DELAY_MS = 400
 DEFAULT_AFTER_HOURS_PLAYBACK_TIMEOUT_SECONDS = 20
+DEFAULT_LATENCY_SILENCE_WARN_MS = 5000
+DEFAULT_LATENCY_SILENCE_CRITICAL_MS = 10000
+DEFAULT_PHONE_CONFIRM_HOLDING_PLAYBACK_TIMEOUT_SECONDS = 5
 NAME_STT_LANGUAGE = "ru"
 NAME_STT_PROMPT = (
     "Русская речь. Ожидается короткий ответ с именем клиента: имя, имя и отчество "
@@ -88,6 +92,7 @@ TRANSFER_SOUND_IDS: dict[Department, str] = {
     "accounting": TRANSFER_ACCOUNTING_SOUND_ID,
     "delivery": TRANSFER_DELIVERY_SOUND_ID,
 }
+PHONE_CONFIRM_HOLDING_PHRASE = "\u0421\u0435\u043a\u0443\u043d\u0434\u0443, \u043f\u0440\u043e\u0432\u0435\u0440\u044f\u044e \u043d\u043e\u043c\u0435\u0440."
 TRANSFER_PHRASES: dict[Department, str] = {
     "sales": "\u0425\u043e\u0440\u043e\u0448\u043e, \u044f \u0441\u043e\u0435\u0434\u0438\u043d\u044f\u044e \u0432\u0430\u0441 \u0441 \u043e\u0442\u0434\u0435\u043b\u043e\u043c \u043f\u0440\u043e\u0434\u0430\u0436.",
     "accounting": "\u0425\u043e\u0440\u043e\u0448\u043e, \u044f \u0441\u043e\u0435\u0434\u0438\u043d\u044f\u044e \u0432\u0430\u0441 \u0441 \u0431\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0438\u0435\u0439.",
@@ -195,6 +200,7 @@ _SYSTEM_SOUND_TEXTS: dict[str, str] = {
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.NAME]: PROMPTS[DialogStage.NAME],
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.CITY]: PROMPTS[DialogStage.CITY],
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.PHONE]: PROMPTS[DialogStage.PHONE],
+    PHONE_CONFIRM_HOLDING_SOUND_ID: PHONE_CONFIRM_HOLDING_PHRASE,
     FALLBACK_SOUND_ID: "Одну секунду, пожалуйста.",
     TRANSFER_SOUND_ID: TRANSFER_PHRASES["sales"],
     TRANSFER_ACCOUNTING_SOUND_ID: TRANSFER_PHRASES["accounting"],
@@ -395,6 +401,112 @@ def _playback_id_from_result(result: dict[str, Any]) -> str:
     payload = details.get("payload") or {}
     playback_id = payload.get("id")
     return str(playback_id or "")
+
+
+def _latency_silence_warn_ms() -> int:
+    value = _env_int("LATENCY_SILENCE_WARN_MS", DEFAULT_LATENCY_SILENCE_WARN_MS)
+    return value if value > 0 else DEFAULT_LATENCY_SILENCE_WARN_MS
+
+
+def _latency_silence_critical_ms() -> int:
+    value = _env_int("LATENCY_SILENCE_CRITICAL_MS", DEFAULT_LATENCY_SILENCE_CRITICAL_MS)
+    return value if value > 0 else DEFAULT_LATENCY_SILENCE_CRITICAL_MS
+
+
+def _phone_confirm_holding_enabled() -> bool:
+    return os.getenv("PHONE_CONFIRM_HOLDING_PROMPT_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _phone_confirm_holding_playback_timeout_sec() -> int:
+    value = _env_int(
+        "PHONE_CONFIRM_HOLDING_PLAYBACK_TIMEOUT_SECONDS",
+        DEFAULT_PHONE_CONFIRM_HOLDING_PLAYBACK_TIMEOUT_SECONDS,
+    )
+    return value if value > 0 else DEFAULT_PHONE_CONFIRM_HOLDING_PLAYBACK_TIMEOUT_SECONDS
+
+
+def _latency_context_details(context: dict[str, Any] | None, *, playback_stage: DialogStage | None = None) -> dict[str, Any]:
+    if not context:
+        return {}
+    details = {
+        "stage": context.get("stage"),
+        "turn_idx": context.get("turn_idx"),
+        "stage_enter_ts": context.get("stage_enter_ts"),
+        "next_stage": context.get("next_stage"),
+        "outcome": context.get("outcome"),
+    }
+    if playback_stage is not None:
+        details["playback_stage"] = playback_stage.value
+    return {key: value for key, value in details.items() if value is not None}
+
+
+def _log_latency_segment(
+    session: CallSession,
+    action: str,
+    context: dict[str, Any] | None,
+    *,
+    status: str = "ok",
+    reason: str | None = None,
+    dur_ms: int | None = None,
+    details: dict[str, Any] | None = None,
+) -> None:
+    session.log_event(
+        action=action,
+        status=status,
+        reason=reason,
+        dur_ms=dur_ms,
+        details={**_latency_context_details(context), **(details or {})},
+    )
+
+
+def _log_latency_playback_started(
+    session: CallSession,
+    context: dict[str, Any] | None,
+    *,
+    playback_stage: DialogStage,
+    media: str,
+    sound_id: str,
+    prompt_text: str,
+    dynamic: bool,
+    playback_kind: str = "prompt",
+) -> None:
+    started_perf = time.perf_counter()
+    speech_end_perf = context.get("client_speech_end_perf") if context else None
+    speech_to_playback_ms: int | None = None
+    if isinstance(speech_end_perf, (int, float)):
+        speech_to_playback_ms = int((started_perf - float(speech_end_perf)) * 1000)
+    details = {
+        **_latency_context_details(context, playback_stage=playback_stage),
+        "prompt_text": prompt_text,
+        "dynamic": dynamic,
+        "playback_kind": playback_kind,
+        "speech_to_playback_start_ms": speech_to_playback_ms,
+    }
+    session.log_event(
+        action="latency_playback_started",
+        status="start",
+        media=media,
+        sound_id=sound_id,
+        details=details,
+    )
+    if speech_to_playback_ms is None:
+        return
+    critical_ms = _latency_silence_critical_ms()
+    warn_ms = _latency_silence_warn_ms()
+    if speech_to_playback_ms > critical_ms:
+        status = "critical"
+    elif speech_to_playback_ms > warn_ms:
+        status = "warning"
+    else:
+        return
+    session.log_event(
+        action="latency_silence_risk",
+        status=status,
+        media=media,
+        sound_id=sound_id,
+        dur_ms=speech_to_playback_ms,
+        details={**details, "warn_ms": warn_ms, "critical_ms": critical_ms},
+    )
 
 
 async def _play_publish_failure_fallback(
@@ -1160,6 +1272,7 @@ async def _play_phone_confirmation_prompt(
     app_name: str,
     session: CallSession,
     moh_started: bool,
+    latency_context: dict[str, Any] | None = None,
 ) -> tuple[bool, bool]:
     prompt_text = next_prompt(DialogStage.PHONE_CONFIRM, session.dialog.profile)
     started = time.perf_counter()
@@ -1183,6 +1296,13 @@ async def _play_phone_confirmation_prompt(
         status="ok",
         dur_ms=int((time.perf_counter() - tts_start) * 1000),
         details={"prompt_text": prompt_text},
+    )
+    _log_latency_segment(
+        session,
+        "latency_tts_done",
+        latency_context,
+        dur_ms=int((time.perf_counter() - tts_start) * 1000),
+        details={"playback_stage": DialogStage.PHONE_CONFIRM.value, "prompt_text": prompt_text},
     )
 
     remote_rel_path = f"{settings.asterisk_sounds_subdir}/{session.call_id}/phone_confirm_prompt.wav"
@@ -1230,8 +1350,28 @@ async def _play_phone_confirmation_prompt(
         dur_ms=publish_ms,
         details=publish_result.get("details"),
     )
+    _log_latency_segment(
+        session,
+        "latency_publish_done",
+        latency_context,
+        dur_ms=publish_ms,
+        details={
+            "playback_stage": DialogStage.PHONE_CONFIRM.value,
+            "sound_id": media,
+            "remote_path": str(publish_result.get("remote_path") or ""),
+        },
+    )
 
     moh_started = await _maybe_stop_moh(client, session, moh_started)
+    _log_latency_playback_started(
+        session,
+        latency_context,
+        playback_stage=DialogStage.PHONE_CONFIRM,
+        media=media,
+        sound_id=media,
+        prompt_text=prompt_text,
+        dynamic=True,
+    )
     play_result = await client.play_safe(session.channel_id, media)
     playback_id = _playback_id_from_result(play_result)
     if not play_result["ok"]:
@@ -1271,6 +1411,20 @@ async def _play_phone_confirmation_prompt(
         barrier_event = {"type": "timeout"}
     barrier_ms = int((time.perf_counter() - barrier_start) * 1000)
     if barrier_event.get("type") != "PlaybackFinished":
+        _log_latency_segment(
+            session,
+            "latency_playback_finished",
+            latency_context,
+            status="fail",
+            reason=str(barrier_event.get("type") or "playback_event_missing"),
+            dur_ms=barrier_ms,
+            details={
+                "stage": DialogStage.PHONE_CONFIRM.value,
+                "playback_id": playback_id,
+                "media": media,
+                "sound_id": media,
+            },
+        )
         session.log_event(
             action="phone_confirm_playback_barrier",
             status="fail",
@@ -1301,6 +1455,18 @@ async def _play_phone_confirmation_prompt(
             "playback_id": playback_id,
             "guard_delay_ms": guard_ms,
             "timeout_seconds": barrier_timeout,
+        },
+    )
+    _log_latency_segment(
+        session,
+        "latency_playback_finished",
+        latency_context,
+        dur_ms=barrier_ms,
+        details={
+            "stage": DialogStage.PHONE_CONFIRM.value,
+            "playback_id": playback_id,
+            "media": media,
+            "sound_id": media,
         },
     )
     session.log_event(
@@ -1350,6 +1516,21 @@ async def _wait_for_name_playback_barrier(
         barrier_event = {"type": "timeout"}
     barrier_ms = int((time.perf_counter() - barrier_start) * 1000)
     if barrier_event.get("type") != "PlaybackFinished":
+        _log_latency_segment(
+            session,
+            "latency_playback_finished",
+            None,
+            status="fail",
+            reason=barrier_event.get("type") or "playback_event_missing",
+            dur_ms=barrier_ms,
+            details={
+                "stage": DialogStage.NAME.value,
+                "playback_id": playback_id,
+                "media": media,
+                "sound_id": media,
+                "dynamic": dynamic,
+            },
+        )
         session.log_event(
             action="name_playback_barrier",
             status="fail",
@@ -1385,6 +1566,19 @@ async def _wait_for_name_playback_barrier(
             "timeout_seconds": barrier_timeout,
         },
     )
+    _log_latency_segment(
+        session,
+        "latency_playback_finished",
+        None,
+        dur_ms=barrier_ms,
+        details={
+            "stage": DialogStage.NAME.value,
+            "playback_id": playback_id,
+            "media": media,
+            "sound_id": media,
+            "dynamic": dynamic,
+        },
+    )
     return True
 
 
@@ -1396,6 +1590,7 @@ async def _play_dynamic_prompt(
     stage: DialogStage,
     prompt_text: str,
     moh_started: bool,
+    latency_context: dict[str, Any] | None = None,
 ) -> tuple[bool, bool]:
     started = time.perf_counter()
     safe_stage = stage.value.lower()
@@ -1419,6 +1614,13 @@ async def _play_dynamic_prompt(
         status="ok",
         dur_ms=int((time.perf_counter() - tts_start) * 1000),
         details={"stage": stage.value, "prompt_text": prompt_text},
+    )
+    _log_latency_segment(
+        session,
+        "latency_tts_done",
+        latency_context,
+        dur_ms=int((time.perf_counter() - tts_start) * 1000),
+        details={"playback_stage": stage.value, "prompt_text": prompt_text},
     )
 
     remote_rel_path = f"{settings.asterisk_sounds_subdir}/{session.call_id}/{safe_stage}_retry_prompt.wav"
@@ -1465,8 +1667,28 @@ async def _play_dynamic_prompt(
         dur_ms=publish_ms,
         details={"stage": stage.value, "prompt_text": prompt_text},
     )
+    _log_latency_segment(
+        session,
+        "latency_publish_done",
+        latency_context,
+        dur_ms=publish_ms,
+        details={
+            "playback_stage": stage.value,
+            "sound_id": media,
+            "remote_path": str(publish_result.get("remote_path") or ""),
+        },
+    )
 
     moh_started = await _maybe_stop_moh(client, session, moh_started)
+    _log_latency_playback_started(
+        session,
+        latency_context,
+        playback_stage=stage,
+        media=media,
+        sound_id=media,
+        prompt_text=prompt_text,
+        dynamic=True,
+    )
     result = await client.play_safe(session.channel_id, media)
     if result["ok"]:
         if stage == DialogStage.NAME:
@@ -1506,6 +1728,117 @@ async def _play_dynamic_prompt(
     return False, moh_started
 
 
+async def _play_phone_confirm_holding_prompt(
+    client: AriClient,
+    app_name: str,
+    session: CallSession,
+    system_sounds: dict[str, bool],
+    moh_started: bool,
+    latency_context: dict[str, Any] | None,
+) -> tuple[bool, bool]:
+    if not _phone_confirm_holding_enabled():
+        session.log_event(
+            action="phone_confirm_holding_prompt",
+            status="skipped",
+            reason="disabled",
+            details=_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+        )
+        return False, moh_started
+    if not system_sounds.get(PHONE_CONFIRM_HOLDING_SOUND_ID, False):
+        session.log_event(
+            action="phone_confirm_holding_prompt",
+            status="skipped",
+            reason="static_media_unavailable",
+            sound_id=PHONE_CONFIRM_HOLDING_SOUND_ID,
+            details=_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+        )
+        return False, moh_started
+
+    media = PHONE_CONFIRM_HOLDING_SOUND_ID
+    started = time.perf_counter()
+    moh_started = await _maybe_stop_moh(client, session, moh_started)
+    _log_latency_playback_started(
+        session,
+        latency_context,
+        playback_stage=DialogStage.PHONE_CONFIRM,
+        media=media,
+        sound_id=media,
+        prompt_text=PHONE_CONFIRM_HOLDING_PHRASE,
+        dynamic=False,
+        playback_kind="holding",
+    )
+    result = await client.play_safe(session.channel_id, media)
+    playback_id = _playback_id_from_result(result)
+    play_ms = int((time.perf_counter() - started) * 1000)
+    if not result["ok"]:
+        session.log_event(
+            action="phone_confirm_holding_prompt",
+            status="fail",
+            reason=result.get("reason"),
+            http_status=result.get("http_status"),
+            media=media,
+            sound_id=media,
+            dur_ms=play_ms,
+            details={
+                **_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+                **(result.get("details") or {}),
+                "prompt_text": PHONE_CONFIRM_HOLDING_PHRASE,
+                "bounded": True,
+            },
+        )
+        return False, moh_started
+
+    barrier_ok = False
+    barrier_ms: int | None = None
+    barrier_timeout = _phone_confirm_holding_playback_timeout_sec()
+    if playback_id:
+        barrier_start = time.perf_counter()
+        try:
+            barrier_event = await client.wait_for_playback_finished(app_name, playback_id, timeout=barrier_timeout)
+        except TimeoutError:
+            barrier_event = {"type": "timeout"}
+        except asyncio.TimeoutError:
+            barrier_event = {"type": "timeout"}
+        barrier_ms = int((time.perf_counter() - barrier_start) * 1000)
+        barrier_ok = barrier_event.get("type") == "PlaybackFinished"
+
+    session.log_event(
+        action="phone_confirm_holding_prompt",
+        status="ok" if barrier_ok else "handled",
+        reason=None if barrier_ok else "playback_barrier_missing_or_timeout",
+        media=media,
+        sound_id=media,
+        dur_ms=play_ms,
+        details={
+            **_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+            "prompt_text": PHONE_CONFIRM_HOLDING_PHRASE,
+            "bounded": True,
+            "playback_id": playback_id,
+            "timeout_seconds": barrier_timeout,
+            "barrier_completed": barrier_ok,
+            "barrier_ms": barrier_ms,
+        },
+    )
+    _log_latency_segment(
+        session,
+        "latency_playback_finished",
+        latency_context,
+        status="ok" if barrier_ok else "handled",
+        reason=None if barrier_ok else "playback_barrier_missing_or_timeout",
+        dur_ms=barrier_ms,
+        details={
+            "stage": DialogStage.PHONE.value,
+            "playback_stage": DialogStage.PHONE_CONFIRM.value,
+            "playback_kind": "holding",
+            "playback_id": playback_id,
+            "media": media,
+            "sound_id": media,
+            "bounded": True,
+        },
+    )
+    return True, moh_started
+
+
 async def _play_prompt(
     client: AriClient,
     settings: Settings,
@@ -1514,17 +1847,36 @@ async def _play_prompt(
     stage: DialogStage,
     system_sounds: dict[str, bool],
     moh_started: bool,
+    latency_context: dict[str, Any] | None = None,
 ) -> tuple[bool, bool]:
     if stage == DialogStage.PHONE_CONFIRM:
-        return await _play_phone_confirmation_prompt(client, settings, app_name, session, moh_started)
+        return await _play_phone_confirmation_prompt(client, settings, app_name, session, moh_started, latency_context)
 
     prompt_text = next_prompt(stage, session.dialog.profile)
     if prompt_text != PROMPTS.get(stage):
-        return await _play_dynamic_prompt(client, settings, app_name, session, stage, prompt_text, moh_started)
+        return await _play_dynamic_prompt(
+            client,
+            settings,
+            app_name,
+            session,
+            stage,
+            prompt_text,
+            moh_started,
+            latency_context,
+        )
 
     media = _prompt_media_for_stage(stage, system_sounds)
     started = time.perf_counter()
     moh_started = await _maybe_stop_moh(client, session, moh_started)
+    _log_latency_playback_started(
+        session,
+        latency_context,
+        playback_stage=stage,
+        media=media,
+        sound_id=media,
+        prompt_text=prompt_text,
+        dynamic=False,
+    )
     result = await client.play_safe(session.channel_id, media)
 
     if result["ok"]:
@@ -1775,22 +2127,36 @@ async def handle_call(
         else:
             dialogue_lines: list[str] = []
             max_turns = 8
+            pending_latency_context: dict[str, Any] | None = None
             while not should_stop_dialog(session.dialog.stage, session.dialog.turns_done, max_turns):
+                turn_idx = session.dialog.turns_done + 1
+                stage = session.dialog.stage
+                stage_enter_perf = time.perf_counter()
+                stage_enter_ts = _now_iso()
+                session.log_event(
+                    action="latency_stage_enter",
+                    status="start",
+                    details={
+                        "stage": stage.value,
+                        "turn_idx": turn_idx,
+                        "stage_enter_ts": stage_enter_ts,
+                    },
+                )
                 should_continue, moh_started = await _play_prompt(
                     client,
                     settings,
                     app_name,
                     session,
-                    session.dialog.stage,
+                    stage,
                     system_sounds,
                     moh_started,
+                    pending_latency_context,
                 )
+                pending_latency_context = None
                 if not should_continue:
                     return
                 moh_started = await _maybe_stop_moh(client, session, moh_started)
 
-                turn_idx = session.dialog.turns_done + 1
-                stage = session.dialog.stage
                 record_profile = _record_profile_for_stage(stage)
                 session.transition(
                     CallState.RECORDING,
@@ -1835,7 +2201,8 @@ async def handle_call(
                     event = {"type": "timeout"}
                 except asyncio.TimeoutError:
                     event = {"type": "timeout"}
-                dur_ms = int((time.perf_counter() - record_start) * 1000)
+                record_end_perf = time.perf_counter()
+                dur_ms = int((record_end_perf - record_start) * 1000)
                 transcript_text = ""
                 transcript_details: dict[str, Any]
                 stt_ms = 0
@@ -1912,6 +2279,13 @@ async def handle_call(
                         )
                         stt_ms = int((time.perf_counter() - stt_start) * 1000)
                 transcript_status = "ok" if transcript_text else "unavailable"
+                stage_latency_context = {
+                    "stage": stage.value,
+                    "turn_idx": turn_idx,
+                    "stage_enter_ts": stage_enter_ts,
+                    "stage_enter_perf": stage_enter_perf,
+                    "client_speech_end_perf": record_end_perf,
+                }
                 session.log_event(
                     action="user_transcribed",
                     status=transcript_status,
@@ -1919,12 +2293,27 @@ async def handle_call(
                     dur_ms=stt_ms,
                     details={**transcript_details, "text": transcript_text},
                 )
+                _log_latency_segment(
+                    session,
+                    "latency_asr_done",
+                    stage_latency_context,
+                    status=transcript_status,
+                    reason=None if transcript_text else transcript_details.get("reason", "empty_transcript"),
+                    dur_ms=stt_ms,
+                    details={
+                        "record_ms": dur_ms,
+                        "record_event_type": event.get("type"),
+                        "text_present": bool(transcript_text),
+                    },
+                )
                 prompt_text = next_prompt(stage, session.dialog.profile)
                 _append_turn(artifact_dir, build_turn_record(stage, prompt_text, transcript_text).to_dict())
 
                 decision_start = time.perf_counter()
                 new_stage, new_profile = apply_turn(stage, session.dialog.profile, transcript_text)
                 decision_ms = int((time.perf_counter() - decision_start) * 1000)
+                stage_latency_context["next_stage"] = new_stage.value
+                stage_latency_context["outcome"] = "ok"
                 session.log_event(
                     action="dialog_decision",
                     status="ok",
@@ -1947,11 +2336,34 @@ async def handle_call(
                         "default_resolution": new_profile.get("department_defaulted"),
                     },
                 )
+                _log_latency_segment(
+                    session,
+                    "latency_decision_done",
+                    stage_latency_context,
+                    dur_ms=decision_ms,
+                    details={
+                        "from_stage": stage.value,
+                        "to_stage": new_stage.value,
+                        "missing_required_fields": required_fields_missing(new_profile),
+                        "safe_finish_reason": new_profile.get("safe_finish_reason"),
+                    },
+                )
                 session.dialog.stage = new_stage
                 session.dialog.profile = new_profile
                 session.dialog.turns_done += 1
                 session.dialog.transcripts.append(transcript_text)
                 _save_profile(artifact_dir, session.dialog.profile)
+                _log_latency_segment(
+                    session,
+                    "latency_stage_done",
+                    stage_latency_context,
+                    dur_ms=int((time.perf_counter() - stage_enter_perf) * 1000),
+                    details={
+                        "from_stage": stage.value,
+                        "to_stage": new_stage.value,
+                        "outcome": "dialog_continue",
+                    },
+                )
                 dialogue_lines.append(f"Секретарь: {prompt_text}")
                 dialogue_lines.append(f"Клиент: {transcript_text}")
 
@@ -1969,6 +2381,17 @@ async def handle_call(
                     _played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
                     await client.hangup_safe(channel_id)
                     return
+                if stage == DialogStage.PHONE and new_stage == DialogStage.PHONE_CONFIRM:
+                    holding_played, moh_started = await _play_phone_confirm_holding_prompt(
+                        client,
+                        app_name,
+                        session,
+                        system_sounds,
+                        moh_started,
+                        stage_latency_context,
+                    )
+                    stage_latency_context["holding_played"] = holding_played
+                pending_latency_context = stage_latency_context
 
             transcript_for_pipeline = "\n".join(dialogue_lines)
             profile_for_pipeline = dict(session.dialog.profile)

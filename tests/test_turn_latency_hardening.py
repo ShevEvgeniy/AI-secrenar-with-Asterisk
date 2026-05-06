@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -150,6 +151,20 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
 
     events = _read_events(session)
     for action in (
+        "latency_stage_enter",
+        "latency_playback_started",
+        "phone_confirm_holding_prompt",
+    ):
+        matching = [event for event in events if event["action"] == action]
+        assert matching, action
+
+    for action in (
+        "latency_asr_done",
+        "latency_decision_done",
+        "latency_tts_done",
+        "latency_publish_done",
+        "latency_playback_finished",
+        "latency_stage_done",
         "play_prompt",
         "record_done",
         "download_recording",
@@ -173,6 +188,63 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
     assert name_barriers
     assert name_barriers[0]["details"]["guard_delay_ms"] == 0
     assert name_barriers[0]["details"]["dynamic"] is False
+
+    phone_decision = next(
+        event
+        for event in events
+        if event["action"] == "latency_decision_done" and event["details"]["stage"] == "PHONE"
+    )
+    assert phone_decision["details"]["to_stage"] == "PHONE_CONFIRM"
+    holding_events = [event for event in events if event["action"] == "phone_confirm_holding_prompt"]
+    assert len([event for event in holding_events if event["status"] == "ok"]) == 1
+    assert holding_events[-1]["details"]["bounded"] is True
+    assert holding_events[-1]["media"] == ari_app.PHONE_CONFIRM_HOLDING_SOUND_ID
+    assert any(
+        event["action"] == "latency_playback_started"
+        and event["details"].get("stage") == "PHONE"
+        and event["details"]["playback_stage"] == "PHONE_CONFIRM"
+        and event["details"]["playback_kind"] == "holding"
+        for event in events
+    )
+    assert any(
+        event["action"] == "latency_playback_started"
+        and event["details"].get("stage") == "PHONE"
+        and event["details"]["playback_stage"] == "PHONE_CONFIRM"
+        and event["details"]["playback_kind"] == "prompt"
+        for event in events
+    )
+    assert not any(event["action"] == "latency_silence_risk" for event in events)
+
+
+def test_latency_silence_risk_thresholds_are_logged(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("LATENCY_SILENCE_WARN_MS", "5")
+    monkeypatch.setenv("LATENCY_SILENCE_CRITICAL_MS", "10")
+    session = CallSession(call_id="call-latency-risk", channel_id="ch-latency-risk", artifact_dir=tmp_path / "artifacts")
+
+    context = {
+        "stage": DialogStage.PHONE.value,
+        "turn_idx": 4,
+        "stage_enter_ts": "2026-05-06T00:00:00+00:00",
+        "client_speech_end_perf": time.perf_counter() - 0.020,
+        "next_stage": DialogStage.PHONE_CONFIRM.value,
+    }
+    ari_app._log_latency_playback_started(
+        session,
+        context,
+        playback_stage=DialogStage.PHONE_CONFIRM,
+        media=ari_app.PHONE_CONFIRM_HOLDING_SOUND_ID,
+        sound_id=ari_app.PHONE_CONFIRM_HOLDING_SOUND_ID,
+        prompt_text=ari_app.PHONE_CONFIRM_HOLDING_PHRASE,
+        dynamic=False,
+        playback_kind="holding",
+    )
+
+    events = _read_events(session)
+    risk = next(event for event in events if event["action"] == "latency_silence_risk")
+    assert risk["status"] == "critical"
+    assert risk["details"]["stage"] == "PHONE"
+    assert risk["details"]["playback_stage"] == "PHONE_CONFIRM"
+    assert risk["details"]["speech_to_playback_start_ms"] >= 10
 
 
 def test_name_retry_prompt_waits_for_playback_barrier(monkeypatch, tmp_path: Path) -> None:
