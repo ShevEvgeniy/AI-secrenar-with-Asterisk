@@ -43,6 +43,8 @@ PROMPT_CLARIFY_SOUND_ID = "sound:ai_secretary/_system/prompt_intent_clarify"
 PROMPT_2_SOUND_ID = "sound:ai_secretary/_system/prompt_2"
 PROMPT_3_SOUND_ID = "sound:ai_secretary/_system/prompt_3"
 PROMPT_4_SOUND_ID = "sound:ai_secretary/_system/prompt_4_v2"
+PHONE_CONFIRM_PREFIX_SOUND_ID = "sound:ai_secretary/_system/phone_confirm_prefix"
+PHONE_CONFIRM_SUFFIX_SOUND_ID = "sound:ai_secretary/_system/phone_confirm_suffix"
 PHONE_CONFIRM_HOLDING_SOUND_ID = "sound:ai_secretary/_system/holding_phone_check"
 FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback"
 TRANSFER_SOUND_ID = "sound:ai_secretary/_system/transfer"
@@ -92,7 +94,24 @@ TRANSFER_SOUND_IDS: dict[Department, str] = {
     "accounting": TRANSFER_ACCOUNTING_SOUND_ID,
     "delivery": TRANSFER_DELIVERY_SOUND_ID,
 }
+PHONE_CONFIRM_PREFIX_PHRASE = "\u041f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u043e \u043b\u0438 \u044f \u0437\u0430\u043f\u0438\u0441\u0430\u043b\u0430 \u0432\u0430\u0448 \u043d\u043e\u043c\u0435\u0440"
+PHONE_CONFIRM_SUFFIX_PHRASE = "\u0432\u0435\u0440\u043d\u043e?"
 PHONE_CONFIRM_HOLDING_PHRASE = "\u0421\u0435\u043a\u0443\u043d\u0434\u0443, \u043f\u0440\u043e\u0432\u0435\u0440\u044f\u044e \u043d\u043e\u043c\u0435\u0440."
+PHONE_CONFIRM_DIGIT_SOUND_IDS: dict[str, str] = {
+    digit: f"sound:ai_secretary/_system/digits/{digit}" for digit in "0123456789"
+}
+PHONE_CONFIRM_DIGIT_PHRASES: dict[str, str] = {
+    "0": "\u043d\u043e\u043b\u044c",
+    "1": "\u043e\u0434\u0438\u043d",
+    "2": "\u0434\u0432\u0430",
+    "3": "\u0442\u0440\u0438",
+    "4": "\u0447\u0435\u0442\u044b\u0440\u0435",
+    "5": "\u043f\u044f\u0442\u044c",
+    "6": "\u0448\u0435\u0441\u0442\u044c",
+    "7": "\u0441\u0435\u043c\u044c",
+    "8": "\u0432\u043e\u0441\u0435\u043c\u044c",
+    "9": "\u0434\u0435\u0432\u044f\u0442\u044c",
+}
 TRANSFER_PHRASES: dict[Department, str] = {
     "sales": "\u0425\u043e\u0440\u043e\u0448\u043e, \u044f \u0441\u043e\u0435\u0434\u0438\u043d\u044f\u044e \u0432\u0430\u0441 \u0441 \u043e\u0442\u0434\u0435\u043b\u043e\u043c \u043f\u0440\u043e\u0434\u0430\u0436.",
     "accounting": "\u0425\u043e\u0440\u043e\u0448\u043e, \u044f \u0441\u043e\u0435\u0434\u0438\u043d\u044f\u044e \u0432\u0430\u0441 \u0441 \u0431\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0438\u0435\u0439.",
@@ -200,6 +219,9 @@ _SYSTEM_SOUND_TEXTS: dict[str, str] = {
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.NAME]: PROMPTS[DialogStage.NAME],
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.CITY]: PROMPTS[DialogStage.CITY],
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.PHONE]: PROMPTS[DialogStage.PHONE],
+    PHONE_CONFIRM_PREFIX_SOUND_ID: PHONE_CONFIRM_PREFIX_PHRASE,
+    PHONE_CONFIRM_SUFFIX_SOUND_ID: PHONE_CONFIRM_SUFFIX_PHRASE,
+    **{PHONE_CONFIRM_DIGIT_SOUND_IDS[digit]: text for digit, text in PHONE_CONFIRM_DIGIT_PHRASES.items()},
     PHONE_CONFIRM_HOLDING_SOUND_ID: PHONE_CONFIRM_HOLDING_PHRASE,
     FALLBACK_SOUND_ID: "Одну секунду, пожалуйста.",
     TRANSFER_SOUND_ID: TRANSFER_PHRASES["sales"],
@@ -423,6 +445,28 @@ def _phone_confirm_holding_playback_timeout_sec() -> int:
         DEFAULT_PHONE_CONFIRM_HOLDING_PLAYBACK_TIMEOUT_SECONDS,
     )
     return value if value > 0 else DEFAULT_PHONE_CONFIRM_HOLDING_PLAYBACK_TIMEOUT_SECONDS
+
+
+def _phone_confirm_fast_path_media(profile: dict[str, Any]) -> list[str]:
+    digits = str(profile.get("phone_digits") or "")
+    if not digits or any(ch not in PHONE_CONFIRM_DIGIT_SOUND_IDS for ch in digits):
+        return []
+    return [
+        PHONE_CONFIRM_PREFIX_SOUND_ID,
+        *(PHONE_CONFIRM_DIGIT_SOUND_IDS[ch] for ch in digits),
+        PHONE_CONFIRM_SUFFIX_SOUND_ID,
+    ]
+
+
+def _phone_confirm_fast_path_missing(profile: dict[str, Any], system_sounds: dict[str, bool]) -> list[str]:
+    media = _phone_confirm_fast_path_media(profile)
+    if not media:
+        return ["phone_digits"]
+    return [sound_id for sound_id in media if not system_sounds.get(sound_id, False)]
+
+
+def _phone_confirm_fast_path_available(profile: dict[str, Any], system_sounds: dict[str, bool]) -> bool:
+    return not _phone_confirm_fast_path_missing(profile, system_sounds)
 
 
 def _latency_context_details(context: dict[str, Any] | None, *, playback_stage: DialogStage | None = None) -> dict[str, Any]:
@@ -1274,6 +1318,21 @@ async def _play_phone_confirmation_prompt(
     moh_started: bool,
     latency_context: dict[str, Any] | None = None,
 ) -> tuple[bool, bool]:
+    system_sounds = _system_sounds_snapshot()
+    missing_fast_path = _phone_confirm_fast_path_missing(session.dialog.profile, system_sounds)
+    if not missing_fast_path:
+        return await _play_phone_confirmation_fast_prompt(client, app_name, session, moh_started, latency_context)
+    session.log_event(
+        action="phone_confirm_fast_path_unavailable",
+        status="handled",
+        reason="missing_static_media",
+        details={
+            **_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+            "phone_digits_present": bool(session.dialog.profile.get("phone_digits")),
+            "missing_static_media": missing_fast_path,
+        },
+    )
+
     prompt_text = next_prompt(DialogStage.PHONE_CONFIRM, session.dialog.profile)
     started = time.perf_counter()
     prompt_path = session.artifact_dir / "phone_confirm_prompt.wav"
@@ -1476,6 +1535,192 @@ async def _play_phone_confirmation_prompt(
         sound_id=media,
         dur_ms=dur_ms,
         details={"stage": DialogStage.PHONE_CONFIRM.value, "prompt_text": prompt_text},
+    )
+    return True, moh_started
+
+
+async def _play_phone_confirmation_fast_prompt(
+    client: AriClient,
+    app_name: str,
+    session: CallSession,
+    moh_started: bool,
+    latency_context: dict[str, Any] | None = None,
+) -> tuple[bool, bool]:
+    digits = str(session.dialog.profile.get("phone_digits") or "")
+    media_sequence = _phone_confirm_fast_path_media(session.dialog.profile)
+    prompt_text = next_prompt(DialogStage.PHONE_CONFIRM, session.dialog.profile)
+    started = time.perf_counter()
+    barrier_timeout = _phone_confirm_playback_timeout_sec()
+    guard_ms = _phone_confirm_guard_delay_ms()
+
+    session.log_event(
+        action="phone_confirm_fast_path_used",
+        status="ok",
+        details={
+            **_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+            "phone_digits": digits,
+            "media_sequence": media_sequence,
+            "prompt_text": prompt_text,
+            "dynamic_tts_required": False,
+            "publish_required": False,
+        },
+    )
+
+    moh_started = await _maybe_stop_moh(client, session, moh_started)
+    playback_ids: list[str] = []
+    barrier_total_ms = 0
+    for index, media in enumerate(media_sequence):
+        play_start = time.perf_counter()
+        if index == 0:
+            _log_latency_playback_started(
+                session,
+                latency_context,
+                playback_stage=DialogStage.PHONE_CONFIRM,
+                media=media,
+                sound_id=media,
+                prompt_text=prompt_text,
+                dynamic=False,
+                playback_kind="phone_confirm_fast_path",
+            )
+        play_result = await client.play_safe(session.channel_id, media)
+        play_ms = int((time.perf_counter() - play_start) * 1000)
+        playback_id = _playback_id_from_result(play_result)
+        if not play_result["ok"]:
+            session.log_event(
+                action="phone_confirm_fast_path_play",
+                status="fail",
+                reason=play_result.get("reason"),
+                http_status=play_result.get("http_status"),
+                media=media,
+                sound_id=media,
+                dur_ms=play_ms,
+                details={
+                    **_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+                    **(play_result.get("details") or {}),
+                    "sequence_index": index,
+                    "phone_digits": digits,
+                },
+            )
+            return False, moh_started
+        if not playback_id:
+            session.log_event(
+                action="phone_confirm_playback_barrier",
+                status="fail",
+                reason="playback_id_missing",
+                media=media,
+                sound_id=media,
+                dur_ms=play_ms,
+                details={
+                    **_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+                    "sequence_index": index,
+                    "phone_digits": digits,
+                },
+            )
+            return False, moh_started
+        playback_ids.append(playback_id)
+
+        barrier_start = time.perf_counter()
+        try:
+            barrier_event = await client.wait_for_playback_finished(app_name, playback_id, timeout=barrier_timeout)
+        except TimeoutError:
+            barrier_event = {"type": "timeout"}
+        except asyncio.TimeoutError:
+            barrier_event = {"type": "timeout"}
+        barrier_ms = int((time.perf_counter() - barrier_start) * 1000)
+        barrier_total_ms += barrier_ms
+        if barrier_event.get("type") != "PlaybackFinished":
+            _log_latency_segment(
+                session,
+                "latency_playback_finished",
+                latency_context,
+                status="fail",
+                reason=barrier_event.get("type") or "playback_event_missing",
+                dur_ms=barrier_ms,
+                details={
+                    "playback_stage": DialogStage.PHONE_CONFIRM.value,
+                    "playback_kind": "phone_confirm_fast_path",
+                    "sequence_index": index,
+                    "playback_id": playback_id,
+                    "media": media,
+                    "sound_id": media,
+                },
+            )
+            session.log_event(
+                action="phone_confirm_playback_barrier",
+                status="fail",
+                reason=barrier_event.get("type") or "playback_event_missing",
+                media=media,
+                sound_id=media,
+                dur_ms=barrier_ms,
+                details={
+                    **_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+                    "sequence_index": index,
+                    "playback_id": playback_id,
+                    "timeout_seconds": barrier_timeout,
+                    "phone_digits": digits,
+                },
+            )
+            return False, moh_started
+
+        session.log_event(
+            action="phone_confirm_fast_path_play",
+            status="ok",
+            media=media,
+            sound_id=media,
+            dur_ms=play_ms,
+            details={
+                **_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+                "sequence_index": index,
+                "playback_id": playback_id,
+                "barrier_ms": barrier_ms,
+                "phone_digits": digits,
+            },
+        )
+
+    if guard_ms > 0:
+        await asyncio.sleep(guard_ms / 1000)
+    total_ms = int((time.perf_counter() - started) * 1000)
+    _log_latency_segment(
+        session,
+        "latency_playback_finished",
+        latency_context,
+        dur_ms=barrier_total_ms,
+        details={
+            "playback_stage": DialogStage.PHONE_CONFIRM.value,
+            "playback_kind": "phone_confirm_fast_path",
+            "playback_ids": playback_ids,
+            "media_sequence": media_sequence,
+        },
+    )
+    session.log_event(
+        action="phone_confirm_playback_barrier",
+        status="ok",
+        media=media_sequence[-1],
+        sound_id=media_sequence[-1],
+        dur_ms=barrier_total_ms,
+        details={
+            **_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+            "playback_ids": playback_ids,
+            "guard_delay_ms": guard_ms,
+            "timeout_seconds": barrier_timeout,
+            "phone_digits": digits,
+            "fast_path": True,
+        },
+    )
+    session.log_event(
+        action="play_prompt",
+        status="ok",
+        media=media_sequence[0],
+        sound_id=media_sequence[0],
+        dur_ms=total_ms,
+        details={
+            "stage": DialogStage.PHONE_CONFIRM.value,
+            "prompt_text": prompt_text,
+            "dynamic": False,
+            "fast_path": True,
+            "phone_digits": digits,
+            "media_sequence": media_sequence,
+        },
     )
     return True, moh_started
 
@@ -2381,7 +2626,11 @@ async def handle_call(
                     _played, moh_started = await _play_fallback(client, session, system_sounds, moh_started)
                     await client.hangup_safe(channel_id)
                     return
-                if stage == DialogStage.PHONE and new_stage == DialogStage.PHONE_CONFIRM:
+                if (
+                    stage == DialogStage.PHONE
+                    and new_stage == DialogStage.PHONE_CONFIRM
+                    and not _phone_confirm_fast_path_available(session.dialog.profile, system_sounds)
+                ):
                     holding_played, moh_started = await _play_phone_confirm_holding_prompt(
                         client,
                         app_name,

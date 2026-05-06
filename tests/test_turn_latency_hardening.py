@@ -114,19 +114,15 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
 
     class _FakeTTS:
         def synthesize(self, _text: str) -> bytes:
-            return b"RIFFconfirm"
+            raise AssertionError("normal PHONE_CONFIRM fast path must not run dynamic TTS")
 
     monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
     monkeypatch.setattr(
         ari_app,
         "publish_wav_to_asterisk",
-        lambda *_args, **_kwargs: {
-            "ok": True,
-            "sound_id": "sound:ai_secretary/call-node-005/phone_confirm_prompt",
-            "remote_path": "/tmp/phone_confirm_prompt.wav",
-            "error": None,
-            "details": {},
-        },
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("normal PHONE_CONFIRM fast path must not publish per-call wav")
+        ),
     )
 
     session = CallSession(call_id="call-node-005", channel_id="ch-node-005", artifact_dir=tmp_path / "artifacts")
@@ -156,6 +152,9 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
         "phone_confirm_holding_prompt",
     ):
         matching = [event for event in events if event["action"] == action]
+        if action == "phone_confirm_holding_prompt":
+            assert not matching, action
+            continue
         assert matching, action
 
     for action in (
@@ -174,6 +173,9 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
         "transfer",
     ):
         matching = [event for event in events if event["action"] == action]
+        if action in {"latency_tts_done", "latency_publish_done"}:
+            assert not any(event["details"].get("playback_stage") == "PHONE_CONFIRM" for event in matching), action
+            continue
         assert matching, action
         assert all(event["dur_ms"] is not None for event in matching), action
 
@@ -195,25 +197,80 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
         if event["action"] == "latency_decision_done" and event["details"]["stage"] == "PHONE"
     )
     assert phone_decision["details"]["to_stage"] == "PHONE_CONFIRM"
-    holding_events = [event for event in events if event["action"] == "phone_confirm_holding_prompt"]
-    assert len([event for event in holding_events if event["status"] == "ok"]) == 1
-    assert holding_events[-1]["details"]["bounded"] is True
-    assert holding_events[-1]["media"] == ari_app.PHONE_CONFIRM_HOLDING_SOUND_ID
+    fast_events = [event for event in events if event["action"] == "phone_confirm_fast_path_used"]
+    assert len(fast_events) == 1
+    assert fast_events[0]["details"]["phone_digits"] == "9200320355"
+    assert fast_events[0]["details"]["dynamic_tts_required"] is False
+    assert fast_events[0]["details"]["publish_required"] is False
+    assert not any(event["action"] == "phone_confirm_prompt_tts" for event in events)
+    assert not any(event["action"] == "phone_confirm_prompt_publish" for event in events)
     assert any(
         event["action"] == "latency_playback_started"
         and event["details"].get("stage") == "PHONE"
         and event["details"]["playback_stage"] == "PHONE_CONFIRM"
-        and event["details"]["playback_kind"] == "holding"
+        and event["details"]["playback_kind"] == "phone_confirm_fast_path"
         for event in events
     )
-    assert any(
-        event["action"] == "latency_playback_started"
-        and event["details"].get("stage") == "PHONE"
-        and event["details"]["playback_stage"] == "PHONE_CONFIRM"
-        and event["details"]["playback_kind"] == "prompt"
-        for event in events
-    )
+    fast_media = fast_events[0]["details"]["media_sequence"]
+    assert fast_media[0] == ari_app.PHONE_CONFIRM_PREFIX_SOUND_ID
+    assert fast_media[-1] == ari_app.PHONE_CONFIRM_SUFFIX_SOUND_ID
+    assert fast_media[1:-1] == [ari_app.PHONE_CONFIRM_DIGIT_SOUND_IDS[digit] for digit in "9200320355"]
     assert not any(event["action"] == "latency_silence_risk" for event in events)
+
+
+def test_phone_confirm_falls_back_to_dynamic_prompt_when_static_digits_unavailable(monkeypatch, tmp_path: Path) -> None:
+    ari_app._reset_fallback_cache_for_tests()
+    monkeypatch.setenv("PLAY_TEST", "0")
+    monkeypatch.setenv("PHONE_CONFIRM_GUARD_DELAY_MS", "0")
+    monkeypatch.setenv("PHONE_CONFIRM_HOLDING_PLAYBACK_TIMEOUT_SECONDS", "1")
+    for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sound_id] = True
+    ari_app._system_sound_status[ari_app.PHONE_CONFIRM_DIGIT_SOUND_IDS["9"]] = False
+
+    transcripts = {
+        DialogStage.ISSUE: "Need cylinders",
+        DialogStage.NAME: "Ivan Petrov",
+        DialogStage.CITY: "from Moscow",
+        DialogStage.PHONE: "920.032.0355",
+        DialogStage.PHONE_CONFIRM: "да",
+    }
+
+    def fake_transcribe(_settings: Settings, artifact: ari_app.TranscriptionArtifact) -> tuple[str, dict[str, Any]]:
+        return transcripts[artifact.stage], artifact.details()
+
+    class _FakeTTS:
+        def synthesize(self, _text: str) -> bytes:
+            return b"RIFFconfirm"
+
+    publish_calls: list[str] = []
+
+    def fake_publish(_path: Path, remote_rel: str, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        publish_calls.append(remote_rel)
+        return {
+            "ok": True,
+            "sound_id": "sound:ai_secretary/call-node-011/phone_confirm_prompt",
+            "remote_path": "/tmp/phone_confirm_prompt.wav",
+            "error": None,
+            "details": {},
+        }
+
+    monkeypatch.setattr(ari_app, "_transcribe_audio_artifact", fake_transcribe)
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(ari_app, "publish_wav_to_asterisk", fake_publish)
+
+    session = CallSession(call_id="call-node-011", channel_id="ch-node-011", artifact_dir=tmp_path / "artifacts")
+    client = _LatencyClient()
+
+    asyncio.run(ari_app.handle_call(client, _settings(tmp_path), "app", session))
+    events = _read_events(session)
+
+    unavailable = [event for event in events if event["action"] == "phone_confirm_fast_path_unavailable"]
+    assert unavailable
+    assert ari_app.PHONE_CONFIRM_DIGIT_SOUND_IDS["9"] in unavailable[-1]["details"]["missing_static_media"]
+    assert any(event["action"] == "phone_confirm_holding_prompt" and event["status"] == "ok" for event in events)
+    assert any(event["action"] == "phone_confirm_prompt_tts" and event["status"] == "ok" for event in events)
+    assert any(event["action"] == "phone_confirm_prompt_publish" and event["status"] == "ok" for event in events)
+    assert any(path.endswith("/phone_confirm_prompt.wav") for path in publish_calls)
 
 
 def test_latency_silence_risk_thresholds_are_logged(monkeypatch, tmp_path: Path) -> None:
