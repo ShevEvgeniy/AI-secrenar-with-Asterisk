@@ -394,7 +394,7 @@ def _recording_early_stop_policy_for_stage(stage: DialogStage) -> RecordingEarly
     if stage == DialogStage.NAME:
         return RecordingEarlyStopPolicy(True, 350, 120, 400, True, 250, 128, "short_slot")
     if stage == DialogStage.CITY:
-        return RecordingEarlyStopPolicy(True, 500, 150, 500, True, 350, 128, "short_slot")
+        return RecordingEarlyStopPolicy(True, 800, 200, 900, True, 600, 128, "short_slot_reliable")
     if stage == DialogStage.PHONE_CONFIRM:
         return RecordingEarlyStopPolicy(True, 300, 80, 250, True, 220, 128, "yes_no")
     if stage == DialogStage.INTENT_CLARIFY:
@@ -418,6 +418,11 @@ def _phone_confirm_guard_delay_ms() -> int:
 def _phone_confirm_playback_timeout_sec() -> int:
     value = _env_int("PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS", DEFAULT_PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS)
     return value if value > 0 else DEFAULT_PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS
+
+
+def _city_early_stop_min_audio_bytes() -> int:
+    value = _env_int("CITY_EARLY_STOP_MIN_AUDIO_BYTES", 2048)
+    return value if value > 0 else 2048
 
 
 def _name_guard_delay_ms() -> int:
@@ -691,6 +696,7 @@ async def _wait_for_recording_with_optional_early_stop(
         talking_finished_at: float | None = None
         stop_task: asyncio.Task[dict[str, Any]] | None = None
         stop_attempted = False
+        early_stop_used = False
         try:
             while True:
                 if stop_task is None:
@@ -703,6 +709,7 @@ async def _wait_for_recording_with_optional_early_stop(
                             queue_task.cancel()
                         stop_result = stop_task.result()
                         if stop_result.get("ok"):
+                            early_stop_used = True
                             session.log_event(
                                 action="recording_early_stop_used",
                                 status="ok",
@@ -745,6 +752,8 @@ async def _wait_for_recording_with_optional_early_stop(
                     if event_type in {"RecordingFinished", "RecordingFailed"}:
                         if stop_task is not None and not stop_task.done():
                             stop_task.cancel()
+                        if event_type == "RecordingFinished" and early_stop_used:
+                            event = {**event, "recording_early_stop_used": True}
                         return event
                     continue
                 if _event_channel_id(event) != session.channel_id:
@@ -3118,12 +3127,32 @@ async def handle_call(
                         }
                     else:
                         stt_start = time.perf_counter()
-                        transcript_text, transcript_details = await asyncio.to_thread(
-                            _transcribe_audio_artifact,
-                            settings,
-                            artifact,
-                        )
-                        stt_ms = int((time.perf_counter() - stt_start) * 1000)
+                        city_min_audio_bytes = _city_early_stop_min_audio_bytes()
+                        if (
+                            stage == DialogStage.CITY
+                            and event.get("recording_early_stop_used") is True
+                            and artifact.size_bytes < city_min_audio_bytes
+                        ):
+                            transcript_text = ""
+                            transcript_details = {
+                                **artifact.details(),
+                                "reason": "early_stopped_audio_too_tiny",
+                                "min_audio_bytes": city_min_audio_bytes,
+                                "normal_stage_outcome": True,
+                            }
+                            session.log_event(
+                                action="recording_early_stop_audio_sanity",
+                                status="handled",
+                                reason="early_stopped_audio_too_tiny",
+                                details=transcript_details,
+                            )
+                        else:
+                            transcript_text, transcript_details = await asyncio.to_thread(
+                                _transcribe_audio_artifact,
+                                settings,
+                                artifact,
+                            )
+                            stt_ms = int((time.perf_counter() - stt_start) * 1000)
                 transcript_status = "ok" if transcript_text else "unavailable"
                 stage_latency_context = {
                     "stage": stage.value,

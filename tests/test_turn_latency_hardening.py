@@ -145,6 +145,41 @@ class _FailStopTalkClient(_TalkDetectClient):
         return {"ok": False, "reason": "recording_missing", "http_status": 404, "details": {}}
 
 
+class _ScriptedCityTinyEarlyStopClient(_TalkDetectClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.city_downloads = 0
+        self.city_records = 0
+
+    async def record_safe(self, channel_id: str, record_name: str, **kwargs: Any) -> dict[str, Any]:
+        result = await super().record_safe(channel_id, record_name, **kwargs)
+        if "_city_" in record_name:
+            self.city_records += 1
+            if self.city_records == 1:
+                async def _city_talk_events() -> None:
+                    await self.queue.put({"type": "ChannelTalkingStarted", "channel": {"id": channel_id}})
+                    await asyncio.sleep(0.95)
+                    await self.queue.put({"type": "ChannelTalkingFinished", "channel": {"id": channel_id}})
+
+                asyncio.create_task(_city_talk_events())
+            else:
+                await self.queue.put({"type": "RecordingFinished", "recording": {"name": record_name}})
+        elif "_phone_confirm_" in record_name:
+            await self.queue.put({"type": "RecordingFinished", "recording": {"name": record_name}})
+        elif "_phone_" not in record_name:
+            await self.queue.put({"type": "RecordingFinished", "recording": {"name": record_name}})
+        return result
+
+    async def download_recording(self, name: str, dest_path: str) -> None:
+        path = Path(dest_path)
+        if "_city_" in name:
+            self.city_downloads += 1
+            if self.city_downloads == 1:
+                path.write_bytes(b"RIFFtiny")
+                return
+        path.write_bytes(b"RIFF" + (b"\0" * 4096))
+
+
 def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tmp_path: Path) -> None:
     ari_app._reset_fallback_cache_for_tests()
     monkeypatch.setenv("PLAY_TEST", "0")
@@ -518,6 +553,40 @@ def test_talk_detect_out_of_order_finished_allows_cautious_early_stop(tmp_path: 
     assert any(item["action"] == "recording_early_stop_used" for item in events)
 
 
+def test_city_does_not_early_stop_on_too_short_finished_before_started(tmp_path: Path) -> None:
+    session = CallSession(call_id="call-city-short-order", channel_id="ch-city-short-order", artifact_dir=tmp_path / "artifacts")
+    client = _TalkDetectClient()
+    policy = ari_app._recording_early_stop_policy_for_stage(DialogStage.CITY)
+
+    async def run() -> dict[str, Any]:
+        await client.queue.put({"type": "ChannelTalkingFinished", "channel": {"id": "ch-city-short-order"}})
+        return await ari_app._wait_for_recording_with_optional_early_stop(
+            client,
+            "app",
+            session,
+            record_name="rec-city-short-order",
+            stage=DialogStage.CITY,
+            turn_idx=3,
+            timeout=0.02,
+            policy=policy,
+            talk_detect_enabled=True,
+            record_start=time.perf_counter(),
+        )
+
+    event = asyncio.run(run())
+    events = _read_events(session)
+
+    assert event["type"] == "RecordingFinished"
+    assert event["recovered"] is True
+    assert not event.get("recording_early_stop_used")
+    assert not any(item["action"] == "recording_early_stop_used" for item in events)
+    assert any(
+        item["action"] == "recording_early_stop_skipped" and item["reason"] == "recording_too_short"
+        for item in events
+    )
+    assert any(item["action"] == "recording_timeout_recovery_used" for item in events)
+
+
 def test_talk_detect_late_started_after_finished_does_not_cancel_guard(tmp_path: Path) -> None:
     session = CallSession(call_id="call-talk-late-start", channel_id="ch-talk-late-start", artifact_dir=tmp_path / "artifacts")
     client = _TalkDetectClient()
@@ -564,6 +633,78 @@ def test_talk_detect_late_started_after_finished_does_not_cancel_guard(tmp_path:
         for item in events
     )
     assert any(item["action"] == "recording_early_stop_used" for item in events)
+
+
+def test_city_tiny_early_stopped_audio_retries_instead_of_accepting_transcript(monkeypatch, tmp_path: Path) -> None:
+    ari_app._reset_fallback_cache_for_tests()
+    monkeypatch.setenv("PLAY_TEST", "0")
+    monkeypatch.setenv("NAME_GUARD_DELAY_MS", "0")
+    monkeypatch.setenv("PHONE_CONFIRM_GUARD_DELAY_MS", "0")
+    monkeypatch.setenv("CITY_EARLY_STOP_MIN_AUDIO_BYTES", "2048")
+    for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sound_id] = True
+
+    city_transcripts = iter(["from Moscow"])
+
+    def fake_transcribe(_settings: Settings, artifact: ari_app.TranscriptionArtifact) -> tuple[str, dict[str, Any]]:
+        if artifact.stage == DialogStage.ISSUE:
+            return "Need cylinders", artifact.details()
+        if artifact.stage == DialogStage.NAME:
+            return "Ivan Petrov", artifact.details()
+        if artifact.stage == DialogStage.CITY:
+            return next(city_transcripts), artifact.details()
+        if artifact.stage == DialogStage.PHONE:
+            return "920.032.0355", artifact.details()
+        if artifact.stage == DialogStage.PHONE_CONFIRM:
+            return "\u0434\u0430", artifact.details()
+        return "", artifact.details()
+
+    class _FakeTTS:
+        def synthesize(self, _text: str) -> bytes:
+            return b"RIFFretry"
+
+    monkeypatch.setattr(ari_app, "_transcribe_audio_artifact", fake_transcribe)
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: {
+            "ok": True,
+            "sound_id": "sound:ai_secretary/call-city-tiny/city_retry_prompt",
+            "remote_path": "/tmp/city_retry_prompt.wav",
+            "error": None,
+            "details": {},
+        },
+    )
+
+    session = CallSession(call_id="call-city-tiny", channel_id="ch-city-tiny", artifact_dir=tmp_path / "artifacts")
+    client = _ScriptedCityTinyEarlyStopClient()
+
+    asyncio.run(ari_app.handle_call(client, _settings(tmp_path), "app", session))
+    events = _read_events(session)
+
+    assert client.city_downloads == 2
+    assert any(
+        item["action"] == "recording_early_stop_audio_sanity"
+        and item["reason"] == "early_stopped_audio_too_tiny"
+        and item["details"]["stage"] == DialogStage.CITY.value
+        for item in events
+    )
+    city_transcripts_seen = [
+        item for item in events if item["action"] == "user_transcribed" and item["details"].get("stage") == "CITY"
+    ]
+    assert city_transcripts_seen[0]["status"] == "unavailable"
+    assert city_transcripts_seen[0]["details"]["text"] == ""
+    assert city_transcripts_seen[0]["reason"] == "early_stopped_audio_too_tiny"
+    assert city_transcripts_seen[1]["details"]["text"] == "from Moscow"
+    assert any(
+        item["action"] == "dialog_decision"
+        and item["details"].get("from_stage") == "CITY"
+        and item["details"].get("to_stage") == "CITY"
+        for item in events
+    )
+    transfer = next(item for item in events if item["action"] == "transfer")
+    assert transfer["status"] == "ok"
 
 
 def test_talk_detect_started_without_finished_timeout_recovers_with_safe_stop(tmp_path: Path) -> None:
