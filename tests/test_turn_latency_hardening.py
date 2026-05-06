@@ -145,6 +145,14 @@ class _FailStopTalkClient(_TalkDetectClient):
         return {"ok": False, "reason": "recording_missing", "http_status": 404, "details": {}}
 
 
+class _SlowStopLateFinishClient(_TalkDetectClient):
+    async def stop_live_recording_safe(self, name: str) -> dict[str, Any]:
+        self.stop_calls.append(name)
+        await self.queue.put({"type": "RecordingFinished", "recording": {"name": name}})
+        await asyncio.sleep(0.01)
+        return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
+
+
 class _ScriptedCityTinyEarlyStopClient(_TalkDetectClient):
     def __init__(self) -> None:
         super().__init__()
@@ -438,6 +446,8 @@ def test_talk_detect_early_stop_stores_recording_after_stable_silence(monkeypatc
     events = _read_events(session)
 
     assert event["type"] == "RecordingFinished"
+    assert event["recording_completion_source"] == "talk_detect_early_stop"
+    assert event["recording_early_stop_used"] is True
     assert client.stop_calls == ["rec-talk"]
     assert any(item["action"] == "channel_talking_started" for item in events)
     assert any(item["action"] == "channel_talking_finished" for item in events)
@@ -445,6 +455,48 @@ def test_talk_detect_early_stop_stores_recording_after_stable_silence(monkeypatc
     used = next(item for item in events if item["action"] == "recording_early_stop_used")
     assert used["status"] == "ok"
     assert used["details"]["recording_tail_ms"] >= 0
+
+
+def test_talk_detect_early_stop_wins_over_late_recording_finished(tmp_path: Path) -> None:
+    session = CallSession(call_id="call-talk-race", channel_id="ch-talk-race", artifact_dir=tmp_path / "artifacts")
+    client = _SlowStopLateFinishClient()
+    policy = ari_app.RecordingEarlyStopPolicy(
+        enabled=True,
+        stable_silence_ms=1,
+        min_talking_ms=0,
+        min_recording_ms=0,
+        require_talking_started=True,
+        reason="test",
+    )
+
+    async def run() -> dict[str, Any]:
+        await client.queue.put({"type": "ChannelTalkingStarted", "channel": {"id": "ch-talk-race"}})
+        await client.queue.put({"type": "ChannelTalkingFinished", "channel": {"id": "ch-talk-race"}})
+        return await ari_app._wait_for_recording_with_optional_early_stop(
+            client,
+            "app",
+            session,
+            record_name="rec-race",
+            stage=DialogStage.NAME,
+            turn_idx=1,
+            timeout=1,
+            policy=policy,
+            talk_detect_enabled=True,
+            record_start=time.perf_counter() - 1,
+        )
+
+    event = asyncio.run(run())
+    events = _read_events(session)
+
+    assert event["type"] == "RecordingFinished"
+    assert event["recording_completion_source"] == "talk_detect_early_stop"
+    assert event["recording_early_stop_used"] is True
+    assert client.stop_calls == ["rec-race"]
+    assert any(item["action"] == "recording_early_stop_used" for item in events)
+    assert any(
+        item["action"] == "recording_event_stale" and item["reason"] == "early_stop_already_completed"
+        for item in events
+    )
 
 
 def test_talk_detect_event_subscription_opens_before_record_start(tmp_path: Path) -> None:
@@ -549,6 +601,7 @@ def test_talk_detect_out_of_order_finished_allows_cautious_early_stop(tmp_path: 
 
     assert event["type"] == "RecordingFinished"
     assert client.stop_calls == ["rec-order"]
+    assert event["recording_completion_source"] == "talk_detect_early_stop"
     assert any(item["action"] == "talk_detect_event_order_anomaly" for item in events)
     assert any(item["action"] == "recording_early_stop_used" for item in events)
 
@@ -684,6 +737,18 @@ def test_city_tiny_early_stopped_audio_retries_instead_of_accepting_transcript(m
     events = _read_events(session)
 
     assert client.city_downloads == 2
+    city_record_done = [
+        item for item in events if item["action"] == "record_done" and item["details"].get("stage") == "CITY"
+    ]
+    assert city_record_done[0]["details"]["recording_completion_source"] == "talk_detect_early_stop"
+    assert city_record_done[0]["details"]["recording_early_stop_used"] is True
+    assert city_record_done[0]["dur_ms"] < 3000
+    assert any(
+        item["action"] == "recording_completion_source"
+        and item["reason"] == "talk_detect_early_stop"
+        and item["details"].get("stage") == "CITY"
+        for item in events
+    )
     assert any(
         item["action"] == "recording_early_stop_audio_sanity"
         and item["reason"] == "early_stopped_audio_too_tiny"

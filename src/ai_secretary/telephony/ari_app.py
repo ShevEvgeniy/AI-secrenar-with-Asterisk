@@ -697,6 +697,59 @@ async def _wait_for_recording_with_optional_early_stop(
         stop_task: asyncio.Task[dict[str, Any]] | None = None
         stop_attempted = False
         early_stop_used = False
+
+        def _is_current_recording_completion(event: dict[str, Any]) -> bool:
+            recording = event.get("recording", {})
+            return (
+                isinstance(recording, dict)
+                and recording.get("name") == record_name
+                and event.get("type") in {"RecordingFinished", "RecordingFailed"}
+            )
+
+        def _log_stop_failure(stop_result: dict[str, Any]) -> None:
+            session.log_event(
+                action="recording_early_stop_failed",
+                status="fail",
+                reason=stop_result.get("reason"),
+                http_status=stop_result.get("http_status"),
+                details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, **(stop_result.get("details") or {})},
+            )
+
+        def _complete_from_early_stop(stale_event: dict[str, Any] | None = None) -> dict[str, Any]:
+            nonlocal early_stop_used
+            early_stop_used = True
+            completed_at = time.perf_counter()
+            dur_ms = int((completed_at - record_start) * 1000)
+            session.log_event(
+                action="recording_early_stop_used",
+                status="ok",
+                dur_ms=dur_ms,
+                details={
+                    "stage": stage.value,
+                    "turn_idx": turn_idx,
+                    "record_name": record_name,
+                    "recording_tail_ms": int((completed_at - (talking_finished_at or record_start)) * 1000),
+                },
+            )
+            if stale_event is not None:
+                session.log_event(
+                    action="recording_event_stale",
+                    status="ignored",
+                    reason="early_stop_already_completed",
+                    details={
+                        "stage": stage.value,
+                        "turn_idx": turn_idx,
+                        "record_name": record_name,
+                        "event_type": stale_event.get("type"),
+                    },
+                )
+            return {
+                "type": "RecordingFinished",
+                "recording": {"name": record_name},
+                "recording_early_stop_used": True,
+                "recording_completion_source": "talk_detect_early_stop",
+            }
+
         try:
             while True:
                 if stop_task is None:
@@ -709,18 +762,12 @@ async def _wait_for_recording_with_optional_early_stop(
                             queue_task.cancel()
                         stop_result = stop_task.result()
                         if stop_result.get("ok"):
-                            early_stop_used = True
-                            session.log_event(
-                                action="recording_early_stop_used",
-                                status="ok",
-                                dur_ms=int((time.perf_counter() - record_start) * 1000),
-                                details={
-                                    "stage": stage.value,
-                                    "turn_idx": turn_idx,
-                                    "record_name": record_name,
-                                    "recording_tail_ms": int((time.perf_counter() - (talking_finished_at or record_start)) * 1000),
-                                },
-                            )
+                            stale_event = None
+                            if queue_task in done and not queue_task.cancelled():
+                                candidate = queue_task.result()
+                                if _is_current_recording_completion(candidate):
+                                    stale_event = candidate
+                            return _complete_from_early_stop(stale_event)
                         elif stop_result.get("reason") == "event_pending_during_guard":
                             session.log_event(
                                 action="recording_early_stop_skipped",
@@ -729,13 +776,7 @@ async def _wait_for_recording_with_optional_early_stop(
                                 details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
                             )
                         else:
-                            session.log_event(
-                                action="recording_early_stop_failed",
-                                status="fail",
-                                reason=stop_result.get("reason"),
-                                http_status=stop_result.get("http_status"),
-                                details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, **(stop_result.get("details") or {})},
-                            )
+                            _log_stop_failure(stop_result)
                         stop_task = None
                         if queue_task in done and not queue_task.cancelled():
                             event = queue_task.result()
@@ -743,6 +784,12 @@ async def _wait_for_recording_with_optional_early_stop(
                             continue
                     else:
                         event = queue_task.result()
+                        if _is_current_recording_completion(event) and stop_task is not None and not stop_task.done():
+                            stop_result = await stop_task
+                            stop_task = None
+                            if stop_result.get("ok"):
+                                return _complete_from_early_stop(event)
+                            _log_stop_failure(stop_result)
 
                 if event.get("type") == "__ws_closed__":
                     return {}
@@ -754,6 +801,8 @@ async def _wait_for_recording_with_optional_early_stop(
                             stop_task.cancel()
                         if event_type == "RecordingFinished" and early_stop_used:
                             event = {**event, "recording_early_stop_used": True}
+                        if event_type == "RecordingFinished":
+                            event = {**event, "recording_completion_source": event.get("recording_completion_source") or "normal_record_done"}
                         return event
                     continue
                 if _event_channel_id(event) != session.channel_id:
@@ -881,7 +930,12 @@ async def _wait_for_recording_with_optional_early_stop(
                     dur_ms=int((time.perf_counter() - record_start) * 1000),
                     details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
                 )
-                return {"type": "RecordingFinished", "recording": {"name": record_name}, "recovered": True}
+                return {
+                    "type": "RecordingFinished",
+                    "recording": {"name": record_name},
+                    "recovered": True,
+                    "recording_completion_source": "timeout_recovery",
+                }
             session.log_event(
                 action="recording_timeout_recovery_failed",
                 status="fail",
@@ -3058,6 +3112,9 @@ async def handle_call(
                     event = {"type": "timeout"}
                 record_end_perf = time.perf_counter()
                 dur_ms = int((record_end_perf - record_start) * 1000)
+                recording_completion_source = event.get("recording_completion_source")
+                if event.get("type") == "RecordingFinished" and not recording_completion_source:
+                    recording_completion_source = "normal_record_done"
                 transcript_text = ""
                 transcript_details: dict[str, Any]
                 stt_ms = 0
@@ -3092,7 +3149,21 @@ async def handle_call(
                             "stage": stage.value,
                             "turn_idx": turn_idx,
                             "record_name": record_name,
+                            "recording_completion_source": recording_completion_source,
+                            "recording_early_stop_used": event.get("recording_early_stop_used") is True,
                             **record_profile.details(),
+                        },
+                    )
+                    session.log_event(
+                        action="recording_completion_source",
+                        status="ok",
+                        reason=recording_completion_source,
+                        dur_ms=dur_ms,
+                        details={
+                            "stage": stage.value,
+                            "turn_idx": turn_idx,
+                            "record_name": record_name,
+                            "recording_early_stop_used": event.get("recording_early_stop_used") is True,
                         },
                     )
 
