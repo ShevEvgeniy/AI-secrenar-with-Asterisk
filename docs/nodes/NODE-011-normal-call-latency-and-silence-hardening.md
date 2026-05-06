@@ -193,6 +193,7 @@ fb5eaaf NODE-011 use static phone confirmation playback
 e8acace NODE-011 add talk-detect recording early stop
 f14cd1a NODE-011 fix talk-detect recording event delivery
 0f313c8 NODE-011 harden talk-detect capture ordering
+e6c7fd8 NODE-011 close normal latency hardening
 ```
 
 ## Next Recommendation

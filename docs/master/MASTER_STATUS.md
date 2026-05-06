@@ -8,7 +8,7 @@
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
 - Latest completed node branch: `feat/node-011-normal-call-latency-and-silence-hardening`
-- Latest completed node commit: `0f313c8`
+- Latest completed node commit: `e6c7fd8`
 
 ## Confirmed Working
 
@@ -149,7 +149,7 @@ stage latency logs -> static PHONE_CONFIRM -> prompt playback barriers -> TALK_D
 - NODE-008 is recorded in `master`.
 - NODE-009 is merged into `master`.
 - NODE-010 is merged into `master`.
-- NODE-011 is MVP-acceptable and ready for master merge.
+- NODE-011 is merged into `master` and closed as MVP-acceptable.
 - During NODE-002 validation, SSH to `92.118.85.117:22` timed out while publishing `prompt_3` and transfer system sounds.
 - Despite the partial publish failure, the listener reached `READY_WAITING_FOR_CALLS`.
 - Fallback media was used during the live call for missing `prompt_3` and transfer phrase.
