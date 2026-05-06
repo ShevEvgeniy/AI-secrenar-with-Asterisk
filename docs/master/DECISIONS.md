@@ -223,3 +223,30 @@ data/storage/callbacks/callback_records.jsonl
 - Persistence logging includes `persistence_attempt`, `persistence_success`, and `persistence_failure`.
 
 NODE-010 live validation confirmed callback persistence with `outcome_type=after_hours_callback`, `outcome_reason=mode_override`, and `record_id=f0cff987b252b77c`.
+
+## Normal Call Latency And Silence Hardening
+
+NODE-011 completed normal-call latency and silence hardening at MVP level.
+
+Accepted runtime behavior:
+
+- Normal working-hours flow remains:
+
+```text
+ISSUE -> INTENT_CLARIFY if needed -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> DONE -> transfer
+```
+
+- Mandatory data before transfer remains:
+  - `name`;
+  - `city`;
+  - `phone`;
+  - `phone_confirmed=true`.
+- Stage-level latency instrumentation must remain available for normal calls.
+- PHONE_CONFIRM must use the static fast path when `phone_digits` are available and must not require per-call dynamic TTS/publish on the normal path.
+- PHONE remains conservative and excluded from TALK_DETECT early stop with `phone_digit_safety_skip`.
+- ISSUE and INTENT_CLARIFY prompt playback barriers must remain in place before recording.
+- TALK_DETECT early-stop diagnostics are useful but `recording_early_stop_used` is not yet required as a closure gate for NODE-011.
+
+NODE-011 final live smoke `1778089554.24` passed at MVP level: sales intent was matched from captured ISSUE text, required fields were collected, PHONE_CONFIRM fast path was used, and transfer to `sales_real` completed only after `phone_confirmed=true`.
+
+Remaining short-slot pause smoothing is deliberately moved to NODE-012 and must not change PHONE digit safety, business logic, transfer/callback/after-hours contracts, or SAFE_FINISH behavior.

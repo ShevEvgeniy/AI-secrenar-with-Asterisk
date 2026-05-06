@@ -284,6 +284,35 @@ record_id=f0cff987b252b77c
 path=data/storage/callbacks/callback_records.jsonl
 ```
 
+## NODE-011 Runtime Notes
+
+- Stage-level latency instrumentation is implemented for the normal ARI call loop.
+- Latency events cover ASR, dialog decision, TTS, publish, playback start/finish, stage completion, and silence-risk detection.
+- `latency_silence_risk` uses warning and critical thresholds to identify dead-air risk by `call_id` and stage.
+- Normal PHONE_CONFIRM uses the static fast path when `phone_digits` are available:
+  - static prefix;
+  - static digit sounds;
+  - static suffix.
+- Normal PHONE_CONFIRM fast path logs `phone_confirm_fast_path_used` and avoids per-call dynamic TTS/publish with:
+
+```text
+dynamic_tts_required=false
+publish_required=false
+```
+
+- PHONE remains excluded from TALK_DETECT early stop with `phone_digit_safety_skip`.
+- ISSUE and INTENT_CLARIFY wait for prompt playback completion plus guard before recording begins.
+- TALK_DETECT diagnostics are present for enablement, event order anomalies, missing finished events, and timeout recovery attempts.
+- Final live smoke `1778089554.24` validated the MVP normal working-hours sales flow:
+  - ISSUE captured: `Я бы хотел купить сетку Манье.`
+  - intent matched sales by keyword `купить`;
+  - name captured: `Антон Вячеславович`;
+  - city captured: `Самара`;
+  - phone normalized: `9600614112`;
+  - confirmation captured: `Да, верно`;
+  - transfer to `sales_real` completed with `status=ok` after `phone_confirmed=true`.
+- Known limitation for follow-up: NAME, CITY, and PHONE_CONFIRM can still have noticeable recording-window pauses; short-slot smoothing belongs to NODE-012.
+
 ## NODE-005 Runtime Notes
 
 - NODE-005 keeps the current turn-based architecture and the NODE-004 post-PHONE transfer flow.

@@ -7,8 +7,8 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-010-callback-capture-and-persistence`
-- Latest completed node commit: `087ea4e0f558038576f6263605c11f30bdf8797d`
+- Latest completed node branch: `feat/node-011-normal-call-latency-and-silence-hardening`
+- Latest completed node commit: `0f313c8`
 
 ## Confirmed Working
 
@@ -56,6 +56,11 @@
 - Callback persistence format is JSONL, one flat JSON object per line.
 - Callback records persist for `after_hours_callback` and `safe_finish` trigger points.
 - Callback persistence is fail-soft and does not crash call flow.
+- Stage-level latency instrumentation is implemented for the normal ARI call flow.
+- PHONE_CONFIRM fast path uses static/prepublished prefix, digit, and suffix sounds when `phone_digits` are available.
+- Normal PHONE_CONFIRM no longer requires per-call dynamic TTS/publish.
+- ISSUE and INTENT_CLARIFY have prompt playback barriers before recording.
+- PHONE is explicitly excluded from TALK_DETECT early stop with `phone_digit_safety_skip`.
 - NODE-001 live smoke validation passed:
   - stage prompts progressed correctly;
   - user speech was transcribed for ISSUE / NAME / CITY / PHONE;
@@ -124,6 +129,12 @@ NODE-010 adds callback capture and persistence:
 after_hours_callback/safe_finish -> flat JSONL callback record -> fail-soft persistence logging
 ```
 
+NODE-011 hardens normal-call latency and silence behavior:
+
+```text
+stage latency logs -> static PHONE_CONFIRM -> prompt playback barriers -> TALK_DETECT diagnostics -> MVP-acceptable transfer flow
+```
+
 ## Validation Notes
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
@@ -138,6 +149,7 @@ after_hours_callback/safe_finish -> flat JSONL callback record -> fail-soft pers
 - NODE-008 is recorded in `master`.
 - NODE-009 is merged into `master`.
 - NODE-010 is merged into `master`.
+- NODE-011 is MVP-acceptable and ready for master merge.
 - During NODE-002 validation, SSH to `92.118.85.117:22` timed out while publishing `prompt_3` and transfer system sounds.
 - Despite the partial publish failure, the listener reached `READY_WAITING_FOR_CALLS`.
 - Fallback media was used during the live call for missing `prompt_3` and transfer phrase.
@@ -168,6 +180,7 @@ after_hours_callback/safe_finish -> flat JSONL callback record -> fail-soft pers
 - NODE-008 prevents transfer from bypassing required data collection and makes SAFE_FINISH terminal/non-transfer.
 - NODE-009 validates working-hours live transfer preservation and after-hours transfer skip with department-specific callback phrases.
 - NODE-010 validates local callback JSONL persistence for after-hours callback and SAFE_FINISH outcomes.
+- NODE-011 validates normal-call latency instrumentation, static PHONE_CONFIRM, ISSUE capture reliability, TALK_DETECT diagnostics, and preserved sales transfer semantics.
 
 ## NODE-004 Live Smoke
 
@@ -362,8 +375,61 @@ record_id=f0cff987b252b77c
 path=data/storage/callbacks/callback_records.jsonl
 ```
 
+## NODE-011 Validation
+
+Final live smoke:
+
+```text
+call_id=1778089554.24
+```
+
+Validated:
+
+- ISSUE captured successfully: `Я бы хотел купить сетку Манье.`
+- `department_intent=sales`
+- `intent_reason=matched_sales`
+- matched keyword: `купить`
+- name captured: `Антон Вячеславович`
+- city captured: `Самара`
+- phone captured and normalized: `9600614112`
+- PHONE_CONFIRM fast path used with `dynamic_tts_required=false` and `publish_required=false`
+- confirmation captured: `Да, верно`
+- `missing_required_fields=[]`
+- transfer to `sales_real` completed with `status=ok`
+- transfer happened only after `phone_confirmed=true`
+
+Focused NODE-011 regression:
+
+```text
+tests/test_turn_latency_hardening.py
+```
+
+Focused result:
+
+```text
+16 passed
+```
+
+Relevant voice/dialog regression result:
+
+```text
+66 passed
+```
+
+Broader reported full-suite result:
+
+```text
+114 passed, 6 unrelated environment failures
+```
+
+Known remaining limitation:
+
+- NAME, CITY, and PHONE_CONFIRM still have noticeable recording-window pauses.
+- `recording_early_stop_used` is not yet reliable.
+- PHONE remains longer by design for digit safety.
+
 ## Next Recommended Step
 
 ```text
-Open the next bounded node only after master records NODE-010 completion on remote master.
+Open NODE-012 / short-slot-turn-taking-polish after master records NODE-011 completion.
 ```

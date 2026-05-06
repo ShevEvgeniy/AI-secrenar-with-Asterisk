@@ -78,6 +78,12 @@ NODE-010 completed and validated callback capture and persistence:
 after_hours_callback/safe_finish -> flat JSONL callback record -> fail-soft persistence logging
 ```
 
+NODE-011 completed and validated normal-call latency and silence hardening at MVP level:
+
+```text
+latency instrumentation -> static PHONE_CONFIRM fast path -> ISSUE/INTENT capture barriers -> sales transfer preserved
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -90,7 +96,7 @@ after_hours_callback/safe_finish -> flat JSONL callback record -> fail-soft pers
 
 ## Current Action Plan
 
-1. Treat NODE-001 through NODE-010 as complete and recorded in `master`.
+1. Treat NODE-001 through NODE-011 as complete and recorded in `master`.
 2. Preserve the validated sales transfer target:
 
 ```text
@@ -118,11 +124,15 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 14. Preserve department-specific after-hours phrases and the playback barrier before hangup.
 15. Preserve NODE-010 callback persistence at `data/storage/callbacks/callback_records.jsonl`.
 16. Preserve fail-soft persistence logging for `persistence_attempt`, `persistence_success`, and `persistence_failure`.
+17. Preserve NODE-011 stage-level latency instrumentation and `latency_silence_risk` diagnostics.
+18. Preserve NODE-011 static PHONE_CONFIRM fast path when `phone_digits` are available.
+19. Preserve NODE-011 PHONE early-stop exclusion with `phone_digit_safety_skip`.
+20. Preserve NODE-011 ISSUE and INTENT_CLARIFY prompt playback barriers before recording.
 
 ## Next Recommended Step
 
 ```text
-Open the next bounded node only after master records NODE-010 completion on remote master.
+Open NODE-012 / short-slot-turn-taking-polish after master records NODE-011 completion.
 ```
 
 ## Node Completion Report Format
