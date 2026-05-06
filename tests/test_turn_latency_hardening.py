@@ -48,6 +48,9 @@ def test_recording_early_stop_policy_by_stage(monkeypatch) -> None:
     assert ari_app._recording_early_stop_policy_for_stage(DialogStage.CITY).enabled is True
     assert ari_app._recording_early_stop_policy_for_stage(DialogStage.PHONE_CONFIRM).enabled is True
     assert ari_app._recording_early_stop_policy_for_stage(DialogStage.ISSUE).enabled is True
+    intent_policy = ari_app._recording_early_stop_policy_for_stage(DialogStage.INTENT_CLARIFY)
+    assert intent_policy.enabled is True
+    assert intent_policy.reason == "short_slot"
     assert ari_app._talk_detect_value_for_policy(
         ari_app._recording_early_stop_policy_for_stage(DialogStage.PHONE_CONFIRM)
     ) == "300,128"
@@ -136,6 +139,12 @@ class _NoSafeStopTalkClient(_TalkDetectClient):
     stop_live_recording_safe = None
 
 
+class _FailStopTalkClient(_TalkDetectClient):
+    async def stop_live_recording_safe(self, name: str) -> dict[str, Any]:
+        self.stop_calls.append(name)
+        return {"ok": False, "reason": "recording_missing", "http_status": 404, "details": {}}
+
+
 def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tmp_path: Path) -> None:
     ari_app._reset_fallback_cache_for_tests()
     monkeypatch.setenv("PLAY_TEST", "0")
@@ -192,6 +201,9 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
         (6, 3),
     ]
     assert client.wait_timeouts == [13, 11, 13, 21, 12]
+    issue_record_idx = next(i for i, call in enumerate(client.calls) if "issue" in call)
+    issue_barrier_idx = client.calls.index("playback_finished")
+    assert issue_barrier_idx < issue_record_idx
     name_record_idx = next(i for i, call in enumerate(client.calls) if "name" in call)
     name_barrier_idx = client.calls.index("playback_finished")
     assert name_barrier_idx < name_record_idx
@@ -470,6 +482,122 @@ def test_talk_detect_guard_cancels_when_speech_resumes(tmp_path: Path) -> None:
     )
 
 
+def test_talk_detect_out_of_order_finished_allows_cautious_early_stop(tmp_path: Path) -> None:
+    session = CallSession(call_id="call-talk-order", channel_id="ch-talk-order", artifact_dir=tmp_path / "artifacts")
+    client = _TalkDetectClient()
+    policy = ari_app.RecordingEarlyStopPolicy(
+        enabled=True,
+        stable_silence_ms=1,
+        min_talking_ms=150,
+        min_recording_ms=0,
+        require_talking_started=True,
+        reason="test",
+    )
+
+    async def run() -> dict[str, Any]:
+        await client.queue.put({"type": "ChannelTalkingFinished", "channel": {"id": "ch-talk-order"}})
+        return await ari_app._wait_for_recording_with_optional_early_stop(
+            client,
+            "app",
+            session,
+            record_name="rec-order",
+            stage=DialogStage.CITY,
+            turn_idx=2,
+            timeout=1,
+            policy=policy,
+            talk_detect_enabled=True,
+            record_start=time.perf_counter() - 1,
+        )
+
+    event = asyncio.run(run())
+    events = _read_events(session)
+
+    assert event["type"] == "RecordingFinished"
+    assert client.stop_calls == ["rec-order"]
+    assert any(item["action"] == "talk_detect_event_order_anomaly" for item in events)
+    assert any(item["action"] == "recording_early_stop_used" for item in events)
+
+
+def test_talk_detect_started_without_finished_timeout_recovers_with_safe_stop(tmp_path: Path) -> None:
+    session = CallSession(call_id="call-talk-timeout", channel_id="ch-talk-timeout", artifact_dir=tmp_path / "artifacts")
+    client = _TalkDetectClient()
+    policy = ari_app.RecordingEarlyStopPolicy(
+        enabled=True,
+        stable_silence_ms=1000,
+        min_talking_ms=0,
+        min_recording_ms=0,
+        require_talking_started=True,
+        reason="test",
+    )
+
+    async def run() -> dict[str, Any]:
+        await client.queue.put({"type": "ChannelTalkingStarted", "channel": {"id": "ch-talk-timeout"}})
+        return await ari_app._wait_for_recording_with_optional_early_stop(
+            client,
+            "app",
+            session,
+            record_name="rec-timeout",
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            timeout=0.02,
+            policy=policy,
+            talk_detect_enabled=True,
+            record_start=time.perf_counter() - 1,
+        )
+
+    event = asyncio.run(run())
+    events = _read_events(session)
+
+    assert event["type"] == "RecordingFinished"
+    assert event["recovered"] is True
+    assert client.stop_calls == ["rec-timeout"]
+    for action in (
+        "talk_detect_started_without_finished",
+        "talk_detect_no_finished_event",
+        "record_wait_timeout_after_talking_started",
+        "recording_timeout_recovery_attempt",
+        "recording_timeout_recovery_used",
+    ):
+        assert any(item["action"] == action for item in events), action
+
+
+def test_talk_detect_timeout_recovery_failure_preserves_timeout(tmp_path: Path) -> None:
+    session = CallSession(call_id="call-talk-timeout-fail", channel_id="ch-talk-timeout-fail", artifact_dir=tmp_path / "artifacts")
+    client = _FailStopTalkClient()
+    policy = ari_app.RecordingEarlyStopPolicy(
+        enabled=True,
+        stable_silence_ms=1000,
+        min_talking_ms=0,
+        min_recording_ms=0,
+        require_talking_started=True,
+        reason="test",
+    )
+
+    async def run() -> None:
+        await client.queue.put({"type": "ChannelTalkingStarted", "channel": {"id": "ch-talk-timeout-fail"}})
+        await ari_app._wait_for_recording_with_optional_early_stop(
+            client,
+            "app",
+            session,
+            record_name="rec-timeout-fail",
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            timeout=0.02,
+            policy=policy,
+            talk_detect_enabled=True,
+            record_start=time.perf_counter() - 1,
+        )
+
+    try:
+        asyncio.run(run())
+    except (TimeoutError, asyncio.TimeoutError):
+        pass
+    events = _read_events(session)
+
+    assert client.stop_calls == ["rec-timeout-fail"]
+    assert any(item["action"] == "recording_timeout_recovery_failed" for item in events)
+
+
 def test_talk_detect_unavailable_falls_back_to_recording_wait(tmp_path: Path) -> None:
     session = CallSession(call_id="call-talk-unavailable", channel_id="ch-talk-unavailable", artifact_dir=tmp_path / "artifacts")
     client = _LatencyClient()
@@ -606,6 +734,37 @@ def test_name_retry_prompt_waits_for_playback_barrier(monkeypatch, tmp_path: Pat
     assert name_barriers
     assert name_barriers[-1]["details"]["dynamic"] is True
     assert name_barriers[-1]["details"]["guard_delay_ms"] == 0
+
+
+def test_intent_clarify_prompt_waits_for_playback_barrier(monkeypatch, tmp_path: Path) -> None:
+    ari_app._reset_fallback_cache_for_tests()
+    monkeypatch.setenv("INTENT_CLARIFY_GUARD_DELAY_MS", "0")
+    for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sound_id] = True
+
+    session = CallSession(call_id="call-intent-barrier", channel_id="ch-intent-barrier", artifact_dir=tmp_path / "artifacts")
+    session.dialog.stage = DialogStage.INTENT_CLARIFY
+    client = _LatencyClient()
+
+    ok, _moh_started = asyncio.run(
+        ari_app._play_prompt(
+            client,
+            _settings(tmp_path),
+            "app",
+            session,
+            DialogStage.INTENT_CLARIFY,
+            ari_app._system_sounds_snapshot(),
+            False,
+        )
+    )
+
+    assert ok is True
+    assert client.calls == ["play", "playback_finished"]
+    events = _read_events(session)
+    barriers = [event for event in events if event["action"] == "prompt_playback_barrier" and event["status"] == "ok"]
+    assert barriers
+    assert barriers[-1]["details"]["stage"] == DialogStage.INTENT_CLARIFY.value
+    assert barriers[-1]["details"]["guard_delay_ms"] == 0
 
 
 def test_phone_retry_prompt_plays_dynamic_prompt_instead_of_static_phone_prompt(monkeypatch, tmp_path: Path) -> None:

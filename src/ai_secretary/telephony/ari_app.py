@@ -66,6 +66,10 @@ PROMPT_FALLBACK_SOUND_IDS: dict[DialogStage, str] = {
 }
 TRANSFER_FALLBACK_SOUND_ID = "sound:ai_secretary/_system/fallback_transfer"
 DEFAULT_RECORD_WAIT_PAD_SECONDS = 3
+DEFAULT_ISSUE_GUARD_DELAY_MS = 350
+DEFAULT_ISSUE_PLAYBACK_TIMEOUT_SECONDS = 15
+DEFAULT_INTENT_CLARIFY_GUARD_DELAY_MS = 300
+DEFAULT_INTENT_CLARIFY_PLAYBACK_TIMEOUT_SECONDS = 15
 DEFAULT_PHONE_CONFIRM_GUARD_DELAY_MS = 400
 DEFAULT_PHONE_CONFIRM_PLAYBACK_TIMEOUT_SECONDS = 15
 DEFAULT_NAME_GUARD_DELAY_MS = 400
@@ -393,6 +397,8 @@ def _recording_early_stop_policy_for_stage(stage: DialogStage) -> RecordingEarly
         return RecordingEarlyStopPolicy(True, 900, 200, 700, True, 600, 128, "short_slot")
     if stage == DialogStage.PHONE_CONFIRM:
         return RecordingEarlyStopPolicy(True, 450, 100, 350, True, 300, 128, "yes_no")
+    if stage == DialogStage.INTENT_CLARIFY:
+        return RecordingEarlyStopPolicy(True, 550, 150, 500, True, 350, 128, "short_slot")
     if stage == DialogStage.ISSUE:
         return RecordingEarlyStopPolicy(True, 1600, 500, 2500, True, 900, 128, "free_form_conservative")
     if stage == DialogStage.PHONE:
@@ -421,6 +427,32 @@ def _name_guard_delay_ms() -> int:
 def _name_playback_timeout_sec() -> int:
     value = _env_int("NAME_PLAYBACK_TIMEOUT_SECONDS", DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS)
     return value if value > 0 else DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS
+
+
+def _stage_prompt_guard_delay_ms(stage: DialogStage) -> int:
+    if stage == DialogStage.ISSUE:
+        return _env_int("ISSUE_GUARD_DELAY_MS", DEFAULT_ISSUE_GUARD_DELAY_MS)
+    if stage == DialogStage.INTENT_CLARIFY:
+        return _env_int("INTENT_CLARIFY_GUARD_DELAY_MS", DEFAULT_INTENT_CLARIFY_GUARD_DELAY_MS)
+    if stage == DialogStage.NAME:
+        return _name_guard_delay_ms()
+    return 0
+
+
+def _stage_prompt_playback_timeout_sec(stage: DialogStage) -> int:
+    if stage == DialogStage.ISSUE:
+        value = _env_int("ISSUE_PLAYBACK_TIMEOUT_SECONDS", DEFAULT_ISSUE_PLAYBACK_TIMEOUT_SECONDS)
+        return value if value > 0 else DEFAULT_ISSUE_PLAYBACK_TIMEOUT_SECONDS
+    if stage == DialogStage.INTENT_CLARIFY:
+        value = _env_int("INTENT_CLARIFY_PLAYBACK_TIMEOUT_SECONDS", DEFAULT_INTENT_CLARIFY_PLAYBACK_TIMEOUT_SECONDS)
+        return value if value > 0 else DEFAULT_INTENT_CLARIFY_PLAYBACK_TIMEOUT_SECONDS
+    if stage == DialogStage.NAME:
+        return _name_playback_timeout_sec()
+    return DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS
+
+
+def _requires_prompt_playback_barrier(stage: DialogStage) -> bool:
+    return stage in {DialogStage.ISSUE, DialogStage.INTENT_CLARIFY, DialogStage.NAME}
 
 
 def _after_hours_guard_delay_ms() -> int:
@@ -633,6 +665,11 @@ async def _wait_for_recording_with_optional_early_stop(
         status="ok",
         details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, "method": "live_recording_stop_store"},
     )
+    talk_state: dict[str, Any] = {
+        "started": False,
+        "finished": False,
+        "out_of_order_finished": False,
+    }
 
     async def _wait() -> dict[str, Any]:
         subscription = event_subscription
@@ -713,6 +750,7 @@ async def _wait_for_recording_with_optional_early_stop(
                 if _event_channel_id(event) != session.channel_id:
                     continue
                 if event_type == "ChannelTalkingStarted":
+                    talk_state["started"] = True
                     if stop_task is not None and not stop_task.done():
                         stop_task.cancel()
                         stop_task = None
@@ -733,6 +771,7 @@ async def _wait_for_recording_with_optional_early_stop(
                 if event_type != "ChannelTalkingFinished":
                     continue
                 finished_at = time.perf_counter()
+                talk_state["finished"] = True
                 talking_finished_at = finished_at
                 talking_ms = int((finished_at - talking_started_at) * 1000) if talking_started_at else None
                 elapsed_ms = int((finished_at - record_start) * 1000)
@@ -743,13 +782,13 @@ async def _wait_for_recording_with_optional_early_stop(
                     details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, "elapsed_ms": elapsed_ms},
                 )
                 if policy.require_talking_started and talking_started_at is None:
+                    talk_state["out_of_order_finished"] = True
                     session.log_event(
-                        action="recording_early_stop_skipped",
-                        status="skipped",
-                        reason="talking_started_missing",
-                        details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+                        action="talk_detect_event_order_anomaly",
+                        status="handled",
+                        reason="finished_before_started",
+                        details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, "elapsed_ms": elapsed_ms, **policy.details()},
                     )
-                    continue
                 if talking_ms is not None and talking_ms < policy.min_talking_ms:
                     session.log_event(
                         action="recording_early_stop_skipped",
@@ -791,7 +830,49 @@ async def _wait_for_recording_with_optional_early_stop(
             if stop_task is not None and not stop_task.done():
                 stop_task.cancel()
 
-    return await asyncio.wait_for(_wait(), timeout=timeout)
+    try:
+        return await asyncio.wait_for(_wait(), timeout=timeout)
+    except (TimeoutError, asyncio.TimeoutError):
+        if talk_state["started"] and not talk_state["finished"]:
+            session.log_event(
+                action="talk_detect_started_without_finished",
+                status="handled",
+                details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+            )
+            session.log_event(
+                action="talk_detect_no_finished_event",
+                status="handled",
+                details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+            )
+            session.log_event(
+                action="record_wait_timeout_after_talking_started",
+                status="handled",
+                dur_ms=int((time.perf_counter() - record_start) * 1000),
+                details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, **policy.details()},
+            )
+        if talk_state["started"] or talk_state["finished"]:
+            session.log_event(
+                action="recording_timeout_recovery_attempt",
+                status="start",
+                details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, "method": "live_recording_stop_store"},
+            )
+            result = await stop_safe(record_name)
+            if result.get("ok"):
+                session.log_event(
+                    action="recording_timeout_recovery_used",
+                    status="ok",
+                    dur_ms=int((time.perf_counter() - record_start) * 1000),
+                    details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+                )
+                return {"type": "RecordingFinished", "recording": {"name": record_name}, "recovered": True}
+            session.log_event(
+                action="recording_timeout_recovery_failed",
+                status="fail",
+                reason=result.get("reason"),
+                http_status=result.get("http_status"),
+                details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, **(result.get("details") or {})},
+            )
+        raise
 
 
 def _latency_silence_warn_ms() -> int:
@@ -2196,6 +2277,119 @@ async def _wait_for_name_playback_barrier(
     return True
 
 
+async def _wait_for_prompt_playback_barrier(
+    client: AriClient,
+    app_name: str,
+    session: CallSession,
+    stage: DialogStage,
+    media: str,
+    playback_id: str,
+    prompt_text: str,
+    *,
+    dynamic: bool,
+) -> bool:
+    """Wait for prompt playback to finish before opening the caller microphone."""
+    if stage == DialogStage.NAME:
+        return await _wait_for_name_playback_barrier(
+            client,
+            app_name,
+            session,
+            media,
+            playback_id,
+            prompt_text,
+            dynamic=dynamic,
+        )
+    action = "prompt_playback_barrier"
+    if not playback_id:
+        guard_ms = _stage_prompt_guard_delay_ms(stage)
+        if guard_ms > 0:
+            await asyncio.sleep(guard_ms / 1000)
+        session.log_event(
+            action=action,
+            status="handled",
+            reason="playback_id_missing",
+            media=media,
+            sound_id=media,
+            details={"stage": stage.value, "prompt_text": prompt_text, "dynamic": dynamic, "guard_delay_ms": guard_ms},
+        )
+        return True
+
+    barrier_start = time.perf_counter()
+    barrier_timeout = _stage_prompt_playback_timeout_sec(stage)
+    try:
+        barrier_event = await client.wait_for_playback_finished(app_name, playback_id, timeout=barrier_timeout)
+    except TimeoutError:
+        barrier_event = {"type": "timeout"}
+    except asyncio.TimeoutError:
+        barrier_event = {"type": "timeout"}
+    barrier_ms = int((time.perf_counter() - barrier_start) * 1000)
+    if barrier_event.get("type") != "PlaybackFinished":
+        _log_latency_segment(
+            session,
+            "latency_playback_finished",
+            None,
+            status="fail",
+            reason=barrier_event.get("type") or "playback_event_missing",
+            dur_ms=barrier_ms,
+            details={
+                "stage": stage.value,
+                "playback_id": playback_id,
+                "media": media,
+                "sound_id": media,
+                "dynamic": dynamic,
+            },
+        )
+        session.log_event(
+            action=action,
+            status="fail",
+            reason=barrier_event.get("type") or "playback_event_missing",
+            media=media,
+            sound_id=media,
+            dur_ms=barrier_ms,
+            details={
+                "stage": stage.value,
+                "playback_id": playback_id,
+                "prompt_text": prompt_text,
+                "dynamic": dynamic,
+                "timeout_seconds": barrier_timeout,
+            },
+        )
+        return False
+
+    guard_ms = _stage_prompt_guard_delay_ms(stage)
+    if guard_ms > 0:
+        await asyncio.sleep(guard_ms / 1000)
+    session.log_event(
+        action=action,
+        status="ok",
+        media=media,
+        sound_id=media,
+        dur_ms=barrier_ms,
+        details={
+            "stage": stage.value,
+            "playback_id": playback_id,
+            "prompt_text": prompt_text,
+            "dynamic": dynamic,
+            "guard_delay_ms": guard_ms,
+            "timeout_seconds": barrier_timeout,
+        },
+    )
+    _log_latency_segment(
+        session,
+        "latency_playback_finished",
+        None,
+        dur_ms=barrier_ms,
+        details={
+            "stage": stage.value,
+            "playback_id": playback_id,
+            "media": media,
+            "sound_id": media,
+            "dynamic": dynamic,
+        },
+    )
+    return True
+
+
 async def _play_dynamic_prompt(
     client: AriClient,
     settings: Settings,
@@ -2305,12 +2499,13 @@ async def _play_dynamic_prompt(
     )
     result = await client.play_safe(session.channel_id, media)
     if result["ok"]:
-        if stage == DialogStage.NAME:
+        if _requires_prompt_playback_barrier(stage):
             playback_id = _playback_id_from_result(result)
-            if not await _wait_for_name_playback_barrier(
+            if not await _wait_for_prompt_playback_barrier(
                 client,
                 app_name,
                 session,
+                stage,
                 media,
                 playback_id,
                 prompt_text,
@@ -2494,12 +2689,13 @@ async def _play_prompt(
     result = await client.play_safe(session.channel_id, media)
 
     if result["ok"]:
-        if stage == DialogStage.NAME:
+        if _requires_prompt_playback_barrier(stage):
             playback_id = _playback_id_from_result(result)
-            if not await _wait_for_name_playback_barrier(
+            if not await _wait_for_prompt_playback_barrier(
                 client,
                 app_name,
                 session,
+                stage,
                 media,
                 playback_id,
                 prompt_text,
