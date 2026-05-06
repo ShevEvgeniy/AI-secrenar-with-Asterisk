@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from ..config.settings import Settings
 from ..core.runner import run_pipeline, run_pipeline_from_transcript
@@ -293,6 +293,8 @@ class RecordingEarlyStopPolicy:
     min_talking_ms: int
     min_recording_ms: int
     require_talking_started: bool
+    talk_detect_silence_ms: int = 0
+    talk_detect_talking_threshold: int = 128
     reason: str = ""
 
     def details(self) -> dict[str, Any]:
@@ -302,8 +304,19 @@ class RecordingEarlyStopPolicy:
             "min_talking_ms": self.min_talking_ms,
             "min_recording_ms": self.min_recording_ms,
             "require_talking_started": self.require_talking_started,
+            "talk_detect_silence_ms": self.talk_detect_silence_ms,
+            "talk_detect_talking_threshold": self.talk_detect_talking_threshold,
             "reason": self.reason,
         }
+
+
+@dataclass
+class RecordingEventSubscription:
+    queue: asyncio.Queue[dict[str, Any]]
+    unsubscribe: Callable[[asyncio.Queue[dict[str, Any]]], None]
+
+    def close(self) -> None:
+        self.unsubscribe(self.queue)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -364,24 +377,27 @@ def _recording_early_stop_enabled() -> bool:
     return os.getenv("RECORDING_EARLY_STOP_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _talk_detect_value() -> str:
-    return os.getenv("TALK_DETECT_SET_VALUE", "2500,128").strip() or "2500,128"
+def _talk_detect_value_for_policy(policy: RecordingEarlyStopPolicy) -> str:
+    override = os.getenv("TALK_DETECT_SET_VALUE", "").strip()
+    if override:
+        return override
+    return f"{policy.talk_detect_silence_ms},{policy.talk_detect_talking_threshold}"
 
 
 def _recording_early_stop_policy_for_stage(stage: DialogStage) -> RecordingEarlyStopPolicy:
     if not _recording_early_stop_enabled():
-        return RecordingEarlyStopPolicy(False, 0, 0, 0, True, "disabled")
+        return RecordingEarlyStopPolicy(False, 0, 0, 0, True, 0, 128, "disabled")
     if stage == DialogStage.NAME:
-        return RecordingEarlyStopPolicy(True, 550, 150, 500, True, "short_slot")
+        return RecordingEarlyStopPolicy(True, 550, 150, 500, True, 350, 128, "short_slot")
     if stage == DialogStage.CITY:
-        return RecordingEarlyStopPolicy(True, 900, 200, 700, True, "short_slot")
+        return RecordingEarlyStopPolicy(True, 900, 200, 700, True, 600, 128, "short_slot")
     if stage == DialogStage.PHONE_CONFIRM:
-        return RecordingEarlyStopPolicy(True, 450, 100, 350, True, "yes_no")
+        return RecordingEarlyStopPolicy(True, 450, 100, 350, True, 300, 128, "yes_no")
     if stage == DialogStage.ISSUE:
-        return RecordingEarlyStopPolicy(True, 1800, 500, 2500, True, "free_form_conservative")
+        return RecordingEarlyStopPolicy(True, 1600, 500, 2500, True, 900, 128, "free_form_conservative")
     if stage == DialogStage.PHONE:
-        return RecordingEarlyStopPolicy(False, 2800, 800, 7000, True, "phone_digit_safety_skip")
-    return RecordingEarlyStopPolicy(False, 0, 0, 0, True, "unsupported_stage")
+        return RecordingEarlyStopPolicy(False, 2800, 800, 7000, True, 0, 128, "phone_digit_safety_skip")
+    return RecordingEarlyStopPolicy(False, 0, 0, 0, True, 0, 128, "unsupported_stage")
 
 
 def _publish_total_timeout_sec() -> int:
@@ -512,7 +528,7 @@ async def _maybe_enable_talk_detect(
             details={"stage": stage.value, "turn_idx": turn_idx, **policy.details()},
         )
         return False
-    value = _talk_detect_value()
+    value = _talk_detect_value_for_policy(policy)
     session.log_event(
         action="talk_detect_enable_attempt",
         status="start",
@@ -536,6 +552,47 @@ async def _maybe_enable_talk_detect(
     return False
 
 
+async def _open_recording_event_subscription(
+    client: AriClient,
+    app_name: str,
+    session: CallSession,
+    *,
+    stage: DialogStage,
+    turn_idx: int,
+    record_name: str,
+    policy: RecordingEarlyStopPolicy,
+    talk_detect_enabled: bool,
+) -> RecordingEventSubscription | None:
+    if not (policy.enabled and talk_detect_enabled):
+        return None
+    subscribe = getattr(client, "_subscribe_ws", None)
+    unsubscribe = getattr(client, "_unsubscribe_ws", None)
+    if not callable(subscribe) or not callable(unsubscribe):
+        session.log_event(
+            action="talk_detect_unavailable",
+            status="skipped",
+            reason="ari_client_event_subscription_unavailable",
+            details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+        )
+        return None
+    try:
+        queue = await subscribe(app_name=app_name, subscribe_all=True)
+    except Exception as exc:
+        session.log_event(
+            action="talk_detect_unavailable",
+            status="fail",
+            reason="ari_client_event_subscription_failed",
+            details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, "error": repr(exc)},
+        )
+        return None
+    session.log_event(
+        action="talk_detect_event_subscription_started",
+        status="ok",
+        details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+    )
+    return RecordingEventSubscription(queue=queue, unsubscribe=unsubscribe)
+
+
 async def _wait_for_recording_with_optional_early_stop(
     client: AriClient,
     app_name: str,
@@ -548,22 +605,15 @@ async def _wait_for_recording_with_optional_early_stop(
     policy: RecordingEarlyStopPolicy,
     talk_detect_enabled: bool,
     record_start: float,
+    event_subscription: RecordingEventSubscription | None = None,
 ) -> dict[str, Any]:
     if not (policy.enabled and talk_detect_enabled):
         return await client.wait_for_recording_finished(app_name, record_name, timeout=timeout)
 
-    subscribe = getattr(client, "_subscribe_ws", None)
-    unsubscribe = getattr(client, "_unsubscribe_ws", None)
     stop_safe = getattr(client, "stop_live_recording_safe", None)
-    if not callable(subscribe) or not callable(unsubscribe):
-        session.log_event(
-            action="talk_detect_unavailable",
-            status="skipped",
-            reason="ari_client_event_subscription_unavailable",
-            details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
-        )
-        return await client.wait_for_recording_finished(app_name, record_name, timeout=timeout)
     if not callable(stop_safe):
+        if event_subscription is not None:
+            event_subscription.close()
         session.log_event(
             action="recording_stop_method_selected",
             status="fail",
@@ -585,7 +635,21 @@ async def _wait_for_recording_with_optional_early_stop(
     )
 
     async def _wait() -> dict[str, Any]:
-        queue = await subscribe(app_name=app_name, subscribe_all=True)
+        subscription = event_subscription
+        if subscription is None:
+            subscription = await _open_recording_event_subscription(
+                client,
+                app_name,
+                session,
+                stage=stage,
+                turn_idx=turn_idx,
+                record_name=record_name,
+                policy=policy,
+                talk_detect_enabled=talk_detect_enabled,
+            )
+        if subscription is None:
+            return await client.wait_for_recording_finished(app_name, record_name, timeout=timeout)
+        queue = subscription.queue
         talking_started_at: float | None = None
         talking_finished_at: float | None = None
         stop_task: asyncio.Task[dict[str, Any]] | None = None
@@ -612,6 +676,13 @@ async def _wait_for_recording_with_optional_early_stop(
                                     "record_name": record_name,
                                     "recording_tail_ms": int((time.perf_counter() - (talking_finished_at or record_start)) * 1000),
                                 },
+                            )
+                        elif stop_result.get("reason") == "event_pending_during_guard":
+                            session.log_event(
+                                action="recording_early_stop_skipped",
+                                status="skipped",
+                                reason="event_pending_during_guard",
+                                details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
                             )
                         else:
                             session.log_event(
@@ -700,6 +771,8 @@ async def _wait_for_recording_with_optional_early_stop(
                 stop_attempted = True
                 async def _guarded_stop() -> dict[str, Any]:
                     await asyncio.sleep(policy.stable_silence_ms / 1000)
+                    if not queue.empty():
+                        return {"ok": False, "reason": "event_pending_during_guard", "http_status": None, "details": {}}
                     session.log_event(
                         action="recording_early_stop_attempt",
                         status="start",
@@ -714,7 +787,7 @@ async def _wait_for_recording_with_optional_early_stop(
 
                 stop_task = asyncio.create_task(_guarded_stop())
         finally:
-            unsubscribe(queue)
+            subscription.close()
             if stop_task is not None and not stop_task.done():
                 stop_task.cancel()
 
@@ -2718,6 +2791,16 @@ async def handle_call(
                     },
                 )
                 record_name = f"{call_id}_{stage.value.lower()}_utt{turn_idx}"
+                event_subscription = await _open_recording_event_subscription(
+                    client,
+                    app_name,
+                    session,
+                    stage=stage,
+                    turn_idx=turn_idx,
+                    record_name=record_name,
+                    policy=early_stop_policy,
+                    talk_detect_enabled=talk_detect_enabled,
+                )
                 record_start = time.perf_counter()
                 record_result = await client.record_safe(
                     channel_id,
@@ -2727,6 +2810,8 @@ async def handle_call(
                     beep=record_beep,
                 )
                 if not record_result["ok"]:
+                    if event_subscription is not None:
+                        event_subscription.close()
                     if record_result.get("reason") == "channel_gone":
                         session.transition(CallState.DONE, action="channel_gone", status="ok")
                         return
@@ -2752,6 +2837,7 @@ async def handle_call(
                         policy=early_stop_policy,
                         talk_detect_enabled=talk_detect_enabled,
                         record_start=record_start,
+                        event_subscription=event_subscription,
                     )
                 except TimeoutError:
                     event = {"type": "timeout"}

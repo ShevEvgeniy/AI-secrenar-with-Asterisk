@@ -48,9 +48,18 @@ def test_recording_early_stop_policy_by_stage(monkeypatch) -> None:
     assert ari_app._recording_early_stop_policy_for_stage(DialogStage.CITY).enabled is True
     assert ari_app._recording_early_stop_policy_for_stage(DialogStage.PHONE_CONFIRM).enabled is True
     assert ari_app._recording_early_stop_policy_for_stage(DialogStage.ISSUE).enabled is True
+    assert ari_app._talk_detect_value_for_policy(
+        ari_app._recording_early_stop_policy_for_stage(DialogStage.PHONE_CONFIRM)
+    ) == "300,128"
     phone_policy = ari_app._recording_early_stop_policy_for_stage(DialogStage.PHONE)
     assert phone_policy.enabled is False
     assert phone_policy.reason == "phone_digit_safety_skip"
+
+    monkeypatch.setenv("TALK_DETECT_SET_VALUE", "1200,256")
+    assert ari_app._talk_detect_value_for_policy(
+        ari_app._recording_early_stop_policy_for_stage(DialogStage.NAME)
+    ) == "1200,256"
+    monkeypatch.delenv("TALK_DETECT_SET_VALUE", raising=False)
 
     monkeypatch.setenv("RECORDING_EARLY_STOP_ENABLED", "0")
     assert ari_app._recording_early_stop_policy_for_stage(DialogStage.NAME).enabled is False
@@ -103,6 +112,7 @@ class _TalkDetectClient(_LatencyClient):
         self.queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self.stop_calls: list[str] = []
         self.set_variables: list[tuple[str, str, str]] = []
+        self.unsubscribed = 0
 
     async def set_channel_variable_safe(self, channel_id: str, variable: str, value: str) -> dict[str, Any]:
         self.set_variables.append((channel_id, variable, value))
@@ -114,9 +124,11 @@ class _TalkDetectClient(_LatencyClient):
         return {"ok": True, "reason": "ok", "http_status": 200, "details": {}}
 
     async def _subscribe_ws(self, *_args: Any, **_kwargs: Any) -> asyncio.Queue[dict[str, Any]]:
+        self.calls.append("subscribe")
         return self.queue
 
     def _unsubscribe_ws(self, _queue: asyncio.Queue[dict[str, Any]]) -> None:
+        self.unsubscribed += 1
         return None
 
 
@@ -388,6 +400,35 @@ def test_talk_detect_early_stop_stores_recording_after_stable_silence(monkeypatc
     assert used["details"]["recording_tail_ms"] >= 0
 
 
+def test_talk_detect_event_subscription_opens_before_record_start(tmp_path: Path) -> None:
+    session = CallSession(call_id="call-talk-subscribe", channel_id="ch-talk-subscribe", artifact_dir=tmp_path / "artifacts")
+    client = _TalkDetectClient()
+    policy = ari_app._recording_early_stop_policy_for_stage(DialogStage.NAME)
+
+    async def run() -> None:
+        enabled = await ari_app._maybe_enable_talk_detect(client, session, DialogStage.NAME, 1, policy)
+        subscription = await ari_app._open_recording_event_subscription(
+            client,
+            "app",
+            session,
+            stage=DialogStage.NAME,
+            turn_idx=1,
+            record_name="rec-subscribe",
+            policy=policy,
+            talk_detect_enabled=enabled,
+        )
+        assert subscription is not None
+        await client.record_safe("ch-talk-subscribe", "rec-subscribe")
+        subscription.close()
+
+    asyncio.run(run())
+    events = _read_events(session)
+
+    assert client.calls[:2] == ["subscribe", "record:rec-subscribe"]
+    assert client.unsubscribed == 1
+    assert any(item["action"] == "talk_detect_event_subscription_started" for item in events)
+
+
 def test_talk_detect_guard_cancels_when_speech_resumes(tmp_path: Path) -> None:
     session = CallSession(call_id="call-talk-resume", channel_id="ch-talk-resume", artifact_dir=tmp_path / "artifacts")
     client = _TalkDetectClient()
@@ -459,7 +500,7 @@ def test_talk_detect_unavailable_falls_back_to_recording_wait(tmp_path: Path) ->
 def test_recording_safe_stop_unavailable_skips_early_stop(tmp_path: Path) -> None:
     session = CallSession(call_id="call-no-stop", channel_id="ch-no-stop", artifact_dir=tmp_path / "artifacts")
     client = _NoSafeStopTalkClient()
-    policy = ari_app.RecordingEarlyStopPolicy(True, 1, 0, 0, True, "test")
+    policy = ari_app.RecordingEarlyStopPolicy(True, 1, 0, 0, True, reason="test")
 
     async def run() -> dict[str, Any]:
         await client.queue.put({"type": "RecordingFinished", "recording": {"name": "rec-no-stop"}})
