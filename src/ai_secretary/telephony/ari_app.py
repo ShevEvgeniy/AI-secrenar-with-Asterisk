@@ -392,11 +392,11 @@ def _recording_early_stop_policy_for_stage(stage: DialogStage) -> RecordingEarly
     if not _recording_early_stop_enabled():
         return RecordingEarlyStopPolicy(False, 0, 0, 0, True, 0, 128, "disabled")
     if stage == DialogStage.NAME:
-        return RecordingEarlyStopPolicy(True, 550, 150, 500, True, 350, 128, "short_slot")
+        return RecordingEarlyStopPolicy(True, 350, 120, 400, True, 250, 128, "short_slot")
     if stage == DialogStage.CITY:
-        return RecordingEarlyStopPolicy(True, 900, 200, 700, True, 600, 128, "short_slot")
+        return RecordingEarlyStopPolicy(True, 500, 150, 500, True, 350, 128, "short_slot")
     if stage == DialogStage.PHONE_CONFIRM:
-        return RecordingEarlyStopPolicy(True, 450, 100, 350, True, 300, 128, "yes_no")
+        return RecordingEarlyStopPolicy(True, 300, 80, 250, True, 220, 128, "yes_no")
     if stage == DialogStage.INTENT_CLARIFY:
         return RecordingEarlyStopPolicy(True, 550, 150, 500, True, 350, 128, "short_slot")
     if stage == DialogStage.ISSUE:
@@ -750,6 +750,14 @@ async def _wait_for_recording_with_optional_early_stop(
                 if _event_channel_id(event) != session.channel_id:
                     continue
                 if event_type == "ChannelTalkingStarted":
+                    if stop_task is not None and not stop_task.done() and talk_state["out_of_order_finished"]:
+                        session.log_event(
+                            action="talk_detect_event_order_anomaly",
+                            status="handled",
+                            reason="late_started_after_finished",
+                            details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+                        )
+                        continue
                     talk_state["started"] = True
                     if stop_task is not None and not stop_task.done():
                         stop_task.cancel()

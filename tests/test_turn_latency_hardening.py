@@ -53,7 +53,7 @@ def test_recording_early_stop_policy_by_stage(monkeypatch) -> None:
     assert intent_policy.reason == "short_slot"
     assert ari_app._talk_detect_value_for_policy(
         ari_app._recording_early_stop_policy_for_stage(DialogStage.PHONE_CONFIRM)
-    ) == "300,128"
+    ) == "220,128"
     phone_policy = ari_app._recording_early_stop_policy_for_stage(DialogStage.PHONE)
     assert phone_policy.enabled is False
     assert phone_policy.reason == "phone_digit_safety_skip"
@@ -515,6 +515,54 @@ def test_talk_detect_out_of_order_finished_allows_cautious_early_stop(tmp_path: 
     assert event["type"] == "RecordingFinished"
     assert client.stop_calls == ["rec-order"]
     assert any(item["action"] == "talk_detect_event_order_anomaly" for item in events)
+    assert any(item["action"] == "recording_early_stop_used" for item in events)
+
+
+def test_talk_detect_late_started_after_finished_does_not_cancel_guard(tmp_path: Path) -> None:
+    session = CallSession(call_id="call-talk-late-start", channel_id="ch-talk-late-start", artifact_dir=tmp_path / "artifacts")
+    client = _TalkDetectClient()
+    policy = ari_app.RecordingEarlyStopPolicy(
+        enabled=True,
+        stable_silence_ms=10,
+        min_talking_ms=150,
+        min_recording_ms=0,
+        require_talking_started=True,
+        reason="test",
+    )
+
+    async def run() -> dict[str, Any]:
+        await client.queue.put({"type": "ChannelTalkingFinished", "channel": {"id": "ch-talk-late-start"}})
+        await client.queue.put({"type": "ChannelTalkingStarted", "channel": {"id": "ch-talk-late-start"}})
+        return await ari_app._wait_for_recording_with_optional_early_stop(
+            client,
+            "app",
+            session,
+            record_name="rec-late-start",
+            stage=DialogStage.NAME,
+            turn_idx=1,
+            timeout=1,
+            policy=policy,
+            talk_detect_enabled=True,
+            record_start=time.perf_counter() - 1,
+        )
+
+    event = asyncio.run(run())
+    events = _read_events(session)
+
+    assert event["type"] == "RecordingFinished"
+    assert client.stop_calls == ["rec-late-start"]
+    assert any(
+        item["action"] == "talk_detect_event_order_anomaly" and item["reason"] == "finished_before_started"
+        for item in events
+    )
+    assert any(
+        item["action"] == "talk_detect_event_order_anomaly" and item["reason"] == "late_started_after_finished"
+        for item in events
+    )
+    assert not any(
+        item["action"] == "recording_early_stop_skipped" and item["reason"] == "speech_resumed_during_guard"
+        for item in events
+    )
     assert any(item["action"] == "recording_early_stop_used" for item in events)
 
 
