@@ -425,6 +425,21 @@ def _city_early_stop_min_audio_bytes() -> int:
     return value if value > 0 else 2048
 
 
+def _phone_confirm_early_stop_min_audio_bytes() -> int:
+    value = _env_int("PHONE_CONFIRM_EARLY_STOP_MIN_AUDIO_BYTES", 2048)
+    return value if value > 0 else 2048
+
+
+def _early_stop_download_retry_count() -> int:
+    value = _env_int("EARLY_STOP_DOWNLOAD_RETRY_COUNT", 3)
+    return value if value > 0 else 3
+
+
+def _early_stop_download_retry_base_ms() -> int:
+    value = _env_int("EARLY_STOP_DOWNLOAD_RETRY_BASE_MS", 120)
+    return value if value > 0 else 120
+
+
 def _name_guard_delay_ms() -> int:
     return _env_int("NAME_GUARD_DELAY_MS", DEFAULT_NAME_GUARD_DELAY_MS)
 
@@ -769,6 +784,7 @@ async def _wait_for_recording_with_optional_early_stop(
                                     stale_event = candidate
                             return _complete_from_early_stop(stale_event)
                         elif stop_result.get("reason") == "event_pending_during_guard":
+                            stop_attempted = False
                             session.log_event(
                                 action="recording_early_stop_skipped",
                                 status="skipped",
@@ -1840,19 +1856,34 @@ async def _play_phone_confirmation_prompt(
     latency_context: dict[str, Any] | None = None,
 ) -> tuple[bool, bool]:
     system_sounds = _system_sounds_snapshot()
-    missing_fast_path = _phone_confirm_fast_path_missing(session.dialog.profile, system_sounds)
+    short_retry_prompt = session.dialog.profile.get("phone_confirm_retry_prompt")
+    short_retry_prompt_active = isinstance(short_retry_prompt, str) and bool(short_retry_prompt)
+    if short_retry_prompt_active:
+        session.log_event(
+            action="phone_confirm_short_retry_prompt",
+            status="ok",
+            details={
+                **_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+                "prompt_text": short_retry_prompt,
+                "fast_path_bypassed": True,
+            },
+        )
+        missing_fast_path = [PHONE_CONFIRM_PREFIX_SOUND_ID]
+    else:
+        missing_fast_path = _phone_confirm_fast_path_missing(session.dialog.profile, system_sounds)
     if not missing_fast_path:
         return await _play_phone_confirmation_fast_prompt(client, app_name, session, moh_started, latency_context)
-    session.log_event(
-        action="phone_confirm_fast_path_unavailable",
-        status="handled",
-        reason="missing_static_media",
-        details={
-            **_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
-            "phone_digits_present": bool(session.dialog.profile.get("phone_digits")),
-            "missing_static_media": missing_fast_path,
-        },
-    )
+    if not short_retry_prompt_active:
+        session.log_event(
+            action="phone_confirm_fast_path_unavailable",
+            status="handled",
+            reason="missing_static_media",
+            details={
+                **_latency_context_details(latency_context, playback_stage=DialogStage.PHONE_CONFIRM),
+                "phone_digits_present": bool(session.dialog.profile.get("phone_digits")),
+                "missing_static_media": missing_fast_path,
+            },
+        )
 
     prompt_text = next_prompt(DialogStage.PHONE_CONFIRM, session.dialog.profile)
     started = time.perf_counter()
@@ -2843,6 +2874,8 @@ async def _download_transcription_artifact(
     turn_idx: int,
     record_name: str,
     dest_path: Path,
+    *,
+    early_stop_completion: bool = False,
 ) -> TranscriptionArtifact:
     if dest_path.exists():
         dest_path.unlink()
@@ -2858,7 +2891,57 @@ async def _download_transcription_artifact(
         )
 
     download_start = time.perf_counter()
-    await client.download_recording(record_name, dest_path.as_posix())
+    retry_count = _early_stop_download_retry_count() if early_stop_completion else 0
+    attempt = 0
+    while True:
+        try:
+            await client.download_recording(record_name, dest_path.as_posix())
+            break
+        except Exception as exc:
+            if not early_stop_completion or attempt >= retry_count:
+                if early_stop_completion:
+                    session.log_event(
+                        action="recording_download_unavailable_after_early_stop",
+                        status="handled",
+                        reason=repr(exc),
+                        details={
+                            "stage": stage.value,
+                            "turn_idx": turn_idx,
+                            "record_name": record_name,
+                            "attempt": attempt + 1,
+                            "retry_count": retry_count,
+                        },
+                    )
+                raise
+            attempt += 1
+            delay_ms = _early_stop_download_retry_base_ms() * attempt
+            session.log_event(
+                action="recording_download_retry",
+                status="retry",
+                reason=repr(exc),
+                details={
+                    "stage": stage.value,
+                    "turn_idx": turn_idx,
+                    "record_name": record_name,
+                    "attempt": attempt,
+                    "retry_count": retry_count,
+                    "delay_ms": delay_ms,
+                },
+            )
+            await asyncio.sleep(delay_ms / 1000)
+    if attempt:
+        session.log_event(
+            action="recording_download_ready_after_retry",
+            status="ok",
+            dur_ms=int((time.perf_counter() - download_start) * 1000),
+            details={
+                "stage": stage.value,
+                "turn_idx": turn_idx,
+                "record_name": record_name,
+                "attempt": attempt + 1,
+                "retry_count": retry_count,
+            },
+        )
     if not dest_path.exists():
         raise FileNotFoundError(f"recording download did not create {dest_path}")
     size_bytes = dest_path.stat().st_size
@@ -3176,6 +3259,7 @@ async def handle_call(
                             turn_idx,
                             record_name,
                             turn_audio,
+                            early_stop_completion=event.get("recording_completion_source") == "talk_detect_early_stop",
                         )
                     except Exception as exc:
                         session.log_event(
@@ -3224,6 +3308,25 @@ async def handle_call(
                                 artifact,
                             )
                             stt_ms = int((time.perf_counter() - stt_start) * 1000)
+                            phone_confirm_min_audio_bytes = _phone_confirm_early_stop_min_audio_bytes()
+                            if (
+                                stage == DialogStage.PHONE_CONFIRM
+                                and event.get("recording_early_stop_used") is True
+                                and artifact.size_bytes < phone_confirm_min_audio_bytes
+                                and not transcript_text.strip()
+                            ):
+                                transcript_details = {
+                                    **transcript_details,
+                                    "reason": "phone_confirm_early_stopped_audio_too_tiny",
+                                    "min_audio_bytes": phone_confirm_min_audio_bytes,
+                                    "normal_stage_outcome": True,
+                                }
+                                session.log_event(
+                                    action="phone_confirm_early_stop_audio_sanity",
+                                    status="handled",
+                                    reason="phone_confirm_early_stopped_audio_too_tiny",
+                                    details=transcript_details,
+                                )
                 transcript_status = "ok" if transcript_text else "unavailable"
                 stage_latency_context = {
                     "stage": stage.value,

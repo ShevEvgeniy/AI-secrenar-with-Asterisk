@@ -11,6 +11,7 @@ from ai_secretary.telephony.dialog import (
     NAME_MAX_RETRIES,
     NAME_RETRY_PROMPTS,
     PHONE_CONFIRM_MAX_RETRIES,
+    PHONE_CONFIRM_SHORT_RETRY_PROMPT,
     PHONE_RETRY_PROMPTS,
     REQUIRED_STAGE_MAX_RETRIES,
     apply_turn,
@@ -451,3 +452,27 @@ def test_phone_confirm_prompt_uses_tts_safe_spoken_digits() -> None:
         "Правильно ли я записала ваш номер: девять, два, ноль, ноль, три, два, ноль, три, пять, пять?"
     )
     assert next_prompt(state, profile) == phone_confirm_prompt_text(profile)
+
+
+def test_empty_phone_confirmation_uses_short_retry_prompt_without_confirming() -> None:
+    state, profile = apply_turn(DialogStage.PHONE, {}, "920.032.0355")
+    assert state == DialogStage.PHONE_CONFIRM
+
+    state, profile = apply_turn(state, profile, "")
+
+    assert state == DialogStage.PHONE_CONFIRM
+    assert profile["phone_confirmed"] is False
+    assert profile["phone_confirm_retry_reason"] == "empty_transcript"
+    assert next_prompt(state, profile) == PHONE_CONFIRM_SHORT_RETRY_PROMPT
+
+
+def test_positive_phone_confirmation_clears_short_retry_prompt() -> None:
+    state, profile = apply_turn(DialogStage.PHONE, {}, "920.032.0355")
+    state, profile = apply_turn(state, profile, "")
+    assert state == DialogStage.PHONE_CONFIRM
+
+    state, profile = apply_turn(state, profile, "верно")
+
+    assert state == DialogStage.DONE
+    assert profile["phone_confirmed"] is True
+    assert "phone_confirm_retry_prompt" not in profile

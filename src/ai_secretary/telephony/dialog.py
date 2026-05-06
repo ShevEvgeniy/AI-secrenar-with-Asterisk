@@ -17,6 +17,7 @@ INTENT_CLARIFY_MAX_RETRIES = 2
 REQUIRED_STAGE_MAX_RETRIES = 3
 PHONE_CONFIRM_MAX_RETRIES = 2
 PHONE_CONFIRM_FAILURE_CYCLE_LIMIT = 2
+PHONE_CONFIRM_SHORT_RETRY_PROMPT = "Скажите, пожалуйста, верно?"
 NAME_JUNK_TOKENS = {"you", "yeah", "yes", "yep", "yup", "no", "ok", "okay", "test", "hello", "hi"}
 NAME_MAX_RETRIES = 3
 NAME_LEXICON: dict[str, str] = {
@@ -213,6 +214,9 @@ def next_prompt(state: DialogStage, profile: dict[str, Any]) -> str:
         if isinstance(retry_prompt, str) and retry_prompt:
             return retry_prompt
     if state == DialogStage.PHONE_CONFIRM:
+        retry_prompt = profile.get("phone_confirm_retry_prompt")
+        if isinstance(retry_prompt, str) and retry_prompt:
+            return retry_prompt
         phone_text = phone_confirm_prompt_text(profile)
         if phone_text:
             return phone_text
@@ -548,6 +552,16 @@ def _clear_phone_retry_prompt(profile: dict[str, Any]) -> None:
     profile.pop("phone_retry_prompt", None)
 
 
+def _set_phone_confirm_retry_prompt(profile: dict[str, Any], reason: str) -> None:
+    profile["phone_confirm_retry_reason"] = reason
+    profile["phone_confirm_retry_prompt"] = PHONE_CONFIRM_SHORT_RETRY_PROMPT
+
+
+def _clear_phone_confirm_retry_prompt(profile: dict[str, Any]) -> None:
+    profile.pop("phone_confirm_retry_reason", None)
+    profile.pop("phone_confirm_retry_prompt", None)
+
+
 def _format_phone_for_confirmation(digits: str) -> str:
     display_digits = digits
     if len(digits) == 10:
@@ -728,6 +742,7 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
             updated["phone_spoken"] = phone_digits_to_spoken_ru(digits)
             updated["phone_confirmed"] = False
             _clear_phone_retry_prompt(updated)
+            _clear_phone_confirm_retry_prompt(updated)
             _clear_phone_policy_retries(updated)
             return DialogStage.PHONE_CONFIRM, updated
         if _is_meta_repair(text):
@@ -755,17 +770,20 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
         if _is_meta_repair(text):
             updated["phone_confirmed"] = False
             _set_phone_retry_prompt(updated, "meta_repair")
+            _clear_phone_confirm_retry_prompt(updated)
             if _mark_phone_confirm_failure(updated, "meta_repair") >= PHONE_CONFIRM_FAILURE_CYCLE_LIMIT:
                 return _safe_finish(updated, "phone_retry_limit", state)
             return DialogStage.PHONE, updated
         if _is_negative_confirmation(text):
             updated["phone_confirmed"] = False
             _set_phone_retry_prompt(updated, "rejected")
+            _clear_phone_confirm_retry_prompt(updated)
             if _mark_phone_confirm_failure(updated, "rejected") >= PHONE_CONFIRM_FAILURE_CYCLE_LIMIT:
                 return _safe_finish(updated, "phone_retry_limit", state)
             return DialogStage.PHONE, updated
         if _is_positive_confirmation(text) and updated.get("phone_digits"):
             _clear_stage_retry(updated, state)
+            _clear_phone_confirm_retry_prompt(updated)
             updated.pop("phone_confirm_failure_count", None)
             updated.pop("phone_confirm_failure_limit", None)
             updated.pop("phone_confirm_failure_reason", None)
@@ -774,11 +792,14 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
         retry_count = _stage_retry(updated, state, "empty_transcript" if _is_empty_or_timeout(text) else "unclear_confirmation")
         if retry_count >= retry_limit_for_stage(state):
             updated["phone_confirmed"] = False
+            _clear_phone_confirm_retry_prompt(updated)
             _set_phone_retry_prompt(updated, "unclear")
             _clear_stage_retry(updated, state)
             if _mark_phone_confirm_failure(updated, "unclear") >= PHONE_CONFIRM_FAILURE_CYCLE_LIMIT:
                 return _safe_finish(updated, "phone_retry_limit", state)
             return DialogStage.PHONE, updated
+        if _is_empty_or_timeout(text) and updated.get("phone_digits"):
+            _set_phone_confirm_retry_prompt(updated, "empty_transcript")
         return DialogStage.PHONE_CONFIRM, updated
     return DialogStage.DONE, updated
 

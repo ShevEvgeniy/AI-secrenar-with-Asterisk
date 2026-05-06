@@ -145,6 +145,19 @@ class _FailStopTalkClient(_TalkDetectClient):
         return {"ok": False, "reason": "recording_missing", "http_status": 404, "details": {}}
 
 
+class _FlakyDownloadClient(_LatencyClient):
+    def __init__(self, failures_before_ready: int) -> None:
+        super().__init__()
+        self.failures_before_ready = failures_before_ready
+        self.download_attempts = 0
+
+    async def download_recording(self, _name: str, dest_path: str) -> None:
+        self.download_attempts += 1
+        if self.download_attempts <= self.failures_before_ready:
+            raise RuntimeError("404 Not Found")
+        Path(dest_path).write_bytes(b"RIFF" + (b"\0" * 4096))
+
+
 class _SlowStopLateFinishClient(_TalkDetectClient):
     async def stop_live_recording_safe(self, name: str) -> dict[str, Any]:
         self.stop_calls.append(name)
@@ -382,6 +395,155 @@ def test_phone_confirm_falls_back_to_dynamic_prompt_when_static_digits_unavailab
     assert any(path.endswith("/phone_confirm_prompt.wav") for path in publish_calls)
 
 
+def test_phone_confirm_short_retry_prompt_bypasses_full_digit_replay(monkeypatch, tmp_path: Path) -> None:
+    ari_app._reset_fallback_cache_for_tests()
+    monkeypatch.setenv("PHONE_CONFIRM_GUARD_DELAY_MS", "0")
+    for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sound_id] = True
+
+    prompt_texts: list[str] = []
+
+    class _FakeTTS:
+        def synthesize(self, text: str) -> bytes:
+            prompt_texts.append(text)
+            return b"RIFFshort"
+
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: {
+            "ok": True,
+            "sound_id": "sound:ai_secretary/call-confirm-short/phone_confirm_prompt",
+            "remote_path": "/tmp/phone_confirm_prompt.wav",
+            "error": None,
+            "details": {},
+        },
+    )
+
+    session = CallSession(call_id="call-confirm-short", channel_id="ch-confirm-short", artifact_dir=tmp_path / "artifacts")
+    session.dialog.stage = DialogStage.PHONE_CONFIRM
+    session.dialog.profile = {
+        "phone_digits": "9200320355",
+        "phone_spoken": "девять, два, ноль, ноль, три, два, ноль, три, пять, пять",
+        "phone_confirm_retry_prompt": "Скажите, пожалуйста, верно?",
+    }
+    client = _LatencyClient()
+
+    ok, _moh_started = asyncio.run(
+        ari_app._play_prompt(
+            client,
+            _settings(tmp_path),
+            "app",
+            session,
+            DialogStage.PHONE_CONFIRM,
+            ari_app._system_sounds_snapshot(),
+            False,
+        )
+    )
+    events = _read_events(session)
+
+    assert ok is True
+    assert prompt_texts == ["Скажите, пожалуйста, верно?"]
+    assert client.played_media == ["sound:ai_secretary/call-confirm-short/phone_confirm_prompt"]
+    assert not any(event["action"] == "phone_confirm_fast_path_used" for event in events)
+    assert any(event["action"] == "phone_confirm_short_retry_prompt" for event in events)
+    play_prompt = next(event for event in events if event["action"] == "play_prompt")
+    assert play_prompt["details"]["prompt_text"] == "Скажите, пожалуйста, верно?"
+
+
+def test_phone_confirm_tiny_early_stop_empty_asr_does_not_confirm_and_uses_short_retry(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    ari_app._reset_fallback_cache_for_tests()
+    monkeypatch.setenv("PLAY_TEST", "0")
+    monkeypatch.setenv("PHONE_CONFIRM_GUARD_DELAY_MS", "0")
+    monkeypatch.setenv("PHONE_CONFIRM_EARLY_STOP_MIN_AUDIO_BYTES", "2048")
+    for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sound_id] = True
+
+    phone_confirm_calls = 0
+
+    async def fake_wait_for_recording(
+        _client: Any,
+        _app_name: str,
+        _session: CallSession,
+        *,
+        record_name: str,
+        stage: DialogStage,
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        if stage == DialogStage.PHONE_CONFIRM and "phone_confirm_utt5" in record_name:
+            return {
+                "type": "RecordingFinished",
+                "recording": {"name": record_name},
+                "recording_early_stop_used": True,
+                "recording_completion_source": "talk_detect_early_stop",
+            }
+        return {"type": "RecordingFinished", "recording": {"name": record_name}, "recording_completion_source": "normal_record_done"}
+
+    def fake_transcribe(_settings: Settings, artifact: ari_app.TranscriptionArtifact) -> tuple[str, dict[str, Any]]:
+        nonlocal phone_confirm_calls
+        if artifact.stage == DialogStage.ISSUE:
+            return "Need cylinders", artifact.details()
+        if artifact.stage == DialogStage.NAME:
+            return "Ivan Petrov", artifact.details()
+        if artifact.stage == DialogStage.CITY:
+            return "from Moscow", artifact.details()
+        if artifact.stage == DialogStage.PHONE:
+            return "920.032.0355", artifact.details()
+        if artifact.stage == DialogStage.PHONE_CONFIRM:
+            phone_confirm_calls += 1
+            if phone_confirm_calls == 1:
+                return "", {**artifact.details(), "reason": "empty_transcript"}
+            return "\u0434\u0430", artifact.details()
+        return "", artifact.details()
+
+    prompt_texts: list[str] = []
+
+    class _FakeTTS:
+        def synthesize(self, text: str) -> bytes:
+            prompt_texts.append(text)
+            return b"RIFFshort"
+
+    monkeypatch.setattr(ari_app, "_wait_for_recording_with_optional_early_stop", fake_wait_for_recording)
+    monkeypatch.setattr(ari_app, "_transcribe_audio_artifact", fake_transcribe)
+    monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: {
+            "ok": True,
+            "sound_id": "sound:ai_secretary/call-confirm-tiny/phone_confirm_prompt",
+            "remote_path": "/tmp/phone_confirm_prompt.wav",
+            "error": None,
+            "details": {},
+        },
+    )
+
+    session = CallSession(call_id="call-confirm-tiny", channel_id="ch-confirm-tiny", artifact_dir=tmp_path / "artifacts")
+    client = _LatencyClient()
+
+    asyncio.run(ari_app.handle_call(client, _settings(tmp_path), "app", session))
+    events = _read_events(session)
+
+    first_confirm = [
+        item for item in events if item["action"] == "user_transcribed" and item["details"].get("stage") == "PHONE_CONFIRM"
+    ][0]
+    assert first_confirm["status"] == "unavailable"
+    assert first_confirm["reason"] == "phone_confirm_early_stopped_audio_too_tiny"
+    first_confirm_decision = [
+        item for item in events if item["action"] == "dialog_decision" and item["details"].get("from_stage") == "PHONE_CONFIRM"
+    ][0]
+    assert first_confirm_decision["details"]["to_stage"] == "PHONE_CONFIRM"
+    assert any(event["action"] == "phone_confirm_early_stop_audio_sanity" for event in events)
+    assert any(event["action"] == "phone_confirm_short_retry_prompt" for event in events)
+    assert prompt_texts == ["Скажите, пожалуйста, верно?"]
+    transfer = next(item for item in events if item["action"] == "transfer")
+    assert transfer["status"] == "ok"
+
+
 def test_latency_silence_risk_thresholds_are_logged(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("LATENCY_SILENCE_WARN_MS", "5")
     monkeypatch.setenv("LATENCY_SILENCE_CRITICAL_MS", "10")
@@ -411,6 +573,59 @@ def test_latency_silence_risk_thresholds_are_logged(monkeypatch, tmp_path: Path)
     assert risk["details"]["stage"] == "PHONE"
     assert risk["details"]["playback_stage"] == "PHONE_CONFIRM"
     assert risk["details"]["speech_to_playback_start_ms"] >= 10
+
+
+def test_early_stop_download_404_retries_until_ready(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("EARLY_STOP_DOWNLOAD_RETRY_COUNT", "2")
+    monkeypatch.setenv("EARLY_STOP_DOWNLOAD_RETRY_BASE_MS", "1")
+    session = CallSession(call_id="call-download-ready", channel_id="ch-download-ready", artifact_dir=tmp_path / "artifacts")
+    client = _FlakyDownloadClient(failures_before_ready=1)
+
+    artifact = asyncio.run(
+        ari_app._download_transcription_artifact(
+            client,
+            session,
+            DialogStage.CITY,
+            3,
+            "rec-city-ready",
+            tmp_path / "turn_3.wav",
+            early_stop_completion=True,
+        )
+    )
+    events = _read_events(session)
+
+    assert client.download_attempts == 2
+    assert artifact.size_bytes > 2048
+    assert any(item["action"] == "recording_download_retry" for item in events)
+    assert any(item["action"] == "recording_download_ready_after_retry" for item in events)
+    assert not any(item["action"] == "recording_download_unavailable_after_early_stop" for item in events)
+
+
+def test_early_stop_download_404_reports_unavailable_after_retries(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("EARLY_STOP_DOWNLOAD_RETRY_COUNT", "1")
+    monkeypatch.setenv("EARLY_STOP_DOWNLOAD_RETRY_BASE_MS", "1")
+    session = CallSession(call_id="call-download-missing", channel_id="ch-download-missing", artifact_dir=tmp_path / "artifacts")
+    client = _FlakyDownloadClient(failures_before_ready=3)
+
+    try:
+        asyncio.run(
+            ari_app._download_transcription_artifact(
+                client,
+                session,
+                DialogStage.CITY,
+                3,
+                "rec-city-missing",
+                tmp_path / "turn_3.wav",
+                early_stop_completion=True,
+            )
+        )
+    except RuntimeError:
+        pass
+    events = _read_events(session)
+
+    assert client.download_attempts == 2
+    assert any(item["action"] == "recording_download_retry" for item in events)
+    assert any(item["action"] == "recording_download_unavailable_after_early_stop" for item in events)
 
 
 def test_talk_detect_early_stop_stores_recording_after_stable_silence(monkeypatch, tmp_path: Path) -> None:
