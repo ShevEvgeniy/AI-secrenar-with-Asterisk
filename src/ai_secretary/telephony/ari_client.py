@@ -274,6 +274,40 @@ class AriClient:
             ),
         )
 
+    async def set_channel_variable(self, channel_id: str, variable: str, value: str) -> dict[str, Any]:
+        """Set a channel variable via ARI."""
+        url = self._http_url(f"/channels/{channel_id}/variable")
+        async with httpx.AsyncClient(auth=(self.username, self.password), timeout=10.0) as client:
+            response = await client.post(url, params={"variable": variable, "value": value})
+            response.raise_for_status()
+            try:
+                return response.json()
+            except Exception:
+                return {}
+
+    async def set_channel_variable_safe(self, channel_id: str, variable: str, value: str) -> dict[str, Any]:
+        """Set a channel variable with structured non-throwing result."""
+        return await self._safe_call(
+            "set_channel_variable",
+            channel_id,
+            lambda: self.set_channel_variable(channel_id, variable=variable, value=value),
+        )
+
+    async def stop_live_recording(self, name: str) -> dict[str, Any]:
+        """Stop a live recording and store it."""
+        url = self._http_url(f"/recordings/live/{name}/stop")
+        async with httpx.AsyncClient(auth=(self.username, self.password), timeout=10.0) as client:
+            response = await client.post(url)
+            response.raise_for_status()
+            try:
+                return response.json()
+            except Exception:
+                return {}
+
+    async def stop_live_recording_safe(self, name: str) -> dict[str, Any]:
+        """Stop a live recording and store it with structured non-throwing result."""
+        return await self._safe_call("recording_stop", "", lambda: self.stop_live_recording(name))
+
     async def continue_in_dialplan(
         self,
         channel_id: str,

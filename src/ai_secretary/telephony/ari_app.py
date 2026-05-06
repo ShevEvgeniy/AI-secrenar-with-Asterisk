@@ -284,6 +284,28 @@ class RecordProfile:
         }
 
 
+@dataclass(frozen=True)
+class RecordingEarlyStopPolicy:
+    """Stage-specific TALK_DETECT early-stop contour."""
+
+    enabled: bool
+    stable_silence_ms: int
+    min_talking_ms: int
+    min_recording_ms: int
+    require_talking_started: bool
+    reason: str = ""
+
+    def details(self) -> dict[str, Any]:
+        return {
+            "enabled": self.enabled,
+            "stable_silence_ms": self.stable_silence_ms,
+            "min_talking_ms": self.min_talking_ms,
+            "min_recording_ms": self.min_recording_ms,
+            "require_talking_started": self.require_talking_started,
+            "reason": self.reason,
+        }
+
+
 def _env_int(name: str, default: int) -> int:
     raw = os.getenv(name, str(default)).strip()
     try:
@@ -336,6 +358,30 @@ def _record_profile_for_stage(stage: DialogStage) -> RecordProfile:
         max_silence_seconds=max_silence,
         wait_timeout_seconds=wait_timeout,
     )
+
+
+def _recording_early_stop_enabled() -> bool:
+    return os.getenv("RECORDING_EARLY_STOP_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _talk_detect_value() -> str:
+    return os.getenv("TALK_DETECT_SET_VALUE", "2500,128").strip() or "2500,128"
+
+
+def _recording_early_stop_policy_for_stage(stage: DialogStage) -> RecordingEarlyStopPolicy:
+    if not _recording_early_stop_enabled():
+        return RecordingEarlyStopPolicy(False, 0, 0, 0, True, "disabled")
+    if stage == DialogStage.NAME:
+        return RecordingEarlyStopPolicy(True, 550, 150, 500, True, "short_slot")
+    if stage == DialogStage.CITY:
+        return RecordingEarlyStopPolicy(True, 900, 200, 700, True, "short_slot")
+    if stage == DialogStage.PHONE_CONFIRM:
+        return RecordingEarlyStopPolicy(True, 450, 100, 350, True, "yes_no")
+    if stage == DialogStage.ISSUE:
+        return RecordingEarlyStopPolicy(True, 1800, 500, 2500, True, "free_form_conservative")
+    if stage == DialogStage.PHONE:
+        return RecordingEarlyStopPolicy(False, 2800, 800, 7000, True, "phone_digit_safety_skip")
+    return RecordingEarlyStopPolicy(False, 0, 0, 0, True, "unsupported_stage")
 
 
 def _publish_total_timeout_sec() -> int:
@@ -423,6 +469,256 @@ def _playback_id_from_result(result: dict[str, Any]) -> str:
     payload = details.get("payload") or {}
     playback_id = payload.get("id")
     return str(playback_id or "")
+
+
+def _event_channel_id(event: dict[str, Any]) -> str:
+    channel = event.get("channel")
+    if isinstance(channel, dict):
+        value = channel.get("id")
+        if value:
+            return str(value)
+    channel = event.get("channel_id")
+    if channel:
+        return str(channel)
+    return ""
+
+
+async def _maybe_enable_talk_detect(
+    client: AriClient,
+    session: CallSession,
+    stage: DialogStage,
+    turn_idx: int,
+    policy: RecordingEarlyStopPolicy,
+) -> bool:
+    session.log_event(
+        action="recording_policy_selected",
+        status="ok",
+        details={"stage": stage.value, "turn_idx": turn_idx, **policy.details()},
+    )
+    if not policy.enabled:
+        session.log_event(
+            action="recording_early_stop_skipped",
+            status="skipped",
+            reason=policy.reason or "policy_disabled",
+            details={"stage": stage.value, "turn_idx": turn_idx, **policy.details()},
+        )
+        return False
+    setter = getattr(client, "set_channel_variable_safe", None)
+    if not callable(setter):
+        session.log_event(
+            action="talk_detect_unavailable",
+            status="skipped",
+            reason="ari_client_set_variable_unavailable",
+            details={"stage": stage.value, "turn_idx": turn_idx, **policy.details()},
+        )
+        return False
+    value = _talk_detect_value()
+    session.log_event(
+        action="talk_detect_enable_attempt",
+        status="start",
+        details={"stage": stage.value, "turn_idx": turn_idx, "variable": "TALK_DETECT(set)", "value": value},
+    )
+    result = await setter(session.channel_id, "TALK_DETECT(set)", value)
+    if result.get("ok"):
+        session.log_event(
+            action="talk_detect_enabled",
+            status="ok",
+            details={"stage": stage.value, "turn_idx": turn_idx, "variable": "TALK_DETECT(set)", "value": value},
+        )
+        return True
+    session.log_event(
+        action="talk_detect_unavailable",
+        status="fail",
+        reason=result.get("reason") or "set_variable_failed",
+        http_status=result.get("http_status"),
+        details={"stage": stage.value, "turn_idx": turn_idx, **(result.get("details") or {})},
+    )
+    return False
+
+
+async def _wait_for_recording_with_optional_early_stop(
+    client: AriClient,
+    app_name: str,
+    session: CallSession,
+    *,
+    record_name: str,
+    stage: DialogStage,
+    turn_idx: int,
+    timeout: int,
+    policy: RecordingEarlyStopPolicy,
+    talk_detect_enabled: bool,
+    record_start: float,
+) -> dict[str, Any]:
+    if not (policy.enabled and talk_detect_enabled):
+        return await client.wait_for_recording_finished(app_name, record_name, timeout=timeout)
+
+    subscribe = getattr(client, "_subscribe_ws", None)
+    unsubscribe = getattr(client, "_unsubscribe_ws", None)
+    stop_safe = getattr(client, "stop_live_recording_safe", None)
+    if not callable(subscribe) or not callable(unsubscribe):
+        session.log_event(
+            action="talk_detect_unavailable",
+            status="skipped",
+            reason="ari_client_event_subscription_unavailable",
+            details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+        )
+        return await client.wait_for_recording_finished(app_name, record_name, timeout=timeout)
+    if not callable(stop_safe):
+        session.log_event(
+            action="recording_stop_method_selected",
+            status="fail",
+            reason="safe_stop_unavailable",
+            details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+        )
+        session.log_event(
+            action="recording_early_stop_skipped",
+            status="skipped",
+            reason="safe_stop_unavailable",
+            details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+        )
+        return await client.wait_for_recording_finished(app_name, record_name, timeout=timeout)
+
+    session.log_event(
+        action="recording_stop_method_selected",
+        status="ok",
+        details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, "method": "live_recording_stop_store"},
+    )
+
+    async def _wait() -> dict[str, Any]:
+        queue = await subscribe(app_name=app_name, subscribe_all=True)
+        talking_started_at: float | None = None
+        talking_finished_at: float | None = None
+        stop_task: asyncio.Task[dict[str, Any]] | None = None
+        stop_attempted = False
+        try:
+            while True:
+                if stop_task is None:
+                    event = await queue.get()
+                else:
+                    queue_task = asyncio.create_task(queue.get())
+                    done, pending = await asyncio.wait({queue_task, stop_task}, return_when=asyncio.FIRST_COMPLETED)
+                    if stop_task in done:
+                        if queue_task in pending:
+                            queue_task.cancel()
+                        stop_result = stop_task.result()
+                        if stop_result.get("ok"):
+                            session.log_event(
+                                action="recording_early_stop_used",
+                                status="ok",
+                                dur_ms=int((time.perf_counter() - record_start) * 1000),
+                                details={
+                                    "stage": stage.value,
+                                    "turn_idx": turn_idx,
+                                    "record_name": record_name,
+                                    "recording_tail_ms": int((time.perf_counter() - (talking_finished_at or record_start)) * 1000),
+                                },
+                            )
+                        else:
+                            session.log_event(
+                                action="recording_early_stop_failed",
+                                status="fail",
+                                reason=stop_result.get("reason"),
+                                http_status=stop_result.get("http_status"),
+                                details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, **(stop_result.get("details") or {})},
+                            )
+                        stop_task = None
+                        if queue_task in done and not queue_task.cancelled():
+                            event = queue_task.result()
+                        else:
+                            continue
+                    else:
+                        event = queue_task.result()
+
+                if event.get("type") == "__ws_closed__":
+                    return {}
+                event_type = event.get("type")
+                recording = event.get("recording", {})
+                if isinstance(recording, dict) and recording.get("name") == record_name:
+                    if event_type in {"RecordingFinished", "RecordingFailed"}:
+                        if stop_task is not None and not stop_task.done():
+                            stop_task.cancel()
+                        return event
+                    continue
+                if _event_channel_id(event) != session.channel_id:
+                    continue
+                if event_type == "ChannelTalkingStarted":
+                    if stop_task is not None and not stop_task.done():
+                        stop_task.cancel()
+                        stop_task = None
+                        stop_attempted = False
+                        session.log_event(
+                            action="recording_early_stop_skipped",
+                            status="skipped",
+                            reason="speech_resumed_during_guard",
+                            details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+                        )
+                    talking_started_at = time.perf_counter()
+                    session.log_event(
+                        action="channel_talking_started",
+                        status="ok",
+                        details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+                    )
+                    continue
+                if event_type != "ChannelTalkingFinished":
+                    continue
+                finished_at = time.perf_counter()
+                talking_finished_at = finished_at
+                talking_ms = int((finished_at - talking_started_at) * 1000) if talking_started_at else None
+                elapsed_ms = int((finished_at - record_start) * 1000)
+                session.log_event(
+                    action="channel_talking_finished",
+                    status="ok",
+                    dur_ms=talking_ms,
+                    details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, "elapsed_ms": elapsed_ms},
+                )
+                if policy.require_talking_started and talking_started_at is None:
+                    session.log_event(
+                        action="recording_early_stop_skipped",
+                        status="skipped",
+                        reason="talking_started_missing",
+                        details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name},
+                    )
+                    continue
+                if talking_ms is not None and talking_ms < policy.min_talking_ms:
+                    session.log_event(
+                        action="recording_early_stop_skipped",
+                        status="skipped",
+                        reason="talking_too_short",
+                        details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, "talking_ms": talking_ms, **policy.details()},
+                    )
+                    continue
+                if elapsed_ms < policy.min_recording_ms:
+                    session.log_event(
+                        action="recording_early_stop_skipped",
+                        status="skipped",
+                        reason="recording_too_short",
+                        details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, "elapsed_ms": elapsed_ms, **policy.details()},
+                    )
+                    continue
+                if stop_attempted:
+                    continue
+                stop_attempted = True
+                async def _guarded_stop() -> dict[str, Any]:
+                    await asyncio.sleep(policy.stable_silence_ms / 1000)
+                    session.log_event(
+                        action="recording_early_stop_attempt",
+                        status="start",
+                        details={
+                            "stage": stage.value,
+                            "turn_idx": turn_idx,
+                            "record_name": record_name,
+                            "stable_silence_ms": policy.stable_silence_ms,
+                        },
+                    )
+                    return await stop_safe(record_name)
+
+                stop_task = asyncio.create_task(_guarded_stop())
+        finally:
+            unsubscribe(queue)
+            if stop_task is not None and not stop_task.done():
+                stop_task.cancel()
+
+    return await asyncio.wait_for(_wait(), timeout=timeout)
 
 
 def _latency_silence_warn_ms() -> int:
@@ -2403,6 +2699,14 @@ async def handle_call(
                 moh_started = await _maybe_stop_moh(client, session, moh_started)
 
                 record_profile = _record_profile_for_stage(stage)
+                early_stop_policy = _recording_early_stop_policy_for_stage(stage)
+                talk_detect_enabled = await _maybe_enable_talk_detect(
+                    client,
+                    session,
+                    stage,
+                    turn_idx,
+                    early_stop_policy,
+                )
                 session.transition(
                     CallState.RECORDING,
                     action="record_start",
@@ -2437,10 +2741,17 @@ async def handle_call(
                     return
 
                 try:
-                    event = await client.wait_for_recording_finished(
+                    event = await _wait_for_recording_with_optional_early_stop(
+                        client,
                         app_name,
-                        record_name,
+                        session,
+                        record_name=record_name,
+                        stage=stage,
+                        turn_idx=turn_idx,
                         timeout=record_profile.wait_timeout_seconds,
+                        policy=early_stop_policy,
+                        talk_detect_enabled=talk_detect_enabled,
+                        record_start=record_start,
                     )
                 except TimeoutError:
                     event = {"type": "timeout"}
