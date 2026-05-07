@@ -221,7 +221,7 @@ def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tm
     transcripts = {
         DialogStage.ISSUE: "Need cylinders",
         DialogStage.NAME: "Ivan Petrov",
-        DialogStage.CITY: "from Moscow",
+        DialogStage.CITY: "Москва",
         DialogStage.PHONE: "920.032.0355",
         DialogStage.PHONE_CONFIRM: "да",
     }
@@ -352,7 +352,7 @@ def test_phone_confirm_falls_back_to_dynamic_prompt_when_static_digits_unavailab
     transcripts = {
         DialogStage.ISSUE: "Need cylinders",
         DialogStage.NAME: "Ivan Petrov",
-        DialogStage.CITY: "from Moscow",
+        DialogStage.CITY: "Москва",
         DialogStage.PHONE: "920.032.0355",
         DialogStage.PHONE_CONFIRM: "да",
     }
@@ -490,7 +490,7 @@ def test_phone_confirm_tiny_early_stop_empty_asr_does_not_confirm_and_uses_short
         if artifact.stage == DialogStage.NAME:
             return "Ivan Petrov", artifact.details()
         if artifact.stage == DialogStage.CITY:
-            return "from Moscow", artifact.details()
+            return "Москва", artifact.details()
         if artifact.stage == DialogStage.PHONE:
             return "920.032.0355", artifact.details()
         if artifact.stage == DialogStage.PHONE_CONFIRM:
@@ -912,7 +912,7 @@ def test_city_tiny_early_stopped_audio_retries_instead_of_accepting_transcript(m
     for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
         ari_app._system_sound_status[sound_id] = True
 
-    city_transcripts = iter(["from Moscow"])
+    city_transcripts = iter(["Thank you.", "Москва"])
 
     def fake_transcribe(_settings: Settings, artifact: ari_app.TranscriptionArtifact) -> tuple[str, dict[str, Any]]:
         if artifact.stage == DialogStage.ISSUE:
@@ -951,7 +951,7 @@ def test_city_tiny_early_stopped_audio_retries_instead_of_accepting_transcript(m
     asyncio.run(ari_app.handle_call(client, _settings(tmp_path), "app", session))
     events = _read_events(session)
 
-    assert client.city_downloads == 2
+    assert client.city_downloads == 3
     city_record_done = [
         item for item in events if item["action"] == "record_done" and item["details"].get("stage") == "CITY"
     ]
@@ -976,11 +976,25 @@ def test_city_tiny_early_stopped_audio_retries_instead_of_accepting_transcript(m
     assert city_transcripts_seen[0]["status"] == "unavailable"
     assert city_transcripts_seen[0]["details"]["text"] == ""
     assert city_transcripts_seen[0]["reason"] == "early_stopped_audio_too_tiny"
-    assert city_transcripts_seen[1]["details"]["text"] == "from Moscow"
+    assert city_transcripts_seen[1]["details"]["text"] == "Thank you."
+    assert city_transcripts_seen[2]["details"]["text"] == "Москва"
     assert any(
         item["action"] == "dialog_decision"
         and item["details"].get("from_stage") == "CITY"
         and item["details"].get("to_stage") == "CITY"
+        for item in events
+    )
+    assert any(item["action"] == "city_retry_reliable_mode_selected" for item in events)
+    assert any(item["action"] == "city_retry_reliable_mode_used" for item in events)
+    assert any(
+        item["action"] == "city_transcript_rejected"
+        and item["details"].get("raw_transcript") == "Thank you."
+        and item["details"].get("next_stage") == "CITY"
+        for item in events
+    )
+    assert any(
+        item["action"] == "invalid_city_transcript"
+        and item["reason"] == "latin_only"
         for item in events
     )
     transfer = next(item for item in events if item["action"] == "transfer")

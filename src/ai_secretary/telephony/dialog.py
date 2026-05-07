@@ -8,9 +8,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .call_session import DialogStage
+from .city_lexicon import validate_city_transcript
 from .routing import ALLOWED_DEPARTMENTS, classify_department_intent
 
-MIN_CITY_LETTERS = 4
 PHONE_DIGIT_LENGTHS = {10, 11}
 ISSUE_MAX_RETRIES = 2
 INTENT_CLARIFY_MAX_RETRIES = 2
@@ -18,6 +18,16 @@ REQUIRED_STAGE_MAX_RETRIES = 3
 PHONE_CONFIRM_MAX_RETRIES = 2
 PHONE_CONFIRM_FAILURE_CYCLE_LIMIT = 2
 PHONE_CONFIRM_SHORT_RETRY_PROMPT = "Скажите, пожалуйста, верно?"
+CITY_RETRY_PROMPTS: dict[str, tuple[str, ...]] = {
+    "invalid_city_transcript": (
+        "Не расслышала город или регион. Повторите, пожалуйста, название города или региона.",
+        "Назовите, пожалуйста, город или регион ещё раз.",
+    ),
+    "empty_transcript": (
+        "Извините, я не услышала город. Из какого города или региона вы звоните?",
+        "Повторите, пожалуйста, город или регион.",
+    ),
+}
 NAME_JUNK_TOKENS = {"you", "yeah", "yes", "yep", "yup", "no", "ok", "okay", "test", "hello", "hi"}
 NAME_MAX_RETRIES = 3
 NAME_LEXICON: dict[str, str] = {
@@ -207,6 +217,10 @@ def next_prompt(state: DialogStage, profile: dict[str, Any]) -> str:
         return early_prompt
     if state == DialogStage.NAME:
         retry_prompt = profile.get("name_retry_prompt")
+        if isinstance(retry_prompt, str) and retry_prompt:
+            return retry_prompt
+    if state == DialogStage.CITY:
+        retry_prompt = profile.get("city_retry_prompt")
         if isinstance(retry_prompt, str) and retry_prompt:
             return retry_prompt
     if state == DialogStage.PHONE:
@@ -479,17 +493,36 @@ def _is_name_meta_repair(text: str) -> bool:
     return any(re.search(pattern, normalized) for pattern in NAME_META_REPAIR_PATTERNS)
 
 
-def _extract_city(text: str) -> str | None:
-    m = re.search(r"(?:из|с)\s+([А-ЯЁA-Z][а-яёa-z-]+(?:\s+[А-ЯЁA-Z][а-яёa-z-]+)?)", text, flags=re.IGNORECASE)
-    if m:
-        return m.group(1).strip()
-    candidate = text.strip()
-    if not candidate or not re.search(r"[А-ЯЁA-Zа-яёa-z]", candidate):
-        return None
-    letters = re.findall(r"[А-ЯЁA-Zа-яёa-z]", candidate)
-    if len(letters) < MIN_CITY_LETTERS:
-        return None
-    return candidate
+def _set_city_validation(profile: dict[str, Any], text: str) -> str | None:
+    result = validate_city_transcript(text)
+    profile["city_validation_raw"] = result.raw_text
+    profile["city_validation_normalized"] = result.normalized_text
+    profile["city_validation_reason"] = result.reason
+    profile["city_validation_accepted"] = result.accepted
+    profile["city_validation_lexicon_matched"] = result.lexicon_matched
+    profile["city_validation_alias_matched"] = result.alias_matched
+    if result.canonical:
+        profile["city_validation_canonical"] = result.canonical
+    else:
+        profile.pop("city_validation_canonical", None)
+    return result.canonical if result.accepted else None
+
+
+def _set_city_retry_prompt(profile: dict[str, Any], reason: str) -> None:
+    prompt_key = "empty_transcript" if reason == "empty_transcript" else "invalid_city_transcript"
+    prompts = CITY_RETRY_PROMPTS[prompt_key]
+    previous = profile.get("city_last_retry_prompt")
+    prompt = prompts[0]
+    if prompt == previous and len(prompts) > 1:
+        prompt = prompts[1]
+    profile["city_retry_reason"] = reason
+    profile["city_retry_prompt"] = prompt
+    profile["city_last_retry_prompt"] = prompt
+
+
+def _clear_city_retry_prompt(profile: dict[str, Any]) -> None:
+    profile.pop("city_retry_reason", None)
+    profile.pop("city_retry_prompt", None)
 
 
 def _valid_phone_digits(digits: str) -> str | None:
@@ -717,13 +750,20 @@ def apply_turn(state: DialogStage, profile: dict[str, Any], transcript_text: str
                 _request_department_clarification(updated, DialogStage.CITY)
                 return DialogStage.INTENT_CLARIFY, updated
             return DialogStage.CITY, updated
-        city = _extract_city(text)
+        city = _set_city_validation(updated, text)
         if city:
             _clear_stage_retry(updated, state)
+            _clear_city_retry_prompt(updated)
+            updated.pop("city_retry_reliable_mode", None)
+            updated.pop("city_retry_reliable_mode_reason", None)
             updated["city"] = city
             return DialogStage.PHONE, updated
-        retry_count = _stage_retry(updated, state, "empty_transcript" if _is_empty_or_timeout(text) else "unclear_transcript")
+        validation_reason = str(updated.get("city_validation_reason") or "invalid_city_transcript")
+        retry_reason = "empty_transcript" if _is_empty_or_timeout(text) else validation_reason
+        _set_city_retry_prompt(updated, retry_reason)
+        retry_count = _stage_retry(updated, state, retry_reason)
         if retry_count >= retry_limit_for_stage(state):
+            _clear_city_retry_prompt(updated)
             return _safe_finish(updated, "city_retry_limit", state)
         return DialogStage.CITY, updated
     if state == DialogStage.PHONE:

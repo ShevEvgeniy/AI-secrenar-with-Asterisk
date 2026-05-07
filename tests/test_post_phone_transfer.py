@@ -119,7 +119,7 @@ def test_successful_phone_capture_transfers_without_generic_pipeline(monkeypatch
     transcripts = {
         DialogStage.ISSUE: "Need cylinders",
         DialogStage.NAME: "Ivan Petrov",
-        DialogStage.CITY: "from Moscow",
+        DialogStage.CITY: "Москва",
         DialogStage.PHONE: "920.032.0355",
         DialogStage.PHONE_CONFIRM: "да",
     }
@@ -252,7 +252,7 @@ def test_unconfirmed_phone_does_not_fall_through_to_generic_pipeline(monkeypatch
         transcripts = {
             DialogStage.ISSUE: "Need cylinders",
             DialogStage.NAME: "Ivan Petrov",
-            DialogStage.CITY: "from Moscow",
+            DialogStage.CITY: "Москва",
             DialogStage.PHONE: "920.032.0355" if stage_counts[artifact.stage] == 1 else "",
             DialogStage.PHONE_CONFIRM: "нет",
         }
@@ -311,7 +311,7 @@ def test_unconfirmed_phone_does_not_fall_through_to_generic_pipeline(monkeypatch
     assert records[0]["department"] == "sales"
     assert records[0]["issue"] == "Need cylinders"
     assert records[0]["name"] == "Ivan Petrov"
-    assert records[0]["city"] == "from Moscow"
+    assert records[0]["city"] == "Москва"
     assert records[0]["phone"] == "9200320355"
     assert records[0]["outcome_type"] == "safe_finish"
     assert records[0]["outcome_reason"] == "phone_retry_limit"
@@ -382,7 +382,7 @@ def test_intent_clarify_recording_timeout_defaults_without_call_flow_exception(m
     transcripts = {
         DialogStage.ISSUE: "I need help",
         DialogStage.NAME: "Ivan Petrov",
-        DialogStage.CITY: "from Moscow",
+        DialogStage.CITY: "Москва",
         DialogStage.PHONE: "920.032.0355",
         DialogStage.PHONE_CONFIRM: "да",
     }

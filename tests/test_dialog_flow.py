@@ -35,9 +35,9 @@ def test_dialog_state_transitions_typical_inputs() -> None:
     assert state == DialogStage.CITY
     assert profile["name"] == "Ivan Petrov"
 
-    state, profile = apply_turn(state, profile, "from Moscow")
+    state, profile = apply_turn(state, profile, "Москва")
     assert state == DialogStage.PHONE
-    assert profile["city"] == "from Moscow"
+    assert profile["city"] == "Москва"
 
     state, profile = apply_turn(state, profile, "My phone is 9 903 678 46 53")
     assert state == DialogStage.PHONE_CONFIRM
@@ -193,12 +193,69 @@ def test_city_reasks_when_not_confident() -> None:
 
     assert state == DialogStage.CITY
     assert profile["city_retry_count"] == 1
-    assert profile["last_retry_reason"] == "unclear_transcript"
+    assert profile["last_retry_reason"] == "city_transcript_not_plausible"
 
     state, profile = apply_turn(DialogStage.CITY, {}, "Мос")
 
     assert state == DialogStage.CITY
     assert profile["city_retry_count"] == 1
+
+
+def test_city_rejects_bogus_transcripts_and_stays_on_city() -> None:
+    for transcript in ("Thank you.", "thank you", "you", "", " ", "a", "ok", "yes", "no", "ну", "да", "нет"):
+        state, profile = apply_turn(DialogStage.CITY, {}, transcript)
+
+        assert state == DialogStage.CITY
+        assert "city" not in profile
+        assert profile["last_retry_stage"] == DialogStage.CITY.value
+        assert profile["last_retry_reason"] in {
+            "empty_transcript",
+            "latin_only",
+            "city_transcript_not_plausible",
+            "filler",
+        }
+        assert profile["city_validation_accepted"] is False
+
+
+def test_city_rejects_ambiguous_short_fragments() -> None:
+    for transcript in ("Нижний", "Ростов"):
+        state, profile = apply_turn(DialogStage.CITY, {}, transcript)
+
+        assert state == DialogStage.CITY
+        assert "city" not in profile
+        assert profile["last_retry_reason"] in {"ambiguous_fragment", "city_transcript_not_plausible"}
+
+
+def test_city_accepts_lexicon_and_aliases() -> None:
+    cases = {
+        "Москва": "Москва",
+        "Санкт-Петербург": "Санкт-Петербург",
+        "Санкт Петербург": "Санкт-Петербург",
+        "Самара": "Самара",
+        "Ростов-на-Дону": "Ростов-на-Дону",
+        "Нижний Тагил": "Нижний Тагил",
+        "Екатеринбург": "Екатеринбург",
+        "Краснодар": "Краснодар",
+        "Московская область": "Московская область",
+        "Краснодарский край": "Краснодарский край",
+        "Республика Татарстан": "Республика Татарстан",
+        "Питер": "Санкт-Петербург",
+        "СПб": "Санкт-Петербург",
+    }
+    for transcript, expected in cases.items():
+        state, profile = apply_turn(DialogStage.CITY, {}, transcript)
+
+        assert state == DialogStage.PHONE
+        assert profile["city"] == expected
+        assert profile["city_validation_accepted"] is True
+
+
+def test_invalid_city_does_not_set_city_or_advance_to_phone() -> None:
+    state, profile = apply_turn(DialogStage.CITY, {"name": "Антон"}, "Thank you.")
+
+    assert state == DialogStage.CITY
+    assert "city" not in profile
+    assert profile["last_retry_reason"] == "latin_only"
 
 
 def test_name_reasks_on_obvious_stt_junk() -> None:

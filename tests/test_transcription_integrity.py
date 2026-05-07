@@ -186,3 +186,40 @@ def test_non_name_transcription_leaves_language_and_prompt_unset(monkeypatch, tm
     assert calls[1]["transcribe"]["prompt"] is None
     assert "stt_language" not in details
     assert "stt_prompt" not in details
+
+
+def test_city_transcription_uses_russian_language_and_city_prompt(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    audio_path = tmp_path / "turn_city.wav"
+    audio_path.write_bytes(b"city-audio")
+    artifact = ari_app.TranscriptionArtifact(
+        call_id="call-city",
+        channel_id="ch-city",
+        stage=DialogStage.CITY,
+        turn_idx=3,
+        record_name="call-city_city_utt3",
+        path=audio_path,
+        size_bytes=audio_path.stat().st_size,
+        sha256=hashlib.sha256(audio_path.read_bytes()).hexdigest(),
+    )
+    calls: list[dict] = []
+
+    class _FakeWhisperClient:
+        def __init__(self, **kwargs) -> None:
+            calls.append({"init": kwargs})
+
+        def transcribe(self, audio_bytes: bytes, **kwargs) -> str:
+            calls.append({"audio_bytes": audio_bytes, "transcribe": kwargs})
+            return "Москва"
+
+    monkeypatch.setenv("TELEPHONY_STT_BACKEND", "openai")
+    monkeypatch.setattr(ari_app, "WhisperAPIClient", _FakeWhisperClient)
+
+    text, details = ari_app._transcribe_audio_artifact(settings, artifact)
+
+    assert text == "Москва"
+    assert calls[1]["transcribe"]["language"] == "ru"
+    assert "город" in calls[1]["transcribe"]["prompt"].lower()
+    assert "Москва" in calls[1]["transcribe"]["prompt"]
+    assert details["stt_language"] == "ru"
+    assert details["stt_prompt"] == ari_app.CITY_STT_PROMPT

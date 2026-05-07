@@ -85,6 +85,11 @@ NAME_STT_PROMPT = (
     "или разговорная форма имени. Примеры: Иван, Александр, Саня, Дмитрий, Ольга, "
     "Светлана Ивановна, Сергей Петрович."
 )
+CITY_STT_LANGUAGE = "ru"
+CITY_STT_PROMPT = (
+    "Ожидается название российского города или региона на русском языке, например: Москва, "
+    "Санкт-Петербург, Самара, Нижний Тагил, Ростов-на-Дону, Екатеринбург, Краснодар, Московская область."
+)
 BUILTIN_GENERAL_FALLBACK_MEDIA = ("sound:please-try-again", "sound:pls-try-call-later")
 BUILTIN_PROMPT_FALLBACK_MEDIA: dict[DialogStage, str] = {
     DialogStage.ISSUE: "sound:please-try-again",
@@ -388,12 +393,17 @@ def _talk_detect_value_for_policy(policy: RecordingEarlyStopPolicy) -> str:
     return f"{policy.talk_detect_silence_ms},{policy.talk_detect_talking_threshold}"
 
 
-def _recording_early_stop_policy_for_stage(stage: DialogStage) -> RecordingEarlyStopPolicy:
+def _recording_early_stop_policy_for_stage(
+    stage: DialogStage,
+    profile: dict[str, Any] | None = None,
+) -> RecordingEarlyStopPolicy:
     if not _recording_early_stop_enabled():
         return RecordingEarlyStopPolicy(False, 0, 0, 0, True, 0, 128, "disabled")
     if stage == DialogStage.NAME:
         return RecordingEarlyStopPolicy(True, 350, 120, 400, True, 250, 128, "short_slot")
     if stage == DialogStage.CITY:
+        if profile and profile.get("city_retry_reliable_mode"):
+            return RecordingEarlyStopPolicy(False, 1200, 400, 2500, True, 0, 128, "city_retry_reliable_mode")
         return RecordingEarlyStopPolicy(True, 800, 200, 900, True, 600, 128, "short_slot_reliable")
     if stage == DialogStage.PHONE_CONFIRM:
         return RecordingEarlyStopPolicy(True, 300, 80, 250, True, 220, 128, "yes_no")
@@ -2985,8 +2995,15 @@ def _transcribe_audio_artifact(_settings: Settings, artifact: TranscriptionArtif
     if backend in {"openai", "whisper", "whisper_api"}:
         model = os.getenv("OPENAI_TRANSCRIBE_MODEL", "whisper-1").strip() or "whisper-1"
         base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").strip()
-        language = NAME_STT_LANGUAGE if artifact.stage == DialogStage.NAME else None
-        prompt = NAME_STT_PROMPT if artifact.stage == DialogStage.NAME else None
+        if artifact.stage == DialogStage.NAME:
+            language = NAME_STT_LANGUAGE
+            prompt = NAME_STT_PROMPT
+        elif artifact.stage == DialogStage.CITY:
+            language = CITY_STT_LANGUAGE
+            prompt = CITY_STT_PROMPT
+        else:
+            language = None
+            prompt = None
         try:
             audio_bytes = artifact.path.read_bytes()
             client = WhisperAPIClient(api_key=_settings.openai_api_key, model=model, base_url=base_url)
@@ -3122,7 +3139,18 @@ async def handle_call(
                 moh_started = await _maybe_stop_moh(client, session, moh_started)
 
                 record_profile = _record_profile_for_stage(stage)
-                early_stop_policy = _recording_early_stop_policy_for_stage(stage)
+                early_stop_policy = _recording_early_stop_policy_for_stage(stage, session.dialog.profile)
+                if stage == DialogStage.CITY and early_stop_policy.reason == "city_retry_reliable_mode":
+                    session.log_event(
+                        action="city_retry_reliable_mode_used",
+                        status="ok",
+                        details={
+                            "stage": stage.value,
+                            "turn_idx": turn_idx,
+                            "policy": early_stop_policy.details(),
+                            "reason": session.dialog.profile.get("city_retry_reliable_mode_reason"),
+                        },
+                    )
                 talk_detect_enabled = await _maybe_enable_talk_detect(
                     client,
                     session,
@@ -3295,6 +3323,18 @@ async def handle_call(
                                 "min_audio_bytes": city_min_audio_bytes,
                                 "normal_stage_outcome": True,
                             }
+                            session.dialog.profile["city_retry_reliable_mode"] = True
+                            session.dialog.profile["city_retry_reliable_mode_reason"] = "early_stopped_audio_too_tiny"
+                            session.log_event(
+                                action="city_retry_reliable_mode_selected",
+                                status="ok",
+                                reason="early_stopped_audio_too_tiny",
+                                details={
+                                    **transcript_details,
+                                    "current_stage": stage.value,
+                                    "next_stage": DialogStage.CITY.value,
+                                },
+                            )
                             session.log_event(
                                 action="recording_early_stop_audio_sanity",
                                 status="handled",
@@ -3363,6 +3403,37 @@ async def handle_call(
                 decision_ms = int((time.perf_counter() - decision_start) * 1000)
                 stage_latency_context["next_stage"] = new_stage.value
                 stage_latency_context["outcome"] = "ok"
+                if stage == DialogStage.CITY and "city_validation_accepted" in new_profile:
+                    city_validation_details = {
+                        "raw_transcript": new_profile.get("city_validation_raw", transcript_text),
+                        "normalized_transcript": new_profile.get("city_validation_normalized"),
+                        "rejection_reason": new_profile.get("city_validation_reason"),
+                        "lexicon_matched": bool(new_profile.get("city_validation_lexicon_matched")),
+                        "alias_matched": bool(new_profile.get("city_validation_alias_matched")),
+                        "accepted": bool(new_profile.get("city_validation_accepted")),
+                        "canonical_city": new_profile.get("city_validation_canonical"),
+                        "current_stage": stage.value,
+                        "next_stage": new_stage.value,
+                    }
+                    session.log_event(
+                        action="city_transcript_validation",
+                        status="ok" if city_validation_details["accepted"] else "rejected",
+                        reason=str(new_profile.get("city_validation_reason") or "invalid_city_transcript"),
+                        details=city_validation_details,
+                    )
+                    if not city_validation_details["accepted"]:
+                        session.log_event(
+                            action="city_transcript_rejected",
+                            status="handled",
+                            reason=str(new_profile.get("city_validation_reason") or "invalid_city_transcript"),
+                            details=city_validation_details,
+                        )
+                        session.log_event(
+                            action="invalid_city_transcript",
+                            status="handled",
+                            reason=str(new_profile.get("city_validation_reason") or "invalid_city_transcript"),
+                            details=city_validation_details,
+                        )
                 session.log_event(
                     action="dialog_decision",
                     status="ok",
