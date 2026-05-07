@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from ai_secretary.telephony.call_session import DialogStage
+from ai_secretary.telephony import ari_app
 from ai_secretary.telephony.dialog import (
+    CITY_RETRY_PROMPTS,
     CLARIFICATION_PROMPT,
     EARLY_TRANSFER_PROMPTS,
     INTENT_CLARIFY_MAX_RETRIES,
@@ -13,6 +15,7 @@ from ai_secretary.telephony.dialog import (
     PHONE_CONFIRM_MAX_RETRIES,
     PHONE_CONFIRM_SHORT_RETRY_PROMPT,
     PHONE_RETRY_PROMPTS,
+    PROMPTS,
     REQUIRED_STAGE_MAX_RETRIES,
     apply_turn,
     normalize_name_candidate,
@@ -21,6 +24,48 @@ from ai_secretary.telephony.dialog import (
     phone_digits_to_spoken_ru,
     should_stop_dialog,
 )
+
+
+def _flatten_phrases(value: object) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        phrases: list[str] = []
+        for item in value.values():
+            phrases.extend(_flatten_phrases(item))
+        return phrases
+    if isinstance(value, (tuple, list, set)):
+        phrases = []
+        for item in value:
+            phrases.extend(_flatten_phrases(item))
+        return phrases
+    return []
+
+
+def test_caller_facing_dialog_phrases_are_russian_only() -> None:
+    phrase_sources: list[object] = [
+        PROMPTS,
+        CLARIFICATION_PROMPT,
+        EARLY_TRANSFER_PROMPTS,
+        CITY_RETRY_PROMPTS,
+        NAME_RETRY_PROMPTS,
+        PHONE_RETRY_PROMPTS,
+        PHONE_CONFIRM_SHORT_RETRY_PROMPT,
+        ari_app.PHONE_CONFIRM_PREFIX_PHRASE,
+        ari_app.PHONE_CONFIRM_SUFFIX_PHRASE,
+        ari_app.PHONE_CONFIRM_HOLDING_PHRASE,
+        ari_app.PHONE_CONFIRM_DIGIT_PHRASES,
+        ari_app.TRANSFER_PHRASES,
+        ari_app.AFTER_HOURS_PHRASES,
+        ari_app.SAFE_FINISH_BASELINE_PHRASE,
+        ari_app.SAFE_FINISH_PHRASES,
+        ari_app._SYSTEM_SOUND_TEXTS,
+    ]
+    phrases = [phrase for source in phrase_sources for phrase in _flatten_phrases(source)]
+
+    assert phrases
+    assert not [phrase for phrase in phrases if any("A" <= ch <= "Z" or "a" <= ch <= "z" for ch in phrase)]
+    assert all(any("А" <= ch <= "я" or ch == "ё" or ch == "Ё" for ch in phrase) for phrase in phrases)
 
 
 def test_dialog_state_transitions_typical_inputs() -> None:
@@ -202,7 +247,22 @@ def test_city_reasks_when_not_confident() -> None:
 
 
 def test_city_rejects_bogus_transcripts_and_stays_on_city() -> None:
-    for transcript in ("Thank you.", "thank you", "you", "", " ", "a", "ok", "yes", "no", "ну", "да", "нет"):
+    for transcript in (
+        "Thank you.",
+        "thank you",
+        "you",
+        "ok",
+        "yes",
+        "no",
+        "hello",
+        "goodbye",
+        "",
+        " ",
+        "a",
+        "ну",
+        "да",
+        "нет",
+    ):
         state, profile = apply_turn(DialogStage.CITY, {}, transcript)
 
         assert state == DialogStage.CITY
@@ -215,6 +275,18 @@ def test_city_rejects_bogus_transcripts_and_stays_on_city() -> None:
             "filler",
         }
         assert profile["city_validation_accepted"] is False
+
+
+def test_city_latin_filler_does_not_set_city_or_advance_to_phone_and_prompts_in_russian() -> None:
+    for transcript in ("Thank you.", "you", "ok", "yes", "no", "hello", "goodbye"):
+        state, profile = apply_turn(DialogStage.CITY, {}, transcript)
+
+        assert state == DialogStage.CITY
+        assert "city" not in profile
+        assert next_prompt(state, profile) in {
+            "Не расслышала город или регион. Повторите, пожалуйста, название города или региона.",
+            "Назовите, пожалуйста, город или регион ещё раз.",
+        }
 
 
 def test_city_rejects_ambiguous_short_fragments() -> None:
