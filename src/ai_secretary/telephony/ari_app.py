@@ -414,7 +414,7 @@ def _recording_early_stop_policy_for_stage(
         return RecordingEarlyStopPolicy(True, 350, 120, 400, True, 250, 128, "short_slot")
     if stage == DialogStage.CITY:
         if profile and profile.get("city_retry_reliable_mode"):
-            return RecordingEarlyStopPolicy(False, 1200, 400, 2500, True, 0, 128, "city_retry_reliable_mode")
+            return RecordingEarlyStopPolicy(True, 1400, 500, 2500, True, 1100, 128, "city_retry_conservative_talk_detect")
         return RecordingEarlyStopPolicy(True, 800, 200, 900, True, 600, 128, "short_slot_reliable")
     if stage == DialogStage.PHONE_CONFIRM:
         return RecordingEarlyStopPolicy(True, 300, 80, 250, True, 220, 128, "yes_no")
@@ -3312,9 +3312,9 @@ async def handle_call(
 
                 record_profile = _record_profile_for_stage(stage)
                 early_stop_policy = _recording_early_stop_policy_for_stage(stage, session.dialog.profile)
-                if stage == DialogStage.CITY and early_stop_policy.reason == "city_retry_reliable_mode":
+                if stage == DialogStage.CITY and early_stop_policy.reason == "city_retry_conservative_talk_detect":
                     session.log_event(
-                        action="city_retry_reliable_mode_used",
+                        action="city_retry_conservative_talk_detect_used",
                         status="ok",
                         details={
                             "stage": stage.value,
@@ -3416,6 +3416,24 @@ async def handle_call(
                             **record_profile.details(),
                         },
                     )
+                    if (
+                        stage == DialogStage.CITY
+                        and reason == "timeout"
+                        and session.dialog.profile.get("city_retry_reliable_mode")
+                    ):
+                        session.log_event(
+                            action="city_retry_record_timeout",
+                            status="handled",
+                            reason=reason,
+                            dur_ms=dur_ms,
+                            details={
+                                "stage": stage.value,
+                                "turn_idx": turn_idx,
+                                "record_name": record_name,
+                                "retry_reason": session.dialog.profile.get("city_retry_reliable_mode_reason"),
+                                **record_profile.details(),
+                            },
+                        )
                     transcript_details = {
                         "stage": stage.value,
                         "turn_idx": turn_idx,
@@ -3498,7 +3516,7 @@ async def handle_call(
                             session.dialog.profile["city_retry_reliable_mode"] = True
                             session.dialog.profile["city_retry_reliable_mode_reason"] = "early_stopped_audio_too_tiny"
                             session.log_event(
-                                action="city_retry_reliable_mode_selected",
+                                action="city_retry_conservative_talk_detect_selected",
                                 status="ok",
                                 reason="early_stopped_audio_too_tiny",
                                 details={

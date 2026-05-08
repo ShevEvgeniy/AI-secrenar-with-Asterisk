@@ -338,6 +338,10 @@ def test_city_accepts_compound_region_locality_address_answers() -> None:
         ),
         "Краснодарский край, село Новомихайловское": ("Краснодарский край", "село Новомихайловское"),
         "Республика Башкортостан, деревня Алексеевка": ("Республика Башкортостан", "деревня Алексеевка"),
+        "Владимирская область, Петушки, Красноармейская улица, 141": (
+            "Владимирская область",
+            "Петушки, Красноармейская улица, 141",
+        ),
     }
     for transcript, (expected_city, expected_detail) in cases.items():
         state, profile = apply_turn(DialogStage.CITY, {}, transcript)

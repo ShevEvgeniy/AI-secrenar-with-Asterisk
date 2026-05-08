@@ -57,6 +57,16 @@ def test_recording_early_stop_policy_by_stage(monkeypatch) -> None:
     phone_policy = ari_app._recording_early_stop_policy_for_stage(DialogStage.PHONE)
     assert phone_policy.enabled is False
     assert phone_policy.reason == "phone_digit_safety_skip"
+    city_retry_policy = ari_app._recording_early_stop_policy_for_stage(
+        DialogStage.CITY,
+        {"city_retry_reliable_mode": True},
+    )
+    assert city_retry_policy.enabled is True
+    assert city_retry_policy.reason == "city_retry_conservative_talk_detect"
+    assert city_retry_policy.stable_silence_ms == 1400
+    assert city_retry_policy.min_talking_ms == 500
+    assert city_retry_policy.min_recording_ms == 2500
+    assert city_retry_policy.talk_detect_silence_ms == 1100
 
     monkeypatch.setenv("TALK_DETECT_SET_VALUE", "1200,256")
     assert ari_app._talk_detect_value_for_policy(
@@ -199,6 +209,19 @@ class _ScriptedCityTinyEarlyStopClient(_TalkDetectClient):
                 path.write_bytes(b"RIFFtiny")
                 return
         path.write_bytes(b"RIFF" + (b"\0" * 4096))
+
+
+class _CityRetryTimeoutClient(_LatencyClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.hangups = 0
+
+    async def wait_for_recording_finished(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        return {"type": "timeout"}
+
+    async def hangup_safe(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        self.hangups += 1
+        return {"ok": True}
 
 
 def test_turn_loop_uses_stage_record_profiles_and_traces_latency(monkeypatch, tmp_path: Path) -> None:
@@ -980,8 +1003,16 @@ def test_city_tiny_early_stopped_audio_retries_instead_of_accepting_transcript(m
         and item["details"].get("to_stage") == "CITY"
         for item in events
     )
-    assert any(item["action"] == "city_retry_reliable_mode_selected" for item in events)
-    assert any(item["action"] == "city_retry_reliable_mode_used" for item in events)
+    assert any(item["action"] == "city_retry_conservative_talk_detect_selected" for item in events)
+    used_events = [item for item in events if item["action"] == "city_retry_conservative_talk_detect_used"]
+    assert used_events
+    assert used_events[0]["details"]["policy"]["enabled"] is True
+    assert used_events[0]["details"]["policy"]["reason"] == "city_retry_conservative_talk_detect"
+    assert not any(
+        item["action"] == "recording_early_stop_skipped"
+        and item["reason"] == "city_retry_reliable_mode"
+        for item in events
+    )
     assert any(
         item["action"] == "city_transcript_rejected"
         and item["details"].get("raw_transcript") == "Thank you."
@@ -1015,6 +1046,39 @@ def test_city_tiny_early_stopped_audio_retries_instead_of_accepting_transcript(m
     )
     transfer = next(item for item in events if item["action"] == "transfer")
     assert transfer["status"] == "ok"
+
+
+def test_city_retry_record_timeout_logs_conservative_retry_timeout(monkeypatch, tmp_path: Path) -> None:
+    ari_app._reset_fallback_cache_for_tests()
+    monkeypatch.setenv("PLAY_TEST", "0")
+    monkeypatch.setenv("CITY_EARLY_STOP_MIN_AUDIO_BYTES", "2048")
+    for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sound_id] = True
+
+    session = CallSession(call_id="call-city-timeout", channel_id="ch-city-timeout", artifact_dir=tmp_path / "artifacts")
+    session.dialog.stage = DialogStage.CITY
+    session.dialog.profile = {
+        "issue": "Need cylinders",
+        "name": "Ivan Petrov",
+        "city_retry_count": 2,
+        "city_retry_prompt": ari_app.CITY_RETRY_STATIC_PROMPT,
+        "city_retry_reliable_mode": True,
+        "city_retry_reliable_mode_reason": "early_stopped_audio_too_tiny",
+    }
+    client = _CityRetryTimeoutClient()
+
+    asyncio.run(ari_app.handle_call(client, _settings(tmp_path), "app", session))
+    events = _read_events(session)
+
+    assert any(item["action"] == "city_retry_conservative_talk_detect_used" for item in events)
+    assert any(
+        item["action"] == "city_retry_record_timeout"
+        and item["status"] == "handled"
+        and item["details"].get("retry_reason") == "early_stopped_audio_too_tiny"
+        for item in events
+    )
+    assert any(item["action"] == "safe_finish" and item["reason"] == "city_retry_limit" for item in events)
+    assert client.hangups == 1
 
 
 def test_talk_detect_started_without_finished_timeout_recovers_with_safe_stop(tmp_path: Path) -> None:
