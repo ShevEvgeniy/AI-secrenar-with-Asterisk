@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import base64
 from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterable
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
@@ -77,6 +78,15 @@ async def _ws_connect(url: str, headers: dict[str, str]):
         return await websockets.connect(url, extra_headers=headers)
 
 
+async def _aiter_chunks(chunks: AsyncIterable[bytes] | list[bytes]) -> AsyncIterable[bytes]:
+    if hasattr(chunks, "__aiter__"):
+        async for chunk in chunks:  # type: ignore[union-attr]
+            yield chunk
+        return
+    for chunk in chunks:
+        yield chunk
+
+
 class RealtimeWhisperAdapter:
     """Streams a WAV artifact to OpenAI Realtime transcription over WebSocket."""
 
@@ -102,6 +112,23 @@ class RealtimeWhisperAdapter:
             raise ValueError("OpenAI API key is required for realtime transcription")
 
         chunks, total_audio_ms = _read_pcm_chunks(path, self.config.sample_rate, self.config.chunk_ms)
+        return await self.transcribe_pcm_chunks(
+            chunks,
+            total_audio_ms=total_audio_ms,
+            on_metric=on_metric,
+        )
+
+    async def transcribe_pcm_chunks(
+        self,
+        chunks: AsyncIterable[bytes] | list[bytes],
+        *,
+        total_audio_ms: int = 0,
+        on_metric: Callable[[str, dict[str, Any]], None] | None = None,
+    ) -> RealtimeTranscriptionResult:
+        """Stream already-live mono 16-bit PCM chunks and return transcription details."""
+        if not self.config.api_key:
+            raise ValueError("OpenAI API key is required for realtime transcription")
+
         headers = {
             "Authorization": f"Bearer {self.config.api_key}",
             "OpenAI-Beta": "realtime=v1",
@@ -127,7 +154,7 @@ class RealtimeWhisperAdapter:
 
         async with await self._connector(self.config.websocket_url, headers) as ws:
             await ws.send(json.dumps(_session_update(self.config)))
-            for chunk in chunks:
+            async for chunk in _aiter_chunks(chunks):
                 await ws.send(
                     json.dumps(
                         {

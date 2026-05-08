@@ -15,6 +15,12 @@ from typing import Any, Callable
 from ..config.settings import Settings
 from ..core.runner import run_pipeline, run_pipeline_from_transcript
 from ..rag.embeddings import warmup_embeddings
+from ..stt.live_streaming import (
+    LiveStreamingProofResult,
+    live_streaming_config,
+    live_streaming_stage_allowed,
+    run_live_streaming_proof,
+)
 from ..stt.realtime_whisper import RealtimeTranscriptionConfig, RealtimeWhisperAdapter
 from ..stt.whisper_api import WhisperAPIClient
 from ..storage.callbacks import (
@@ -3229,8 +3235,53 @@ async def _transcribe_audio_artifact_experimental(
     settings: Settings,
     session: CallSession,
     artifact: TranscriptionArtifact,
+    live_result: LiveStreamingProofResult | None = None,
+    *,
+    recording_finished_at: float | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Use the feature-flagged streaming STT spike path or the existing batch path."""
+    live_config = live_streaming_config()
+    if live_result is not None:
+        baseline_start = time.perf_counter()
+        batch_text, batch_details = await asyncio.to_thread(_transcribe_audio_artifact, settings, artifact)
+        batch_latency_ms = int((time.perf_counter() - baseline_start) * 1000)
+        live_vs_batch_delta_ms = (
+            live_result.recording_finish_to_final_ms - batch_latency_ms
+            if live_result.recording_finish_to_final_ms is not None
+            else None
+        )
+        live_details = {
+            **batch_details,
+            **live_result.details(),
+            "stt_live_streaming_enabled": True,
+            "stt_live_streaming_use_live_transcript": live_config.use_live_transcript,
+            "stt_batch_baseline_latency_ms": batch_latency_ms,
+            "stt_live_vs_batch_delta_ms": live_vs_batch_delta_ms,
+        }
+        session.log_event(
+            action="stt_batch_baseline_latency_ms",
+            status="ok",
+            dur_ms=batch_latency_ms,
+            details={**artifact.details(), "recording_finished_at": recording_finished_at},
+        )
+        session.log_event(
+            action="stt_live_vs_batch_delta_ms",
+            status="ok",
+            dur_ms=live_vs_batch_delta_ms,
+            details=live_details,
+        )
+        if live_config.use_live_transcript and live_result.text.strip():
+            live_details["stt_backend"] = "live_streaming"
+            return live_result.text, live_details
+        live_details["stt_live_stream_fallback_to_batch"] = True
+        session.log_event(
+            action="stt_live_stream_fallback_to_batch",
+            status="handled",
+            reason="live_transcript_not_used_for_dialog",
+            details=live_details,
+        )
+        return batch_text, live_details
+
     if not _streaming_stt_enabled():
         baseline_start = time.perf_counter()
         text, details = await asyncio.to_thread(_transcribe_audio_artifact, settings, artifact)
@@ -3300,6 +3351,98 @@ async def _fallback_to_batch_stt(
         "stt_stream_error_reason": reason,
         "stt_batch_baseline_latency_ms": batch_latency_ms,
     }
+
+
+def _start_live_streaming_probe_task(
+    settings: Settings,
+    client: AriClient,
+    app_name: str,
+    session: CallSession,
+    *,
+    stage: DialogStage,
+    turn_idx: int,
+    record_name: str,
+    record_started_at: float,
+    recording_finished_at: Callable[[], float | None],
+) -> asyncio.Task[LiveStreamingProofResult] | None:
+    config = live_streaming_config()
+    base_details = {
+        "stage": stage.value,
+        "turn_idx": turn_idx,
+        "record_name": record_name,
+        "stt_live_streaming_enabled": config.enabled,
+        "stt_live_streaming_provider": config.provider,
+        "stt_live_streaming_model": config.model,
+        "stt_live_streaming_stage_allowlist": sorted(config.stage_allowlist),
+    }
+    if not config.enabled:
+        return None
+    if not live_streaming_stage_allowed(stage, config):
+        session.log_event(
+            action="stt_live_stream_probe_failed",
+            status="skipped",
+            reason="stage_not_allowlisted",
+            details=base_details,
+        )
+        return None
+
+    def log_metric(action: str, details: dict[str, Any], status: str, reason: str | None) -> None:
+        session.log_event(action=action, status=status, reason=reason, details={**base_details, **details})
+
+    async def _run() -> LiveStreamingProofResult:
+        try:
+            return await run_live_streaming_proof(
+                settings=settings,
+                client=client,
+                app_name=app_name,
+                call_id=session.call_id,
+                channel_id=session.channel_id,
+                stage=stage,
+                turn_idx=turn_idx,
+                record_name=record_name,
+                record_started_at=record_started_at,
+                recording_finished_at=recording_finished_at,
+                log_metric=log_metric,
+                config=config,
+            )
+        except Exception as exc:
+            session.log_event(
+                action="stt_live_stream_probe_failed",
+                status="handled",
+                reason="stt_live_stream_error",
+                details={**base_details, "error": repr(exc)},
+            )
+            session.log_event(
+                action="stt_live_stream_error",
+                status="handled",
+                reason="stt_live_stream_error",
+                details={**base_details, "error": repr(exc)},
+            )
+            raise
+
+    return asyncio.create_task(_run(), name=f"live-stt-proof-{session.call_id}-{turn_idx}")
+
+
+async def _finish_live_streaming_probe_task(
+    task: asyncio.Task[LiveStreamingProofResult] | None,
+    session: CallSession,
+    *,
+    stage: DialogStage,
+    turn_idx: int,
+    record_name: str,
+) -> LiveStreamingProofResult | None:
+    if task is None:
+        return None
+    try:
+        return await task
+    except Exception as exc:
+        session.log_event(
+            action="stt_live_stream_fallback_to_batch",
+            status="handled",
+            reason="stt_live_stream_error",
+            details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, "error": repr(exc)},
+        )
+        return None
 
 
 async def handle_call(
@@ -3477,6 +3620,18 @@ async def handle_call(
                     )
                     return
 
+                record_end_perf: float | None = None
+                live_stream_task = _start_live_streaming_probe_task(
+                    settings,
+                    client,
+                    app_name,
+                    session,
+                    stage=stage,
+                    turn_idx=turn_idx,
+                    record_name=record_name,
+                    record_started_at=record_start,
+                    recording_finished_at=lambda: record_end_perf,
+                )
                 try:
                     event = await _wait_for_recording_with_optional_early_stop(
                         client,
@@ -3504,6 +3659,8 @@ async def handle_call(
                 transcript_details: dict[str, Any]
                 stt_ms = 0
                 if event.get("type") != "RecordingFinished":
+                    if live_stream_task is not None and not live_stream_task.done():
+                        live_stream_task.cancel()
                     reason = event.get("type") or "recording_event_missing"
                     session.log_event(
                         action="record_wait",
@@ -3582,6 +3739,8 @@ async def handle_call(
                             early_stop_completion=event.get("recording_completion_source") == "talk_detect_early_stop",
                         )
                     except Exception as exc:
+                        if live_stream_task is not None and not live_stream_task.done():
+                            live_stream_task.cancel()
                         session.log_event(
                             action="download_recording",
                             status="handled",
@@ -3608,6 +3767,8 @@ async def handle_call(
                             and event.get("recording_early_stop_used") is True
                             and artifact.size_bytes < city_min_audio_bytes
                         ):
+                            if live_stream_task is not None and not live_stream_task.done():
+                                live_stream_task.cancel()
                             transcript_text = ""
                             transcript_details = {
                                 **artifact.details(),
@@ -3634,10 +3795,19 @@ async def handle_call(
                                 details=transcript_details,
                             )
                         else:
+                            live_result = await _finish_live_streaming_probe_task(
+                                live_stream_task,
+                                session,
+                                stage=stage,
+                                turn_idx=turn_idx,
+                                record_name=record_name,
+                            )
                             transcript_text, transcript_details = await _transcribe_audio_artifact_experimental(
                                 settings,
                                 session,
                                 artifact,
+                                live_result,
+                                recording_finished_at=record_end_perf,
                             )
                             stt_ms = int((time.perf_counter() - stt_start) * 1000)
                             phone_confirm_min_audio_bytes = _phone_confirm_early_stop_min_audio_bytes()

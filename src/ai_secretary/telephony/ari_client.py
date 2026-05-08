@@ -293,6 +293,106 @@ class AriClient:
             lambda: self.set_channel_variable(channel_id, variable=variable, value=value),
         )
 
+    async def create_bridge(self, bridge_id: str, bridge_type: str = "mixing") -> dict[str, Any]:
+        """Create an ARI bridge."""
+        url = self._http_url(f"/bridges/{bridge_id}")
+        async with httpx.AsyncClient(auth=(self.username, self.password), timeout=10.0) as client:
+            response = await client.post(url, params={"type": bridge_type})
+            response.raise_for_status()
+            try:
+                return response.json()
+            except Exception:
+                return {}
+
+    async def create_bridge_safe(self, bridge_id: str, bridge_type: str = "mixing") -> dict[str, Any]:
+        """Create a bridge with structured non-throwing result."""
+        return await self._safe_call("bridge_create", "", lambda: self.create_bridge(bridge_id, bridge_type))
+
+    async def add_channel_to_bridge(self, bridge_id: str, channel_id: str) -> dict[str, Any]:
+        """Add a channel to an ARI bridge."""
+        url = self._http_url(f"/bridges/{bridge_id}/addChannel")
+        async with httpx.AsyncClient(auth=(self.username, self.password), timeout=10.0) as client:
+            response = await client.post(url, params={"channel": channel_id})
+            response.raise_for_status()
+            try:
+                return response.json()
+            except Exception:
+                return {}
+
+    async def add_channel_to_bridge_safe(self, bridge_id: str, channel_id: str) -> dict[str, Any]:
+        """Add a channel to a bridge with structured non-throwing result."""
+        return await self._safe_call("bridge_add_channel", channel_id, lambda: self.add_channel_to_bridge(bridge_id, channel_id))
+
+    async def destroy_bridge(self, bridge_id: str) -> dict[str, Any]:
+        """Destroy an ARI bridge."""
+        url = self._http_url(f"/bridges/{bridge_id}")
+        async with httpx.AsyncClient(auth=(self.username, self.password), timeout=10.0) as client:
+            response = await client.delete(url)
+            response.raise_for_status()
+            try:
+                return response.json()
+            except Exception:
+                return {}
+
+    async def destroy_bridge_safe(self, bridge_id: str) -> dict[str, Any]:
+        """Destroy a bridge with structured non-throwing result."""
+        return await self._safe_call("bridge_destroy", "", lambda: self.destroy_bridge(bridge_id))
+
+    async def create_external_media(
+        self,
+        app_name: str,
+        external_host: str,
+        *,
+        channel_id: str | None = None,
+        format: str = "slin16",
+        direction: str = "both",
+        encapsulation: str = "rtp",
+        transport: str = "udp",
+        connection_type: str = "client",
+    ) -> dict[str, Any]:
+        """Create an ARI externalMedia channel."""
+        url = self._http_url("/channels/externalMedia")
+        params = {
+            "app": app_name,
+            "external_host": external_host,
+            "format": format,
+            "direction": direction,
+            "encapsulation": encapsulation,
+            "transport": transport,
+            "connection_type": connection_type,
+        }
+        if channel_id:
+            params["channelId"] = channel_id
+        async with httpx.AsyncClient(auth=(self.username, self.password), timeout=10.0) as client:
+            response = await client.post(url, params=params)
+            response.raise_for_status()
+            try:
+                return response.json()
+            except Exception:
+                return {}
+
+    async def create_external_media_safe(
+        self,
+        app_name: str,
+        external_host: str,
+        *,
+        channel_id: str | None = None,
+        format: str = "slin16",
+        direction: str = "both",
+    ) -> dict[str, Any]:
+        """Create an externalMedia channel with structured non-throwing result."""
+        return await self._safe_call(
+            "external_media_create",
+            channel_id or "",
+            lambda: self.create_external_media(
+                app_name,
+                external_host,
+                channel_id=channel_id,
+                format=format,
+                direction=direction,
+            ),
+        )
+
     async def stop_live_recording(self, name: str) -> dict[str, Any]:
         """Stop a live recording and store it."""
         url = self._http_url(f"/recordings/live/{name}/stop")

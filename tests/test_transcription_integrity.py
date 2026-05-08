@@ -410,3 +410,137 @@ def test_streaming_error_falls_back_to_batch_stt(monkeypatch, tmp_path: Path) ->
     assert details["stt_batch_baseline_latency_ms"] >= 0
     assert any(event["action"] == "stt_stream_error" for event in events)
     assert any(event["action"] == "stt_stream_fallback_to_batch" for event in events)
+
+
+def test_live_streaming_feature_flag_initializes_proof_path_only_when_enabled(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    session = CallSession(call_id="call-live", channel_id="ch-live", artifact_dir=tmp_path / "artifacts")
+    calls: list[dict] = []
+
+    async def _fake_live_proof(**kwargs):
+        calls.append(kwargs)
+        return ari_app.LiveStreamingProofResult(
+            text="live text",
+            first_delta_ms=25,
+            final_ms=90,
+            chunks_sent=2,
+            audio_started_before_recording_finished=True,
+            recording_finish_to_final_ms=-120,
+        )
+
+    monkeypatch.setattr(ari_app, "run_live_streaming_proof", _fake_live_proof)
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "false")
+    assert (
+        ari_app._start_live_streaming_probe_task(
+            settings,
+            object(),
+            "app",
+            session,
+            stage=DialogStage.CITY,
+            turn_idx=1,
+            record_name="rec",
+            record_started_at=1.0,
+            recording_finished_at=lambda: 2.0,
+        )
+        is None
+    )
+
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+
+    async def _run_enabled_probe():
+        task = ari_app._start_live_streaming_probe_task(
+            settings,
+            object(),
+            "app",
+            session,
+            stage=DialogStage.CITY,
+            turn_idx=1,
+            record_name="rec",
+            record_started_at=1.0,
+            recording_finished_at=lambda: 2.0,
+        )
+        return await ari_app._finish_live_streaming_probe_task(
+            task,
+            session,
+            stage=DialogStage.CITY,
+            turn_idx=1,
+            record_name="rec",
+        )
+
+    result = asyncio.run(_run_enabled_probe())
+
+    assert result is not None
+    assert result.text == "live text"
+    assert calls[0]["stage"] == DialogStage.CITY
+
+
+def test_phone_is_excluded_from_live_streaming_by_default(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    session = CallSession(call_id="call-live-phone", channel_id="ch-live-phone", artifact_dir=tmp_path / "artifacts")
+
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+    task = ari_app._start_live_streaming_probe_task(
+        settings,
+        object(),
+        "app",
+        session,
+        stage=DialogStage.PHONE,
+        turn_idx=1,
+        record_name="rec",
+        record_started_at=1.0,
+        recording_finished_at=lambda: 2.0,
+    )
+
+    events = _read_events(session)
+    assert task is None
+    assert any(event["action"] == "stt_live_stream_probe_failed" for event in events)
+    assert any(event["details"].get("stt_live_streaming_stage_allowlist") == ["CITY", "ISSUE", "NAME", "PHONE_CONFIRM"] for event in events)
+
+
+def test_live_streaming_result_logs_baseline_delta_and_falls_back_to_batch(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    audio_path = tmp_path / "turn_city.wav"
+    audio_path.write_bytes(b"city-audio")
+    artifact = ari_app.TranscriptionArtifact(
+        call_id="call-live-fallback",
+        channel_id="ch-live-fallback",
+        stage=DialogStage.CITY,
+        turn_idx=2,
+        record_name="call-live-fallback_city_utt2",
+        path=audio_path,
+        size_bytes=audio_path.stat().st_size,
+        sha256=hashlib.sha256(audio_path.read_bytes()).hexdigest(),
+    )
+    session = CallSession(call_id="call-live-fallback", channel_id="ch-live-fallback", artifact_dir=tmp_path / "artifacts")
+    live_result = ari_app.LiveStreamingProofResult(
+        text="live city",
+        first_delta_ms=30,
+        final_ms=110,
+        chunks_sent=3,
+        audio_started_before_recording_finished=True,
+        recording_finish_to_final_ms=-50,
+    )
+
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+    monkeypatch.setenv("STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT", "false")
+    monkeypatch.setenv("TELEPHONY_STT_BACKEND", "fixture")
+    monkeypatch.setenv("TELEPHONY_STT_FIXTURE_CITY", "batch city")
+
+    text, details = asyncio.run(
+        ari_app._transcribe_audio_artifact_experimental(
+            settings,
+            session,
+            artifact,
+            live_result,
+            recording_finished_at=123.0,
+        )
+    )
+
+    events = _read_events(session)
+    assert text == "batch city"
+    assert details["stt_live_streaming_use_live_transcript"] is False
+    assert details["stt_live_stream_fallback_to_batch"] is True
+    assert details["stt_live_stream_audio_started_before_recording_finished"] is True
+    assert "stt_batch_baseline_latency_ms" in details
+    assert any(event["action"] == "stt_live_vs_batch_delta_ms" for event in events)
+    assert any(event["action"] == "stt_live_stream_fallback_to_batch" for event in events)
