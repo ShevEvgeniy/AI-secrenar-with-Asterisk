@@ -506,6 +506,10 @@ def _set_city_validation(profile: dict[str, Any], text: str) -> str | None:
         profile["city_validation_canonical"] = result.canonical
     else:
         profile.pop("city_validation_canonical", None)
+    if result.location_detail:
+        profile["location_detail"] = result.location_detail
+    else:
+        profile.pop("location_detail", None)
     return result.canonical if result.accepted else None
 
 

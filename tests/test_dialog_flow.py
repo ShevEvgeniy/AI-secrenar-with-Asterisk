@@ -320,6 +320,45 @@ def test_city_accepts_lexicon_and_aliases() -> None:
         assert profile["city_validation_accepted"] is True
 
 
+def test_city_accepts_compound_region_locality_address_answers() -> None:
+    cases = {
+        "Московская область, Одинцовский район": ("Московская область", "Одинцовский район"),
+        "Московская область Одинцовский район": ("Московская область", "Одинцовский район"),
+        "Краснодарский край, Славянский район": ("Краснодарский край", "Славянский район"),
+        "Свердловская область, город Екатеринбург": ("Свердловская область", "город Екатеринбург"),
+        "Республика Татарстан, Казань": ("Республика Татарстан", "Казань"),
+        "Тверская область, деревня Ивановка": ("Тверская область", "деревня Ивановка"),
+        "Ленинградская область, Всеволожский район, деревня Кузьмолово": (
+            "Ленинградская область",
+            "Всеволожский район, деревня Кузьмолово",
+        ),
+        "Московская область, Одинцово, улица Ленина, дом 5": (
+            "Московская область",
+            "Одинцово, улица Ленина, дом 5",
+        ),
+        "Краснодарский край, село Новомихайловское": ("Краснодарский край", "село Новомихайловское"),
+        "Республика Башкортостан, деревня Алексеевка": ("Республика Башкортостан", "деревня Алексеевка"),
+    }
+    for transcript, (expected_city, expected_detail) in cases.items():
+        state, profile = apply_turn(DialogStage.CITY, {}, transcript)
+
+        assert state == DialogStage.PHONE
+        assert profile["city"] == expected_city
+        assert profile["city_validation_canonical"] == expected_city
+        assert profile["city_validation_reason"] in {"region_with_location_detail", "city_with_location_detail"}
+        assert profile["location_detail"] == expected_detail
+
+
+def test_city_rejects_address_or_garbage_without_city_region_anchor() -> None:
+    for transcript in ("улица Ленина дом 5", "редактор субтитров", "корректор", "субтитров"):
+        state, profile = apply_turn(DialogStage.CITY, {}, transcript)
+
+        assert state == DialogStage.CITY
+        assert "city" not in profile
+        assert "location_detail" not in profile
+        assert profile["city_validation_accepted"] is False
+
+
 def test_invalid_city_does_not_set_city_or_advance_to_phone() -> None:
     state, profile = apply_turn(DialogStage.CITY, {"name": "Антон"}, "Thank you.")
 

@@ -15,6 +15,7 @@ class CityValidationResult:
     reason: str
     lexicon_matched: bool = False
     alias_matched: bool = False
+    location_detail: str | None = None
 
 
 _CITY_ALIASES: dict[str, str] = {
@@ -308,6 +309,36 @@ _FILLER_TOKENS = {
     "ээ",
 }
 
+_LOCATION_DETAIL_PATTERNS = (
+    r"\bрайон\b",
+    r"\bгородской округ\b",
+    r"\bокруг\b",
+    r"\bгород\b",
+    r"\bг\.\b",
+    r"\bдеревня\b",
+    r"\bд\.\b",
+    r"\bсело\b",
+    r"\bс\.\b",
+    r"\bпоселок\b",
+    r"\bпосёлок\b",
+    r"\bп\.\b",
+    r"\bрабочий поселок\b",
+    r"\bрабочий посёлок\b",
+    r"\bрп\b",
+    r"\bстаница\b",
+    r"\bхутор\b",
+    r"\bаул\b",
+    r"\bулица\b",
+    r"\bул\.\b",
+    r"\bпроспект\b",
+    r"\bпр-т\b",
+    r"\bпереулок\b",
+    r"\bдом\b",
+    r"\bкорпус\b",
+    r"\bстроение\b",
+    r"\bофис\b",
+)
+
 
 def normalize_city_text(text: str) -> str:
     """Normalize transcript text for exact deterministic city lookup."""
@@ -326,6 +357,91 @@ def _key(text: str) -> str:
 
 
 _CITY_LEXICON: dict[str, str] = {_key(name): name for name in _CITY_CANONICAL_NAMES}
+_ANCHOR_KEYS_BY_LENGTH = sorted(_CITY_LEXICON, key=len, reverse=True)
+
+
+def _contains_anchor(text: str) -> bool:
+    return _find_anchor(text) is not None
+
+
+def _find_anchor(text: str) -> tuple[str, str] | None:
+    for key in _ANCHOR_KEYS_BY_LENGTH:
+        if re.search(rf"(?<![а-я]){re.escape(key)}(?![а-я])", text):
+            return key, _CITY_LEXICON[key]
+    return None
+
+
+def _looks_like_location_detail(detail: str) -> bool:
+    if not detail or re.search(r"[a-z]", detail):
+        return False
+    if not re.search(r"[а-я]", detail):
+        return False
+    if any(re.search(pattern, detail) for pattern in _LOCATION_DETAIL_PATTERNS):
+        return True
+    return _contains_anchor(detail)
+
+
+def _detail_from_raw(raw: str, canonical: str) -> str:
+    raw = raw.strip(" .,!?:;\"'«»")
+    if "," in raw:
+        return raw.split(",", 1)[1].strip(" .,!?:;\"'«»")
+    pattern = r"\s+".join(re.escape(part) for part in canonical.split())
+    match = re.match(rf"^\s*(?:из|с|со)?\s*{pattern}\s+(.+)$", raw, flags=re.IGNORECASE)
+    if match:
+        return match.group(1).strip(" .,!?:;\"'«»")
+    return ""
+
+
+def _validate_compound_city(raw: str, normalized: str) -> CityValidationResult | None:
+    parts = [part.strip() for part in re.split(r"[,;]+", normalized) if part.strip()]
+    if parts:
+        first = parts[0]
+        canonical = _CITY_LEXICON.get(first) or _CITY_ALIASES.get(first)
+        if canonical and len(parts) > 1:
+            detail = " ".join(parts[1:])
+            if _looks_like_location_detail(detail):
+                return CityValidationResult(
+                    raw,
+                    normalized,
+                    True,
+                    canonical,
+                    "region_with_location_detail",
+                    lexicon_matched=first in _CITY_LEXICON,
+                    alias_matched=first in _CITY_ALIASES,
+                    location_detail=_detail_from_raw(raw, canonical),
+                )
+
+    for key in _ANCHOR_KEYS_BY_LENGTH:
+        if normalized == key:
+            continue
+        if normalized.startswith(key + " "):
+            detail = normalized[len(key) :].strip()
+            if _looks_like_location_detail(detail):
+                return CityValidationResult(
+                    raw,
+                    normalized,
+                    True,
+                    _CITY_LEXICON[key],
+                    "region_with_location_detail",
+                    lexicon_matched=True,
+                    location_detail=_detail_from_raw(raw, _CITY_LEXICON[key]),
+                )
+
+    anchor = _find_anchor(normalized)
+    if anchor:
+        key, canonical = anchor
+        detail = normalized.replace(key, " ", 1).strip()
+        if _looks_like_location_detail(detail):
+            return CityValidationResult(
+                raw,
+                normalized,
+                True,
+                canonical,
+                "city_with_location_detail",
+                lexicon_matched=True,
+                location_detail=_detail_from_raw(raw, canonical),
+            )
+    return None
 
 
 def validate_city_transcript(text: str) -> CityValidationResult:
@@ -347,4 +463,7 @@ def validate_city_transcript(text: str) -> CityValidationResult:
     canonical = _CITY_LEXICON.get(normalized)
     if canonical:
         return CityValidationResult(raw, normalized, True, canonical, "lexicon_match", lexicon_matched=True)
+    compound = _validate_compound_city(raw, normalized)
+    if compound:
+        return compound
     return CityValidationResult(raw, normalized, False, None, "invalid_city_transcript")

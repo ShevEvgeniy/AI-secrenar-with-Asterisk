@@ -3584,6 +3584,7 @@ async def handle_call(
                         "alias_matched": bool(new_profile.get("city_validation_alias_matched")),
                         "accepted": bool(new_profile.get("city_validation_accepted")),
                         "canonical_city": new_profile.get("city_validation_canonical"),
+                        "location_detail": new_profile.get("location_detail"),
                         "current_stage": stage.value,
                         "next_stage": new_stage.value,
                     }
