@@ -85,6 +85,7 @@ DEFAULT_NAME_GUARD_DELAY_MS = 400
 DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS = 15
 DEFAULT_AFTER_HOURS_GUARD_DELAY_MS = 400
 DEFAULT_AFTER_HOURS_PLAYBACK_TIMEOUT_SECONDS = 20
+DEFAULT_SAFE_FINISH_PLAYBACK_TIMEOUT_SECONDS = 20
 DEFAULT_LATENCY_SILENCE_WARN_MS = 5000
 DEFAULT_LATENCY_SILENCE_CRITICAL_MS = 10000
 DEFAULT_PHONE_CONFIRM_HOLDING_PLAYBACK_TIMEOUT_SECONDS = 5
@@ -488,11 +489,14 @@ def _stage_prompt_playback_timeout_sec(stage: DialogStage) -> int:
         return value if value > 0 else DEFAULT_INTENT_CLARIFY_PLAYBACK_TIMEOUT_SECONDS
     if stage == DialogStage.NAME:
         return _name_playback_timeout_sec()
+    if stage == DialogStage.SAFE_FINISH:
+        value = _env_int("SAFE_FINISH_PLAYBACK_TIMEOUT_SECONDS", DEFAULT_SAFE_FINISH_PLAYBACK_TIMEOUT_SECONDS)
+        return value if value > 0 else DEFAULT_SAFE_FINISH_PLAYBACK_TIMEOUT_SECONDS
     return DEFAULT_NAME_PLAYBACK_TIMEOUT_SECONDS
 
 
 def _requires_prompt_playback_barrier(stage: DialogStage) -> bool:
-    return stage in {DialogStage.ISSUE, DialogStage.INTENT_CLARIFY, DialogStage.NAME}
+    return stage in {DialogStage.ISSUE, DialogStage.INTENT_CLARIFY, DialogStage.NAME, DialogStage.SAFE_FINISH}
 
 
 def _after_hours_guard_delay_ms() -> int:
@@ -1374,6 +1378,93 @@ def _resolve_safe_finish_phrase(
     return "baseline", SAFE_FINISH_BASELINE_PHRASE, baseline_media, baseline_media, system_sounds.get(baseline_media, False)
 
 
+async def _wait_for_safe_finish_playback(
+    client: AriClient,
+    app_name: str,
+    session: CallSession,
+    *,
+    playback_id: str,
+    media: str,
+    sound_id: str,
+    phrase_key: str,
+    phrase_text: str,
+    reason: str,
+) -> bool:
+    timeout = _stage_prompt_playback_timeout_sec(DialogStage.SAFE_FINISH)
+    started = time.perf_counter()
+    try:
+        event = await client.wait_for_playback_finished(app_name, playback_id, timeout=timeout)
+    except TimeoutError:
+        event = {"type": "timeout"}
+    except asyncio.TimeoutError:
+        event = {"type": "timeout"}
+    dur_ms = int((time.perf_counter() - started) * 1000)
+    details = {
+        "safe_finish_reason": reason,
+        "phrase_key": phrase_key,
+        "phrase_text": phrase_text,
+        "playback_id": playback_id,
+        "timeout_seconds": timeout,
+    }
+    if event.get("type") == "PlaybackFinished":
+        session.log_event(
+            action="safe_finish_phrase_playback_finished",
+            status="ok",
+            media=media,
+            sound_id=sound_id,
+            dur_ms=dur_ms,
+            details=details,
+        )
+        session.log_event(
+            action="safe_finish_phrase_played",
+            status="ok",
+            media=media,
+            sound_id=sound_id,
+            dur_ms=dur_ms,
+            details=details,
+        )
+        return True
+    if event.get("type") == "timeout":
+        session.log_event(
+            action="safe_finish_phrase_playback_timeout",
+            status="handled",
+            reason="playback_timeout",
+            media=media,
+            sound_id=sound_id,
+            dur_ms=dur_ms,
+            details=details,
+        )
+        session.log_event(
+            action="safe_finish_phrase_played",
+            status="handled",
+            reason="playback_timeout",
+            media=media,
+            sound_id=sound_id,
+            dur_ms=dur_ms,
+            details=details,
+        )
+        return False
+    session.log_event(
+        action="safe_finish_phrase_playback_failed",
+        status="fail",
+        reason=event.get("type") or "playback_event_missing",
+        media=media,
+        sound_id=sound_id,
+        dur_ms=dur_ms,
+        details={**details, "playback_event": event},
+    )
+    session.log_event(
+        action="safe_finish_phrase_played",
+        status="fail",
+        reason=event.get("type") or "playback_event_missing",
+        media=media,
+        sound_id=sound_id,
+        dur_ms=dur_ms,
+        details=details,
+    )
+    return False
+
+
 def _persist_callback_record(
     session: CallSession,
     storage_dir: Path,
@@ -1479,9 +1570,11 @@ async def _play_safe_finish_phrase(
     result = await client.play_safe(session.channel_id, media)
     dur_ms = int((time.perf_counter() - started) * 1000)
     if result["ok"]:
+        playback_id = _playback_id_from_result(result)
         session.log_event(
-            action="safe_finish_phrase_played",
-            status="ok",
+            action="safe_finish_phrase_playback_started",
+            status="ok" if playback_id else "handled",
+            reason=None if playback_id else "playback_id_missing",
             media=media,
             sound_id=sound_id,
             dur_ms=dur_ms,
@@ -1489,11 +1582,64 @@ async def _play_safe_finish_phrase(
                 "safe_finish_reason": reason,
                 "phrase_key": phrase_key,
                 "phrase_text": phrase_text,
+                "playback_id": playback_id,
                 **(result.get("details") or {}),
             },
         )
+        if not playback_id:
+            session.log_event(
+                action="safe_finish_phrase_playback_failed",
+                status="fail",
+                reason="playback_id_missing",
+                media=media,
+                sound_id=sound_id,
+                details={
+                    "safe_finish_reason": reason,
+                    "phrase_key": phrase_key,
+                    "phrase_text": phrase_text,
+                },
+            )
+            session.log_event(
+                action="safe_finish_phrase_played",
+                status="fail",
+                reason="playback_id_missing",
+                media=media,
+                sound_id=sound_id,
+                details={
+                    "safe_finish_reason": reason,
+                    "phrase_key": phrase_key,
+                    "phrase_text": phrase_text,
+                },
+            )
+            return False, moh_started
+        finished = await _wait_for_safe_finish_playback(
+            client,
+            app_name,
+            session,
+            playback_id=playback_id,
+            media=media,
+            sound_id=sound_id,
+            phrase_key=phrase_key,
+            phrase_text=phrase_text,
+            reason=reason,
+        )
         return True, moh_started
 
+    session.log_event(
+        action="safe_finish_phrase_playback_failed",
+        status="fail",
+        reason=result.get("reason"),
+        http_status=result.get("http_status"),
+        media=media,
+        sound_id=sound_id,
+        dur_ms=dur_ms,
+        details={
+            "safe_finish_reason": reason,
+            "phrase_key": phrase_key,
+            "phrase_text": phrase_text,
+            **(result.get("details") or {}),
+        },
+    )
     session.log_event(
         action="safe_finish_phrase_played",
         status="fail",

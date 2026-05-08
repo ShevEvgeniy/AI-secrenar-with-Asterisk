@@ -90,13 +90,31 @@ class _UnconfirmedPhoneClient(_PhoneTransferClient):
     def __init__(self) -> None:
         super().__init__()
         self.hangups = 0
+        self.call_order: list[str] = []
+
+    async def play_safe(self, channel_id: str, media: str) -> dict[str, Any]:
+        self.call_order.append("play")
+        result = await super().play_safe(channel_id, media)
+        result["details"]["payload"]["state"] = "queued"
+        return result
+
+    async def wait_for_playback_finished(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        self.call_order.append("wait")
+        return {"type": "PlaybackFinished"}
 
     async def continue_safe(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
         raise AssertionError("unconfirmed PHONE must not transfer")
 
     async def hangup_safe(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        self.call_order.append("hangup")
         self.hangups += 1
         return {"ok": True}
+
+
+class _SafeFinishTimeoutClient(_UnconfirmedPhoneClient):
+    async def wait_for_playback_finished(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        self.call_order.append("wait")
+        raise TimeoutError()
 
 
 class _IntentClarifyTimeoutClient(_PhoneTransferClient):
@@ -301,6 +319,14 @@ def test_unconfirmed_phone_does_not_fall_through_to_generic_pipeline(monkeypatch
         and event["media"] == ari_app.SAFE_FINISH_PHONE_NOT_CONFIRMED_SOUND_ID
         for event in events
     )
+    started_idx = next(i for i, event in enumerate(events) if event["action"] == "safe_finish_phrase_playback_started")
+    finished_idx = next(i for i, event in enumerate(events) if event["action"] == "safe_finish_phrase_playback_finished")
+    played_idx = next(i for i, event in enumerate(events) if event["action"] == "safe_finish_phrase_played")
+    assert started_idx < finished_idx < played_idx
+    assert events[started_idx]["details"]["payload"]["state"] == "queued"
+    assert events[finished_idx]["status"] == "ok"
+    assert events[played_idx]["status"] == "ok"
+    assert client.call_order[-3:] == ["play", "wait", "hangup"]
     assert client.play_calls[-1] == ari_app.SAFE_FINISH_PHONE_NOT_CONFIRMED_SOUND_ID
     assert client.continue_calls == []
     assert not any(event["action"] in {"pipeline_start", "build_response", "publish", "playback"} for event in events)
@@ -333,6 +359,44 @@ def test_safe_finish_phrase_resolution_falls_back_to_baseline_when_reason_unknow
     assert sound_id == ari_app.SAFE_FINISH_BASELINE_SOUND_ID
     assert media == ari_app.SAFE_FINISH_BASELINE_SOUND_ID
     assert available is True
+
+
+def test_safe_finish_phrase_timeout_is_logged_without_successful_completion(tmp_path: Path) -> None:
+    ari_app._reset_fallback_cache_for_tests()
+    session = CallSession(call_id="call-safe-timeout", channel_id="ch-safe-timeout", artifact_dir=tmp_path / "artifacts")
+    client = _SafeFinishTimeoutClient()
+
+    played, _moh_started = asyncio.run(
+        ari_app._play_safe_finish_phrase(
+            client,
+            _settings(tmp_path),
+            "app",
+            session,
+            {ari_app.SAFE_FINISH_MISSING_REQUIRED_SOUND_ID: True},
+            False,
+            "city_retry_limit",
+        )
+    )
+    events = _read_events(session)
+
+    assert played is True
+    assert client.call_order == ["play", "wait"]
+    assert any(event["action"] == "safe_finish_phrase_playback_started" for event in events)
+    assert any(
+        event["action"] == "safe_finish_phrase_playback_timeout"
+        and event["status"] == "handled"
+        for event in events
+    )
+    assert not any(
+        event["action"] == "safe_finish_phrase_playback_finished"
+        and event["status"] == "ok"
+        for event in events
+    )
+    assert not any(
+        event["action"] == "safe_finish_phrase_played"
+        and event["status"] == "ok"
+        for event in events
+    )
 
 
 @pytest.mark.parametrize(
