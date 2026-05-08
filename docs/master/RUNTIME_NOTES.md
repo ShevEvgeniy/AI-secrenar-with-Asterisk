@@ -273,6 +273,40 @@ transition=CITY -> PHONE
   - PHONE is intentionally conservative for digit safety;
   - further pause reduction should move to a new node, likely a streaming STT / `gpt-realtime-whisper` spike.
 
+## NODE-013 Runtime Notes
+
+- Feature-flagged OpenAI Realtime Whisper STT adapter is implemented.
+- Default remains disabled:
+
+```text
+STT_STREAMING_ENABLED=false
+```
+
+- Supported spike settings include:
+
+```text
+STT_STREAMING_PROVIDER=openai_realtime_whisper
+STT_STREAMING_MODEL=gpt-realtime-whisper
+STT_STREAMING_LANGUAGE=ru
+STT_STREAMING_FALLBACK_TO_BATCH=true
+```
+
+- Existing batch Whisper path is preserved.
+- Streaming errors fall back to the existing batch path when fallback is enabled.
+- Instrumentation includes:
+  - `stt_stream_session_started`;
+  - `stt_stream_audio_chunk_sent`;
+  - `stt_stream_first_delta_received`;
+  - `stt_stream_final_received`;
+  - `stt_stream_error`;
+  - `stt_stream_fallback_to_batch`.
+- Metrics include:
+  - `stt_stream_latency_first_delta_ms`;
+  - `stt_stream_latency_final_ms`;
+  - `stt_stream_total_audio_ms`;
+  - `stt_batch_baseline_latency_ms`.
+- Important caveat: current spike streams stored WAV artifacts after recording download. It validates adapter, metrics, feature flag, and fallback behavior, but does not prove caller-perceived pause reduction in live calls.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

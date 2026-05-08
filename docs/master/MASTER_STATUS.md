@@ -7,8 +7,8 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-012-short-slot-turn-taking-polish`
-- Latest completed node commit: `61bf9eb`
+- Latest completed node branch: `feat/node-013-gpt-realtime-whisper-streaming-stt-spike`
+- Latest completed node commit: `ed65f8b`
 
 ## Confirmed Working
 
@@ -66,6 +66,10 @@
 - Russian-only caller-facing invariant is added.
 - CITY retry prompt uses static sound `prompt_city_retry` with `dynamic=false`.
 - SAFE_FINISH phrase waits for real `PlaybackFinished` before hangup.
+- Feature-flagged OpenAI Realtime Whisper STT adapter is implemented.
+- Streaming STT fallback to the existing batch Whisper path is implemented.
+- Streaming STT latency/event instrumentation is implemented.
+- Default STT behavior remains unchanged unless `STT_STREAMING_ENABLED=true`.
 - NODE-001 live smoke validation passed:
   - stage prompts progressed correctly;
   - user speech was transcribed for ISSUE / NAME / CITY / PHONE;
@@ -146,6 +150,12 @@ NODE-012 polishes short-slot turn-taking and CITY validation:
 Russian-only dialog -> safe CITY validation -> static CITY retry -> SAFE_FINISH playback barrier -> compound CITY/address accepted
 ```
 
+NODE-013 adds a feature-flagged streaming STT adapter and metrics spike:
+
+```text
+stored WAV artifact -> chunked realtime adapter -> metrics/fallback -> batch path preserved
+```
+
 ## Validation Notes
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
@@ -162,6 +172,7 @@ Russian-only dialog -> safe CITY validation -> static CITY retry -> SAFE_FINISH 
 - NODE-010 is merged into `master`.
 - NODE-011 is merged into `master` and closed as MVP-acceptable.
 - NODE-012 is merged into `master` and closed.
+- NODE-013 is merged into `master` and closed as adapter/metrics spike only.
 - During NODE-002 validation, SSH to `92.118.85.117:22` timed out while publishing `prompt_3` and transfer system sounds.
 - Despite the partial publish failure, the listener reached `READY_WAITING_FOR_CALLS`.
 - Fallback media was used during the live call for missing `prompt_3` and transfer phrase.
@@ -194,6 +205,7 @@ Russian-only dialog -> safe CITY validation -> static CITY retry -> SAFE_FINISH 
 - NODE-010 validates local callback JSONL persistence for after-hours callback and SAFE_FINISH outcomes.
 - NODE-011 validates normal-call latency instrumentation, static PHONE_CONFIRM, ISSUE capture reliability, TALK_DETECT diagnostics, and preserved sales transfer semantics.
 - NODE-012 validates compound CITY/address acceptance while preserving PHONE digit safety and sales transfer semantics.
+- NODE-013 validates adapter, metrics, feature flag, and fallback behavior, but does not prove caller-perceived pause reduction in live calls.
 
 ## NODE-004 Live Smoke
 
@@ -492,5 +504,5 @@ Known remaining UX debt:
 ## Next Recommended Step
 
 ```text
-Open the next bounded node only after master records NODE-012 completion.
+Open NODE-014 / true-live-ari-media-streaming-stt-proof.
 ```

@@ -267,3 +267,27 @@ Accepted runtime behavior:
 - Transfer still occurs only after `phone_confirmed=true` and no required fields are missing.
 
 NODE-012 final live smoke `1778258401.18` passed for normal sales flow with compound CITY/address. Remaining pause reduction for CITY and PHONE should move to a new node, likely a streaming STT / `gpt-realtime-whisper` spike.
+
+## Realtime Whisper STT Adapter Spike
+
+NODE-013 completed a feature-flagged OpenAI Realtime Whisper STT adapter and metrics spike.
+
+Accepted decision:
+
+- Close NODE-013 as adapter/metrics spike only.
+- This is not a production adoption decision.
+- Default behavior remains batch STT unless `STT_STREAMING_ENABLED=true`.
+- Streaming errors fall back to the existing batch Whisper path when configured.
+- Metrics and events for first delta, final transcript, streamed audio duration, fallback, and batch baseline are available.
+
+Important caveat:
+
+- NODE-013 streams stored WAV artifacts after recording download.
+- It validates the adapter, metrics, feature flag, and fallback behavior.
+- It does not prove caller-perceived pause reduction in live calls.
+
+Next proof node:
+
+```text
+NODE-014 / true-live-ari-media-streaming-stt-proof
+```

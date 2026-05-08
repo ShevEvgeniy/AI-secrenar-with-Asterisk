@@ -90,6 +90,12 @@ NODE-012 completed and validated short-slot turn-taking polish:
 Russian-only dialog -> safe CITY validation -> static CITY retry -> SAFE_FINISH playback barrier -> compound CITY/address accepted
 ```
 
+NODE-013 completed and validated a feature-flagged Realtime Whisper adapter/metrics spike:
+
+```text
+stored WAV artifact -> realtime STT adapter metrics -> fallback to batch whisper path
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -102,7 +108,7 @@ Russian-only dialog -> safe CITY validation -> static CITY retry -> SAFE_FINISH 
 
 ## Current Action Plan
 
-1. Treat NODE-001 through NODE-012 as complete and recorded in `master`.
+1. Treat NODE-001 through NODE-013 as complete and recorded in `master`.
 2. Preserve the validated sales transfer target:
 
 ```text
@@ -137,12 +143,16 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 21. Preserve NODE-012 CITY transcript validation, including compound region/city/address handling.
 22. Preserve NODE-012 Russian-only caller-facing invariant and static CITY retry prompt.
 23. Preserve NODE-012 SAFE_FINISH playback barrier before hangup.
+24. Preserve NODE-013 feature flag, fallback behavior, and STT stream latency/event metrics.
+25. Treat NODE-013 as adapter/metrics spike only, not production adoption.
 
 ## Next Recommended Step
 
 ```text
-Open the next bounded node only after master records NODE-012 completion.
+Open NODE-014 / true-live-ari-media-streaming-stt-proof.
 ```
+
+NODE-014 should test live ARI media into streaming STT while the caller is still speaking.
 
 ## Node Completion Report Format
 
