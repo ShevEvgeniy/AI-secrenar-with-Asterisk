@@ -18,13 +18,14 @@ REQUIRED_STAGE_MAX_RETRIES = 3
 PHONE_CONFIRM_MAX_RETRIES = 2
 PHONE_CONFIRM_FAILURE_CYCLE_LIMIT = 2
 PHONE_CONFIRM_SHORT_RETRY_PROMPT = "Скажите, пожалуйста, верно?"
+CITY_RETRY_STATIC_PROMPT = "Извините, я не услышала город. Из какого города или региона вы звоните?"
 CITY_RETRY_PROMPTS: dict[str, tuple[str, ...]] = {
     "invalid_city_transcript": (
-        "Не расслышала город или регион. Повторите, пожалуйста, название города или региона.",
+        CITY_RETRY_STATIC_PROMPT,
         "Назовите, пожалуйста, город или регион ещё раз.",
     ),
     "empty_transcript": (
-        "Извините, я не услышала город. Из какого города или региона вы звоните?",
+        CITY_RETRY_STATIC_PROMPT,
         "Повторите, пожалуйста, город или регион.",
     ),
 }
@@ -509,12 +510,7 @@ def _set_city_validation(profile: dict[str, Any], text: str) -> str | None:
 
 
 def _set_city_retry_prompt(profile: dict[str, Any], reason: str) -> None:
-    prompt_key = "empty_transcript" if reason == "empty_transcript" else "invalid_city_transcript"
-    prompts = CITY_RETRY_PROMPTS[prompt_key]
-    previous = profile.get("city_last_retry_prompt")
-    prompt = prompts[0]
-    if prompt == previous and len(prompts) > 1:
-        prompt = prompts[1]
+    prompt = CITY_RETRY_STATIC_PROMPT
     profile["city_retry_reason"] = reason
     profile["city_retry_prompt"] = prompt
     profile["city_last_retry_prompt"] = prompt

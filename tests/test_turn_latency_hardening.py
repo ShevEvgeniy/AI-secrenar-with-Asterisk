@@ -929,20 +929,16 @@ def test_city_tiny_early_stopped_audio_retries_instead_of_accepting_transcript(m
 
     class _FakeTTS:
         def synthesize(self, _text: str) -> bytes:
-            return b"RIFFretry"
+            raise AssertionError("CITY retry prompt must use static media")
 
     monkeypatch.setattr(ari_app, "_transcribe_audio_artifact", fake_transcribe)
     monkeypatch.setattr(ari_app, "SileroTTS", _FakeTTS)
     monkeypatch.setattr(
         ari_app,
         "publish_wav_to_asterisk",
-        lambda *_args, **_kwargs: {
-            "ok": True,
-            "sound_id": "sound:ai_secretary/call-city-tiny/city_retry_prompt",
-            "remote_path": "/tmp/city_retry_prompt.wav",
-            "error": None,
-            "details": {},
-        },
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("CITY retry prompt must not publish runtime media")
+        ),
     )
 
     session = CallSession(call_id="call-city-tiny", channel_id="ch-city-tiny", artifact_dir=tmp_path / "artifacts")
@@ -995,6 +991,26 @@ def test_city_tiny_early_stopped_audio_retries_instead_of_accepting_transcript(m
     assert any(
         item["action"] == "invalid_city_transcript"
         and item["reason"] == "latin_only"
+        for item in events
+    )
+    city_retry_play = [
+        item
+        for item in events
+        if item["action"] == "play_prompt"
+        and item["details"].get("stage") == DialogStage.CITY.value
+        and item["details"].get("prompt_text") == ari_app.CITY_RETRY_STATIC_PROMPT
+    ]
+    assert city_retry_play
+    assert city_retry_play[0]["sound_id"] == ari_app.PROMPT_CITY_RETRY_SOUND_ID
+    assert city_retry_play[0]["details"]["dynamic"] is False
+    assert not any(
+        item["action"] == "dynamic_prompt_tts"
+        and item["details"].get("prompt_text") == ari_app.CITY_RETRY_STATIC_PROMPT
+        for item in events
+    )
+    assert not any(
+        item["action"] == "dynamic_prompt_publish"
+        and item["details"].get("prompt_text") == ari_app.CITY_RETRY_STATIC_PROMPT
         for item in events
     )
     transfer = next(item for item in events if item["action"] == "transfer")
@@ -1299,3 +1315,49 @@ def test_phone_retry_prompt_plays_dynamic_prompt_instead_of_static_phone_prompt(
     play_events = [event for event in events if event["action"] == "play_prompt"]
     assert play_events[-1]["details"]["dynamic"] is True
     assert play_events[-1]["details"]["prompt_text"] == "Продиктуйте, пожалуйста, ещё раз ваш номер телефона."
+
+
+def test_city_retry_prompt_uses_static_system_sound_without_dynamic_tts(monkeypatch, tmp_path: Path) -> None:
+    ari_app._reset_fallback_cache_for_tests()
+    for sound_id in ari_app._SYSTEM_SOUND_TEXTS:
+        ari_app._system_sound_status[sound_id] = True
+
+    class _NoTTS:
+        def synthesize(self, _text: str) -> bytes:
+            raise AssertionError("CITY retry prompt must use static media")
+
+    monkeypatch.setattr(ari_app, "SileroTTS", _NoTTS)
+    monkeypatch.setattr(
+        ari_app,
+        "publish_wav_to_asterisk",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("CITY retry prompt must not publish runtime media")
+        ),
+    )
+
+    session = CallSession(call_id="call-city-static-retry", channel_id="ch-city-static-retry", artifact_dir=tmp_path / "artifacts")
+    session.dialog.stage = DialogStage.CITY
+    session.dialog.profile = {"city_retry_prompt": ari_app.CITY_RETRY_STATIC_PROMPT}
+    client = _LatencyClient()
+
+    ok, _moh_started = asyncio.run(
+        ari_app._play_prompt(
+            client,
+            _settings(tmp_path),
+            "app",
+            session,
+            DialogStage.CITY,
+            ari_app._system_sounds_snapshot(),
+            False,
+        )
+    )
+
+    assert ok is True
+    assert client.played_media == [ari_app.PROMPT_CITY_RETRY_SOUND_ID]
+    events = _read_events(session)
+    assert not any(event["action"] == "dynamic_prompt_tts" for event in events)
+    assert not any(event["action"] == "dynamic_prompt_publish" for event in events)
+    play_events = [event for event in events if event["action"] == "play_prompt"]
+    assert play_events[-1]["sound_id"] == ari_app.PROMPT_CITY_RETRY_SOUND_ID
+    assert play_events[-1]["details"]["dynamic"] is False
+    assert play_events[-1]["details"]["prompt_text"] == ari_app.CITY_RETRY_STATIC_PROMPT

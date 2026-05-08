@@ -26,7 +26,15 @@ from ..storage.files import save_bytes, save_json
 from ..tts.silero import SileroTTS
 from .ari_client import AriClient
 from .call_session import CallSession, CallState, DialogStage
-from .dialog import PROMPTS, apply_turn, build_turn_record, next_prompt, required_fields_missing, should_stop_dialog
+from .dialog import (
+    CITY_RETRY_STATIC_PROMPT,
+    PROMPTS,
+    apply_turn,
+    build_turn_record,
+    next_prompt,
+    required_fields_missing,
+    should_stop_dialog,
+)
 from .publish_to_asterisk import publish_wav_to_asterisk
 from .routing import (
     Department,
@@ -42,6 +50,7 @@ PROMPT_1_SOUND_ID = "sound:ai_secretary/_system/prompt_1"
 PROMPT_CLARIFY_SOUND_ID = "sound:ai_secretary/_system/prompt_intent_clarify"
 PROMPT_2_SOUND_ID = "sound:ai_secretary/_system/prompt_2"
 PROMPT_3_SOUND_ID = "sound:ai_secretary/_system/prompt_3"
+PROMPT_CITY_RETRY_SOUND_ID = "sound:ai_secretary/_system/prompt_city_retry"
 PROMPT_4_SOUND_ID = "sound:ai_secretary/_system/prompt_4_v2"
 PHONE_CONFIRM_PREFIX_SOUND_ID = "sound:ai_secretary/_system/phone_confirm_prefix"
 PHONE_CONFIRM_SUFFIX_SOUND_ID = "sound:ai_secretary/_system/phone_confirm_suffix"
@@ -222,6 +231,7 @@ _SYSTEM_SOUND_TEXTS: dict[str, str] = {
     PROMPT_CLARIFY_SOUND_ID: PROMPTS[DialogStage.INTENT_CLARIFY],
     PROMPT_2_SOUND_ID: PROMPTS[DialogStage.NAME],
     PROMPT_3_SOUND_ID: PROMPTS[DialogStage.CITY],
+    PROMPT_CITY_RETRY_SOUND_ID: CITY_RETRY_STATIC_PROMPT,
     PROMPT_4_SOUND_ID: PROMPTS[DialogStage.PHONE],
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.ISSUE]: PROMPTS[DialogStage.ISSUE],
     PROMPT_FALLBACK_SOUND_IDS[DialogStage.INTENT_CLARIFY]: PROMPTS[DialogStage.INTENT_CLARIFY],
@@ -1521,6 +1531,20 @@ def _prompt_media_for_stage(stage: DialogStage, system_sounds: dict[str, bool]) 
     return BUILTIN_PROMPT_FALLBACK_MEDIA.get(stage, BUILTIN_GENERAL_FALLBACK_MEDIA[0])
 
 
+def _static_retry_prompt_media(
+    stage: DialogStage,
+    prompt_text: str,
+    system_sounds: dict[str, bool],
+) -> str | None:
+    if (
+        stage == DialogStage.CITY
+        and prompt_text == CITY_RETRY_STATIC_PROMPT
+        and system_sounds.get(PROMPT_CITY_RETRY_SOUND_ID, False)
+    ):
+        return PROMPT_CITY_RETRY_SOUND_ID
+    return None
+
+
 async def _play_transfer_and_continue(
     client: AriClient,
     session: CallSession,
@@ -2774,7 +2798,8 @@ async def _play_prompt(
         return await _play_phone_confirmation_prompt(client, settings, app_name, session, moh_started, latency_context)
 
     prompt_text = next_prompt(stage, session.dialog.profile)
-    if prompt_text != PROMPTS.get(stage):
+    media = _static_retry_prompt_media(stage, prompt_text, system_sounds)
+    if prompt_text != PROMPTS.get(stage) and media is None:
         return await _play_dynamic_prompt(
             client,
             settings,
@@ -2786,7 +2811,8 @@ async def _play_prompt(
             latency_context,
         )
 
-    media = _prompt_media_for_stage(stage, system_sounds)
+    if media is None:
+        media = _prompt_media_for_stage(stage, system_sounds)
     started = time.perf_counter()
     moh_started = await _maybe_stop_moh(client, session, moh_started)
     _log_latency_playback_started(

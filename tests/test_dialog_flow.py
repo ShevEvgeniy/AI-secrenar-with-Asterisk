@@ -6,6 +6,7 @@ from ai_secretary.telephony.call_session import DialogStage
 from ai_secretary.telephony import ari_app
 from ai_secretary.telephony.dialog import (
     CITY_RETRY_PROMPTS,
+    CITY_RETRY_STATIC_PROMPT,
     CLARIFICATION_PROMPT,
     EARLY_TRANSFER_PROMPTS,
     INTENT_CLARIFY_MAX_RETRIES,
@@ -283,10 +284,7 @@ def test_city_latin_filler_does_not_set_city_or_advance_to_phone_and_prompts_in_
 
         assert state == DialogStage.CITY
         assert "city" not in profile
-        assert next_prompt(state, profile) in {
-            "Не расслышала город или регион. Повторите, пожалуйста, название города или региона.",
-            "Назовите, пожалуйста, город или регион ещё раз.",
-        }
+        assert next_prompt(state, profile) == CITY_RETRY_STATIC_PROMPT
 
 
 def test_city_rejects_ambiguous_short_fragments() -> None:
