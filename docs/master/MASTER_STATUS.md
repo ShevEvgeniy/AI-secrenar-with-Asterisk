@@ -7,8 +7,8 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-011-normal-call-latency-and-silence-hardening`
-- Latest completed node commit: `e6c7fd8`
+- Latest completed node branch: `feat/node-012-short-slot-turn-taking-polish`
+- Latest completed node commit: `61bf9eb`
 
 ## Confirmed Working
 
@@ -61,6 +61,11 @@
 - Normal PHONE_CONFIRM no longer requires per-call dynamic TTS/publish.
 - ISSUE and INTENT_CLARIFY have prompt playback barriers before recording.
 - PHONE is explicitly excluded from TALK_DETECT early stop with `phone_digit_safety_skip`.
+- CITY transcript validation accepts compound region/city/address answers with a city or region anchor.
+- English/STT filler is rejected for CITY.
+- Russian-only caller-facing invariant is added.
+- CITY retry prompt uses static sound `prompt_city_retry` with `dynamic=false`.
+- SAFE_FINISH phrase waits for real `PlaybackFinished` before hangup.
 - NODE-001 live smoke validation passed:
   - stage prompts progressed correctly;
   - user speech was transcribed for ISSUE / NAME / CITY / PHONE;
@@ -135,6 +140,12 @@ NODE-011 hardens normal-call latency and silence behavior:
 stage latency logs -> static PHONE_CONFIRM -> prompt playback barriers -> TALK_DETECT diagnostics -> MVP-acceptable transfer flow
 ```
 
+NODE-012 polishes short-slot turn-taking and CITY validation:
+
+```text
+Russian-only dialog -> safe CITY validation -> static CITY retry -> SAFE_FINISH playback barrier -> compound CITY/address accepted
+```
+
 ## Validation Notes
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
@@ -150,6 +161,7 @@ stage latency logs -> static PHONE_CONFIRM -> prompt playback barriers -> TALK_D
 - NODE-009 is merged into `master`.
 - NODE-010 is merged into `master`.
 - NODE-011 is merged into `master` and closed as MVP-acceptable.
+- NODE-012 is merged into `master` and closed.
 - During NODE-002 validation, SSH to `92.118.85.117:22` timed out while publishing `prompt_3` and transfer system sounds.
 - Despite the partial publish failure, the listener reached `READY_WAITING_FOR_CALLS`.
 - Fallback media was used during the live call for missing `prompt_3` and transfer phrase.
@@ -181,6 +193,7 @@ stage latency logs -> static PHONE_CONFIRM -> prompt playback barriers -> TALK_D
 - NODE-009 validates working-hours live transfer preservation and after-hours transfer skip with department-specific callback phrases.
 - NODE-010 validates local callback JSONL persistence for after-hours callback and SAFE_FINISH outcomes.
 - NODE-011 validates normal-call latency instrumentation, static PHONE_CONFIRM, ISSUE capture reliability, TALK_DETECT diagnostics, and preserved sales transfer semantics.
+- NODE-012 validates compound CITY/address acceptance while preserving PHONE digit safety and sales transfer semantics.
 
 ## NODE-004 Live Smoke
 
@@ -429,7 +442,55 @@ Known remaining limitation:
 - PHONE remains longer by design for digit safety.
 
 ## Next Recommended Step
+## NODE-012 Validation
+
+Final live smoke:
 
 ```text
-Open NODE-012 / short-slot-turn-taking-polish after master records NODE-011 completion.
+CALL_ID=1778258401.18
+```
+
+Result:
+
+```text
+PASS for normal sales flow with compound CITY/address.
+```
+
+Validated:
+
+- ISSUE resolved to sales from `купить`.
+- NAME captured.
+- CITY accepted compound location:
+  - raw: `Владимирская область, Петушки, Красноармейская улица, 141.`;
+  - `city_transcript_validation status=ok`;
+  - `reason=region_with_location_detail`;
+  - `accepted=true`;
+  - `canonical_city=Владимирская область`;
+  - `location_detail=Петушки, Красноармейская улица, 141`;
+  - transition `CITY -> PHONE`.
+- PHONE remained conservative with `phone_digit_safety_skip`.
+- PHONE_CONFIRM fast path worked with static digit sequence.
+- `phone_confirmed=true` only after caller confirmation `Верно.`
+- `missing_required_fields=[]` before transfer.
+- Transfer to `sales_real` completed with `status=ok`.
+
+Also validated:
+
+- English/STT filler such as `Thank you`, `you`, `ok`, `yes`, `no`, `hello`, and `goodbye` is rejected for CITY.
+- Russian-only caller-facing invariant added.
+- CITY retry prompt uses static sound `prompt_city_retry` with `dynamic=false`.
+- SAFE_FINISH phrase waits for real `PlaybackFinished` before hangup.
+- Garbage without city/region anchor remains rejected.
+- Compound city/location validator accepts region/city anchor plus detail.
+
+Known remaining UX debt:
+
+- CITY and PHONE can still have long recording windows.
+- PHONE is intentionally conservative for digit safety.
+- Further pause reduction should move to a new node, likely a streaming STT / `gpt-realtime-whisper` spike, not NODE-012.
+
+## Next Recommended Step
+
+```text
+Open the next bounded node only after master records NODE-012 completion.
 ```

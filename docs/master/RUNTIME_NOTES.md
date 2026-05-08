@@ -244,6 +244,35 @@ sound:ai_secretary/_system/after_hours_accounting_v2
 sound:ai_secretary/_system/after_hours_delivery_v2
 ```
 
+## NODE-012 Runtime Notes
+
+- NODE-012 is closed for normal sales flow with compound CITY/address.
+- CITY transcript validation accepts region/city anchor plus location detail.
+- Final smoke `1778258401.18` accepted:
+
+```text
+raw=Владимирская область, Петушки, Красноармейская улица, 141.
+city_transcript_validation status=ok
+reason=region_with_location_detail
+accepted=true
+canonical_city=Владимирская область
+location_detail=Петушки, Красноармейская улица, 141
+transition=CITY -> PHONE
+```
+
+- English/STT filler such as `Thank you`, `you`, `ok`, `yes`, `no`, `hello`, and `goodbye` is rejected for CITY.
+- Russian-only caller-facing invariant is added.
+- CITY retry prompt uses static sound `prompt_city_retry` with `dynamic=false`.
+- SAFE_FINISH phrase waits for real `PlaybackFinished` before hangup.
+- Garbage without city/region anchor remains rejected.
+- PHONE remains conservative with `phone_digit_safety_skip`.
+- PHONE_CONFIRM fast path works with static digit sequence.
+- Transfer to `sales_real` still requires `phone_confirmed=true`.
+- Known remaining UX debt:
+  - CITY and PHONE can still have long recording windows;
+  - PHONE is intentionally conservative for digit safety;
+  - further pause reduction should move to a new node, likely a streaming STT / `gpt-realtime-whisper` spike.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

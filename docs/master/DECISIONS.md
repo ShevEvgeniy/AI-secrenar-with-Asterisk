@@ -250,3 +250,20 @@ ISSUE -> INTENT_CLARIFY if needed -> NAME -> CITY -> PHONE -> PHONE_CONFIRM -> D
 NODE-011 final live smoke `1778089554.24` passed at MVP level: sales intent was matched from captured ISSUE text, required fields were collected, PHONE_CONFIRM fast path was used, and transfer to `sales_real` completed only after `phone_confirmed=true`.
 
 Remaining short-slot pause smoothing is deliberately moved to NODE-012 and must not change PHONE digit safety, business logic, transfer/callback/after-hours contracts, or SAFE_FINISH behavior.
+
+## Short-Slot Turn-Taking Polish
+
+NODE-012 completed short-slot turn-taking polish for the current bounded scope.
+
+Accepted runtime behavior:
+
+- CITY transcript validation may accept compound region/city/address answers when a valid city or region anchor is present.
+- CITY must reject English/STT filler such as `Thank you`, `you`, `ok`, `yes`, `no`, `hello`, and `goodbye`.
+- Caller-facing dialog remains Russian-only.
+- CITY retry prompt uses static sound `prompt_city_retry` with `dynamic=false`.
+- SAFE_FINISH phrase waits for real `PlaybackFinished` before hangup.
+- Garbage without city/region anchor remains rejected.
+- PHONE remains conservative with `phone_digit_safety_skip`.
+- Transfer still occurs only after `phone_confirmed=true` and no required fields are missing.
+
+NODE-012 final live smoke `1778258401.18` passed for normal sales flow with compound CITY/address. Remaining pause reduction for CITY and PHONE should move to a new node, likely a streaming STT / `gpt-realtime-whisper` spike.

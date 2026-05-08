@@ -84,6 +84,12 @@ NODE-011 completed and validated normal-call latency and silence hardening at MV
 latency instrumentation -> static PHONE_CONFIRM fast path -> ISSUE/INTENT capture barriers -> sales transfer preserved
 ```
 
+NODE-012 completed and validated short-slot turn-taking polish:
+
+```text
+Russian-only dialog -> safe CITY validation -> static CITY retry -> SAFE_FINISH playback barrier -> compound CITY/address accepted
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -96,7 +102,7 @@ latency instrumentation -> static PHONE_CONFIRM fast path -> ISSUE/INTENT captur
 
 ## Current Action Plan
 
-1. Treat NODE-001 through NODE-011 as complete and recorded in `master`.
+1. Treat NODE-001 through NODE-012 as complete and recorded in `master`.
 2. Preserve the validated sales transfer target:
 
 ```text
@@ -128,11 +134,14 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 18. Preserve NODE-011 static PHONE_CONFIRM fast path when `phone_digits` are available.
 19. Preserve NODE-011 PHONE early-stop exclusion with `phone_digit_safety_skip`.
 20. Preserve NODE-011 ISSUE and INTENT_CLARIFY prompt playback barriers before recording.
+21. Preserve NODE-012 CITY transcript validation, including compound region/city/address handling.
+22. Preserve NODE-012 Russian-only caller-facing invariant and static CITY retry prompt.
+23. Preserve NODE-012 SAFE_FINISH playback barrier before hangup.
 
 ## Next Recommended Step
 
 ```text
-Open NODE-012 / short-slot-turn-taking-polish after master records NODE-011 completion.
+Open the next bounded node only after master records NODE-012 completion.
 ```
 
 ## Node Completion Report Format
