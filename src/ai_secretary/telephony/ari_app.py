@@ -15,6 +15,7 @@ from typing import Any, Callable
 from ..config.settings import Settings
 from ..core.runner import run_pipeline, run_pipeline_from_transcript
 from ..rag.embeddings import warmup_embeddings
+from ..stt.realtime_whisper import RealtimeTranscriptionConfig, RealtimeWhisperAdapter
 from ..stt.whisper_api import WhisperAPIClient
 from ..storage.callbacks import (
     CallbackOutcomeType,
@@ -3200,6 +3201,107 @@ def _transcribe_audio_artifact(_settings: Settings, artifact: TranscriptionArtif
     return "", details
 
 
+def _streaming_stt_enabled() -> bool:
+    return os.getenv("STT_STREAMING_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _streaming_stt_fallback_enabled() -> bool:
+    return os.getenv("STT_STREAMING_FALLBACK_TO_BATCH", "true").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _streaming_stt_config(settings: Settings) -> RealtimeTranscriptionConfig:
+    default_base_url = "wss://api.openai.com/v1/realtime"
+    return RealtimeTranscriptionConfig(
+        api_key=settings.openai_api_key,
+        transcription_model=(
+            os.getenv("STT_STREAMING_MODEL", "gpt-realtime-whisper").strip() or "gpt-realtime-whisper"
+        ),
+        session_model=os.getenv("STT_STREAMING_SESSION_MODEL", "gpt-realtime").strip() or "gpt-realtime",
+        language=os.getenv("STT_STREAMING_LANGUAGE", "ru").strip() or "ru",
+        sample_rate=_env_int("STT_STREAMING_SAMPLE_RATE", 24000),
+        chunk_ms=_env_int("STT_STREAMING_CHUNK_MS", 200),
+        base_url=os.getenv("STT_STREAMING_BASE_URL", default_base_url).strip() or default_base_url,
+        timeout_seconds=float(os.getenv("STT_STREAMING_TIMEOUT_SECONDS", "30") or "30"),
+    )
+
+
+async def _transcribe_audio_artifact_experimental(
+    settings: Settings,
+    session: CallSession,
+    artifact: TranscriptionArtifact,
+) -> tuple[str, dict[str, Any]]:
+    """Use the feature-flagged streaming STT spike path or the existing batch path."""
+    if not _streaming_stt_enabled():
+        baseline_start = time.perf_counter()
+        text, details = await asyncio.to_thread(_transcribe_audio_artifact, settings, artifact)
+        details["stt_streaming_enabled"] = False
+        details["stt_batch_baseline_latency_ms"] = int((time.perf_counter() - baseline_start) * 1000)
+        return text, details
+
+    provider = os.getenv("STT_STREAMING_PROVIDER", "openai_realtime_whisper").strip().lower()
+    base_details = {
+        **artifact.details(),
+        "stt_streaming_enabled": True,
+        "stt_stream_provider": provider,
+    }
+    if provider != "openai_realtime_whisper":
+        session.log_event(
+            action="stt_stream_error",
+            status="handled",
+            reason="unsupported_streaming_provider",
+            details=base_details,
+        )
+        if not _streaming_stt_fallback_enabled():
+            return "", {**base_details, "reason": "unsupported_streaming_provider"}
+        return await _fallback_to_batch_stt(settings, session, artifact, base_details, "unsupported_streaming_provider")
+
+    def log_stream_metric(action: str, details: dict[str, Any]) -> None:
+        status = "ok"
+        if action == "stt_stream_audio_chunk_sent":
+            status = "sent"
+        session.log_event(action=action, status=status, details={**base_details, **details})
+
+    try:
+        config = _streaming_stt_config(settings)
+        adapter = RealtimeWhisperAdapter(config)
+        result = await adapter.transcribe_wav_file(artifact.path, on_metric=log_stream_metric)
+    except Exception as exc:
+        error_details = {**base_details, "reason": "stt_stream_error", "error": repr(exc)}
+        session.log_event(action="stt_stream_error", status="handled", reason="stt_stream_error", details=error_details)
+        if not _streaming_stt_fallback_enabled():
+            return "", error_details
+        return await _fallback_to_batch_stt(settings, session, artifact, error_details, "stt_stream_error")
+
+    details = {
+        **base_details,
+        **result.details(),
+        "stt_backend": "streaming",
+        "stt_model": result.model,
+        "stt_language": result.language,
+    }
+    return result.text, details
+
+
+async def _fallback_to_batch_stt(
+    settings: Settings,
+    session: CallSession,
+    artifact: TranscriptionArtifact,
+    details: dict[str, Any],
+    reason: str,
+) -> tuple[str, dict[str, Any]]:
+    session.log_event(action="stt_stream_fallback_to_batch", status="handled", reason=reason, details=details)
+    baseline_start = time.perf_counter()
+    text, batch_details = await asyncio.to_thread(_transcribe_audio_artifact, settings, artifact)
+    batch_latency_ms = int((time.perf_counter() - baseline_start) * 1000)
+    return text, {
+        **batch_details,
+        "stt_streaming_enabled": True,
+        "stt_stream_fallback_to_batch": True,
+        "stt_stream_error_reason": reason,
+        "stt_batch_baseline_latency_ms": batch_latency_ms,
+    }
+
+
 async def handle_call(
     client: AriClient,
     settings: Settings,
@@ -3532,9 +3634,9 @@ async def handle_call(
                                 details=transcript_details,
                             )
                         else:
-                            transcript_text, transcript_details = await asyncio.to_thread(
-                                _transcribe_audio_artifact,
+                            transcript_text, transcript_details = await _transcribe_audio_artifact_experimental(
                                 settings,
+                                session,
                                 artifact,
                             )
                             stt_ms = int((time.perf_counter() - stt_start) * 1000)

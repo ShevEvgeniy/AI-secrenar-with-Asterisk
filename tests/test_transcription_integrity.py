@@ -6,8 +6,14 @@ import asyncio
 import hashlib
 import json
 from pathlib import Path
+import wave
 
 from ai_secretary.config.settings import Settings
+from ai_secretary.stt.realtime_whisper import (
+    RealtimeTranscriptionConfig,
+    RealtimeTranscriptionResult,
+    RealtimeWhisperAdapter,
+)
 from ai_secretary.telephony import ari_app
 from ai_secretary.telephony.call_session import CallSession, DialogStage
 
@@ -223,3 +229,184 @@ def test_city_transcription_uses_russian_language_and_city_prompt(monkeypatch, t
     assert "Москва" in calls[1]["transcribe"]["prompt"]
     assert details["stt_language"] == "ru"
     assert details["stt_prompt"] == ari_app.CITY_STT_PROMPT
+
+
+def _write_pcm_wav(path: Path, *, sample_rate: int = 24000, frames: int = 4800) -> None:
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sample_rate)
+        handle.writeframes(b"\x00\x00" * frames)
+
+
+def test_realtime_adapter_streams_wav_and_reports_delta_metrics(tmp_path: Path) -> None:
+    audio_path = tmp_path / "stream.wav"
+    _write_pcm_wav(audio_path)
+    sent_messages: list[dict] = []
+    metrics: list[tuple[str, dict]] = []
+
+    class _FakeWebSocket:
+        def __init__(self) -> None:
+            self.responses = [
+                json.dumps({"type": "session.updated"}),
+                json.dumps({"type": "conversation.item.input_audio_transcription.delta", "delta": "pri"}),
+                json.dumps({"type": "conversation.item.input_audio_transcription.completed", "transcript": "privet"}),
+            ]
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args) -> None:
+            return None
+
+        async def send(self, message: str) -> None:
+            sent_messages.append(json.loads(message))
+
+        async def recv(self) -> str:
+            return self.responses.pop(0)
+
+    async def _connector(_url: str, _headers: dict[str, str]) -> _FakeWebSocket:
+        return _FakeWebSocket()
+
+    adapter = RealtimeWhisperAdapter(
+        RealtimeTranscriptionConfig(api_key="key", transcription_model="gpt-realtime-whisper"),
+        connector=_connector,
+    )
+
+    result = asyncio.run(
+        adapter.transcribe_wav_file(audio_path, on_metric=lambda name, details: metrics.append((name, details)))
+    )
+
+    assert result.text == "privet"
+    assert result.first_delta_ms is not None
+    assert result.final_ms is not None
+    assert any(message["type"] == "session.update" for message in sent_messages)
+    assert any(message["type"] == "input_audio_buffer.append" for message in sent_messages)
+    assert any(name == "stt_stream_first_delta_received" for name, _details in metrics)
+    assert any(name == "stt_stream_final_received" for name, _details in metrics)
+
+
+def test_feature_flag_off_keeps_batch_whisper_path(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    audio_path = tmp_path / "turn_name.wav"
+    audio_path.write_bytes(b"name-audio")
+    artifact = ari_app.TranscriptionArtifact(
+        call_id="call-flag-off",
+        channel_id="ch-flag-off",
+        stage=DialogStage.NAME,
+        turn_idx=1,
+        record_name="call-flag-off_name_utt1",
+        path=audio_path,
+        size_bytes=audio_path.stat().st_size,
+        sha256=hashlib.sha256(audio_path.read_bytes()).hexdigest(),
+    )
+    session = CallSession(call_id="call-flag-off", channel_id="ch-flag-off", artifact_dir=tmp_path / "artifacts")
+
+    monkeypatch.setenv("STT_STREAMING_ENABLED", "false")
+    monkeypatch.setenv("TELEPHONY_STT_BACKEND", "fixture")
+    monkeypatch.setenv("TELEPHONY_STT_FIXTURE_NAME", "batch text")
+
+    text, details = asyncio.run(ari_app._transcribe_audio_artifact_experimental(settings, session, artifact))
+
+    events = _read_events(session)
+    assert text == "batch text"
+    assert details["stt_streaming_enabled"] is False
+    assert "stt_batch_baseline_latency_ms" in details
+    assert not any(event["action"].startswith("stt_stream_") for event in events)
+
+
+def test_feature_flag_on_uses_streaming_adapter_and_logs_metrics(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    audio_path = tmp_path / "turn_city.wav"
+    audio_path.write_bytes(b"city-audio")
+    artifact = ari_app.TranscriptionArtifact(
+        call_id="call-stream",
+        channel_id="ch-stream",
+        stage=DialogStage.CITY,
+        turn_idx=2,
+        record_name="call-stream_city_utt2",
+        path=audio_path,
+        size_bytes=audio_path.stat().st_size,
+        sha256=hashlib.sha256(audio_path.read_bytes()).hexdigest(),
+    )
+    session = CallSession(call_id="call-stream", channel_id="ch-stream", artifact_dir=tmp_path / "artifacts")
+
+    class _FakeStreamingAdapter:
+        def __init__(self, _config) -> None:
+            pass
+
+        async def transcribe_wav_file(self, _path: Path, *, on_metric):
+            on_metric("stt_stream_session_started", {"stt_stream_total_audio_ms": 200})
+            on_metric("stt_stream_audio_chunk_sent", {"chunk_index": 1})
+            on_metric(
+                "stt_stream_first_delta_received",
+                {"stt_stream_latency_first_delta_ms": 37, "stt_stream_text": "mos"},
+            )
+            on_metric("stt_stream_final_received", {"stt_stream_latency_final_ms": 81, "stt_stream_text": "moskva"})
+            return RealtimeTranscriptionResult(
+                text="moskva",
+                first_delta_ms=37,
+                final_ms=81,
+                total_audio_ms=200,
+                chunks_sent=1,
+                deltas=["mos"],
+                model="gpt-realtime-whisper",
+                language="ru",
+            )
+
+    monkeypatch.setenv("STT_STREAMING_ENABLED", "true")
+    monkeypatch.setattr(ari_app, "RealtimeWhisperAdapter", _FakeStreamingAdapter)
+
+    text, details = asyncio.run(ari_app._transcribe_audio_artifact_experimental(settings, session, artifact))
+
+    events = _read_events(session)
+    assert text == "moskva"
+    assert details["stt_backend"] == "streaming"
+    assert details["stt_stream_latency_first_delta_ms"] == 37
+    assert any(event["action"] == "stt_stream_session_started" for event in events)
+    assert any(event["action"] == "stt_stream_audio_chunk_sent" for event in events)
+    assert any(event["action"] == "stt_stream_first_delta_received" for event in events)
+    assert any(event["action"] == "stt_stream_final_received" for event in events)
+
+
+def test_streaming_error_falls_back_to_batch_stt(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    audio_path = tmp_path / "turn_city.wav"
+    audio_path.write_bytes(b"city-audio")
+    artifact = ari_app.TranscriptionArtifact(
+        call_id="call-stream-fallback",
+        channel_id="ch-stream-fallback",
+        stage=DialogStage.CITY,
+        turn_idx=2,
+        record_name="call-stream-fallback_city_utt2",
+        path=audio_path,
+        size_bytes=audio_path.stat().st_size,
+        sha256=hashlib.sha256(audio_path.read_bytes()).hexdigest(),
+    )
+    session = CallSession(
+        call_id="call-stream-fallback",
+        channel_id="ch-stream-fallback",
+        artifact_dir=tmp_path / "artifacts",
+    )
+
+    class _FailingStreamingAdapter:
+        def __init__(self, _config) -> None:
+            pass
+
+        async def transcribe_wav_file(self, _path: Path, *, on_metric):
+            raise RuntimeError("stream down")
+
+    monkeypatch.setenv("STT_STREAMING_ENABLED", "true")
+    monkeypatch.setenv("STT_STREAMING_FALLBACK_TO_BATCH", "true")
+    monkeypatch.setenv("TELEPHONY_STT_BACKEND", "fixture")
+    monkeypatch.setenv("TELEPHONY_STT_FIXTURE_CITY", "fallback city")
+    monkeypatch.setattr(ari_app, "RealtimeWhisperAdapter", _FailingStreamingAdapter)
+
+    text, details = asyncio.run(ari_app._transcribe_audio_artifact_experimental(settings, session, artifact))
+
+    events = _read_events(session)
+    assert text == "fallback city"
+    assert details["stt_stream_fallback_to_batch"] is True
+    assert details["stt_batch_baseline_latency_ms"] >= 0
+    assert any(event["action"] == "stt_stream_error" for event in events)
+    assert any(event["action"] == "stt_stream_fallback_to_batch" for event in events)
