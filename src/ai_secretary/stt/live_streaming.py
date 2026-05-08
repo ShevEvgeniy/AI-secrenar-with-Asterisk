@@ -210,6 +210,8 @@ class _AriExternalMediaRtpSource:
         self.bridge_id = f"live-proof-{call_id}-{turn_idx}"
         self.external_channel_id = f"live-proof-ext-{call_id}-{turn_idx}"
         self.reader_task: asyncio.Task[None] | None = None
+        self._bridge_created = False
+        self._external_media_created = False
 
     async def start(self) -> None:
         if self.config.media_source != "ari_external_media_rtp":
@@ -225,26 +227,151 @@ class _AriExternalMediaRtpSource:
             "bridge_id": self.bridge_id,
             "external_channel_id": self.external_channel_id,
         }
-        for name, args in (
-            ("create_bridge_safe", (self.bridge_id, "mixing")),
-            ("add_channel_to_bridge_safe", (self.bridge_id, self.channel_id)),
-            (
-                "create_external_media_safe",
-                (self.app_name, f"{host}:{port}"),
-            ),
-            ("add_channel_to_bridge_safe", (self.bridge_id, self.external_channel_id)),
-        ):
-            method = getattr(self.client, name, None)
-            if not callable(method):
-                raise RuntimeError(f"ARI client lacks {name}")
-            if name == "create_external_media_safe":
-                result = await method(*args, channel_id=self.external_channel_id, format="slin16", direction="both")
-            else:
-                result = await method(*args)
-            if not result.get("ok", True):
-                raise RuntimeError(f"{name} failed: {result.get('reason')}")
-        self.log_metric("stt_live_stream_media_started", details, "ok", None)
+        try:
+            await self._create_bridge(details)
+            await self._add_channel_to_bridge(
+                channel_id=self.channel_id,
+                channel_role="original",
+                details=details,
+            )
+            await self._create_external_media(host, port, details)
+            await self._add_channel_to_bridge(
+                channel_id=self.external_channel_id,
+                channel_role="external_media",
+                details=details,
+            )
+        except Exception:
+            await self.close()
+            raise
         self.reader_task = asyncio.create_task(self._read_rtp(), name=f"live-stt-rtp-{self.call_id}-{self.turn_idx}")
+
+    async def _create_bridge(self, details: dict[str, Any]) -> None:
+        endpoint = f"/bridges/{self.bridge_id}"
+        params = {"type": "mixing"}
+        self._log_step("stt_live_bridge_create_attempt", details, "start", None, endpoint, params)
+        method = getattr(self.client, "create_bridge_safe", None)
+        if not callable(method):
+            raise RuntimeError("ARI client lacks create_bridge_safe")
+        result = await method(self.bridge_id, "mixing")
+        if not result.get("ok", True):
+            self._log_step(
+                "stt_live_bridge_create_failed",
+                {**details, **_result_details(result)},
+                "fail",
+                result.get("reason"),
+                endpoint,
+                params,
+                result,
+            )
+            raise RuntimeError(f"create_bridge_safe failed: {result.get('reason')}")
+        self._bridge_created = True
+        self._log_step("stt_live_bridge_create_ok", {**details, **_result_details(result)}, "ok", None, endpoint, params, result)
+
+    async def _add_channel_to_bridge(self, *, channel_id: str, channel_role: str, details: dict[str, Any]) -> None:
+        endpoint = f"/bridges/{self.bridge_id}/addChannel"
+        params = {"channel": channel_id}
+        self._log_step(
+            "stt_live_bridge_add_channel_attempt",
+            {**details, "bridge_channel_id": channel_id, "bridge_channel_role": channel_role},
+            "start",
+            None,
+            endpoint,
+            params,
+        )
+        method = getattr(self.client, "add_channel_to_bridge_safe", None)
+        if not callable(method):
+            raise RuntimeError("ARI client lacks add_channel_to_bridge_safe")
+        result = await method(self.bridge_id, channel_id)
+        result_details = {
+            **details,
+            "bridge_channel_id": channel_id,
+            "bridge_channel_role": channel_role,
+            **_result_details(result),
+        }
+        if not result.get("ok", True):
+            self._log_step(
+                "stt_live_bridge_add_channel_failed",
+                result_details,
+                "fail",
+                result.get("reason"),
+                endpoint,
+                params,
+                result,
+            )
+            raise RuntimeError(f"add_channel_to_bridge_safe failed: {result.get('reason')}")
+        self._log_step("stt_live_bridge_add_channel_ok", result_details, "ok", None, endpoint, params, result)
+
+    async def _create_external_media(self, host: str, port: int, details: dict[str, Any]) -> None:
+        endpoint = "/channels/externalMedia"
+        params = {
+            "app": self.app_name,
+            "external_host": f"{host}:{port}",
+            "channelId": self.external_channel_id,
+            "format": "slin16",
+            "direction": "both",
+        }
+        self._log_step("stt_live_external_media_create_attempt", details, "start", None, endpoint, params)
+        method = getattr(self.client, "create_external_media_safe", None)
+        if not callable(method):
+            raise RuntimeError("ARI client lacks create_external_media_safe")
+        result = await method(
+            self.app_name,
+            f"{host}:{port}",
+            channel_id=self.external_channel_id,
+            format="slin16",
+            direction="both",
+        )
+        result_details = {**details, **_result_details(result)}
+        if not result.get("ok", True):
+            self._log_step(
+                "stt_live_external_media_create_failed",
+                result_details,
+                "fail",
+                result.get("reason"),
+                endpoint,
+                params,
+                result,
+            )
+            raise RuntimeError(f"create_external_media_safe failed: {result.get('reason')}")
+        payload = result.get("details", {}).get("payload") if isinstance(result.get("details"), dict) else None
+        if isinstance(payload, dict) and payload.get("id"):
+            self.external_channel_id = str(payload["id"])
+            result_details["external_media_channel_id"] = self.external_channel_id
+        self._external_media_created = True
+        self._log_step(
+            "stt_live_external_media_create_ok",
+            result_details,
+            "ok",
+            None,
+            endpoint,
+            params,
+            result,
+        )
+
+    def _log_step(
+        self,
+        action: str,
+        details: dict[str, Any],
+        status: str,
+        reason: str | None,
+        endpoint: str,
+        params: dict[str, Any],
+        result: dict[str, Any] | None = None,
+    ) -> None:
+        self.log_metric(
+            action,
+            {
+                **details,
+                "bridge_id": self.bridge_id,
+                "original_channel_id": self.channel_id,
+                "external_media_channel_id": self.external_channel_id,
+                "ari_endpoint": endpoint,
+                "ari_request_params": params,
+                **_http_details(result),
+            },
+            status,
+            reason,
+        )
 
     async def _read_rtp(self) -> None:
         assert self.sock is not None
@@ -269,8 +396,45 @@ class _AriExternalMediaRtpSource:
         if self.reader_task is not None and not self.reader_task.done():
             self.reader_task.cancel()
         destroy = getattr(self.client, "destroy_bridge_safe", None)
-        if callable(destroy):
-            await destroy(self.bridge_id)
+        if callable(destroy) and self._bridge_created:
+            details = _base_details(self.config, self.stage, self.turn_idx, self.record_name)
+            self.log_metric(
+                "stt_live_bridge_cleanup_attempt",
+                {
+                    **details,
+                    "bridge_id": self.bridge_id,
+                    "original_channel_id": self.channel_id,
+                    "external_media_channel_id": self.external_channel_id,
+                    "external_media_created": self._external_media_created,
+                    "ari_endpoint": f"/bridges/{self.bridge_id}",
+                },
+                "start",
+                None,
+            )
+            try:
+                result = await destroy(self.bridge_id)
+            except Exception as exc:
+                result = {"ok": False, "reason": "cleanup_exception", "details": {"error": repr(exc)}}
+            cleanup_details = {
+                **details,
+                "bridge_id": self.bridge_id,
+                "original_channel_id": self.channel_id,
+                "external_media_channel_id": self.external_channel_id,
+                "external_media_created": self._external_media_created,
+                "ari_endpoint": f"/bridges/{self.bridge_id}",
+                **_result_details(result),
+                **_http_details(result),
+            }
+            if result.get("ok", True):
+                self.log_metric("stt_live_bridge_cleanup_done", cleanup_details, "ok", None)
+                self._bridge_created = False
+            else:
+                self.log_metric(
+                    "stt_live_bridge_cleanup_failed",
+                    cleanup_details,
+                    "fail",
+                    result.get("reason"),
+                )
         if self.sock is not None:
             self.sock.close()
 
@@ -283,6 +447,31 @@ def _rtp_payload(packet: bytes) -> bytes:
     if len(packet) <= header_len:
         return b""
     return packet[header_len:]
+
+
+def _result_details(result: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(result, dict):
+        return {}
+    details = result.get("details")
+    if isinstance(details, dict):
+        return {"ari_result": {key: value for key, value in details.items() if key != "payload"}}
+    return {}
+
+
+def _http_details(result: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(result, dict):
+        return {}
+    details = result.get("details")
+    detail_map = details if isinstance(details, dict) else {}
+    return {
+        "ari_http_status": result.get("http_status"),
+        "ari_failure_reason": result.get("reason"),
+        "ari_response_body": detail_map.get("body"),
+        "ari_request_method": detail_map.get("request_method"),
+        "ari_request_url": detail_map.get("request_url"),
+        "ari_request_path": detail_map.get("request_path"),
+        "ari_request_query": detail_map.get("request_query"),
+    }
 
 
 def _realtime_config(settings: Settings, config: LiveStreamingProofConfig) -> RealtimeTranscriptionConfig:

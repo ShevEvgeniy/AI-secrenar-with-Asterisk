@@ -544,3 +544,115 @@ def test_live_streaming_result_logs_baseline_delta_and_falls_back_to_batch(monke
     assert "stt_batch_baseline_latency_ms" in details
     assert any(event["action"] == "stt_live_vs_batch_delta_ms" for event in events)
     assert any(event["action"] == "stt_live_stream_fallback_to_batch" for event in events)
+
+
+def test_live_bridge_add_channel_http_error_logs_status_body_and_cleans_up(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    session = CallSession(call_id="call-bridge-fail", channel_id="ch-bridge-fail", artifact_dir=tmp_path / "artifacts")
+    cleanup_calls: list[str] = []
+
+    class _BridgeFailClient:
+        async def create_bridge_safe(self, bridge_id: str, bridge_type: str = "mixing"):
+            return {
+                "ok": True,
+                "http_status": 200,
+                "reason": "ok",
+                "details": {"payload": {"id": bridge_id}, "request_path": f"/bridges/{bridge_id}"},
+            }
+
+        async def add_channel_to_bridge_safe(self, bridge_id: str, channel_id: str):
+            return {
+                "ok": False,
+                "http_status": 409,
+                "reason": "bridge_add_channel_http_error",
+                "details": {
+                    "body": "Channel currently recording",
+                    "request_method": "POST",
+                    "request_url": f"http://localhost:8088/ari/bridges/{bridge_id}/addChannel?channel={channel_id}",
+                    "request_path": f"/ari/bridges/{bridge_id}/addChannel",
+                    "request_query": f"channel={channel_id}",
+                },
+            }
+
+        async def create_external_media_safe(self, *_args, **_kwargs):
+            raise AssertionError("externalMedia should not be created after original channel add failure")
+
+        async def destroy_bridge_safe(self, bridge_id: str):
+            cleanup_calls.append(bridge_id)
+            return {
+                "ok": True,
+                "http_status": 200,
+                "reason": "ok",
+                "details": {"request_path": f"/bridges/{bridge_id}"},
+            }
+
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+
+    async def _run_probe():
+        task = ari_app._start_live_streaming_probe_task(
+            settings,
+            _BridgeFailClient(),
+            "app",
+            session,
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            record_name="rec",
+            record_started_at=1.0,
+            recording_finished_at=lambda: None,
+        )
+        return await ari_app._finish_live_streaming_probe_task(
+            task,
+            session,
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            record_name="rec",
+        )
+
+    result = asyncio.run(_run_probe())
+
+    events = _read_events(session)
+    failed = next(event for event in events if event["action"] == "stt_live_bridge_add_channel_failed")
+    assert result is None
+    assert failed["details"]["bridge_id"] == "live-proof-call-bridge-fail-1"
+    assert failed["details"]["original_channel_id"] == "ch-bridge-fail"
+    assert failed["details"]["bridge_channel_id"] == "ch-bridge-fail"
+    assert failed["details"]["bridge_channel_role"] == "original"
+    assert failed["details"]["ari_http_status"] == 409
+    assert failed["details"]["ari_response_body"] == "Channel currently recording"
+    assert failed["details"]["ari_request_path"] == "/ari/bridges/live-proof-call-bridge-fail-1/addChannel"
+    assert failed["details"]["ari_request_params"] == {"channel": "ch-bridge-fail"}
+    assert cleanup_calls == ["live-proof-call-bridge-fail-1"]
+    assert any(event["action"] == "stt_live_bridge_cleanup_attempt" for event in events)
+    assert any(event["action"] == "stt_live_bridge_cleanup_done" for event in events)
+    assert any(event["action"] == "stt_live_stream_fallback_to_batch" for event in events)
+
+
+def test_live_setup_failure_still_allows_batch_fallback(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    audio_path = tmp_path / "turn_issue.wav"
+    audio_path.write_bytes(b"issue-audio")
+    artifact = ari_app.TranscriptionArtifact(
+        call_id="call-live-setup-fallback",
+        channel_id="ch-live-setup-fallback",
+        stage=DialogStage.ISSUE,
+        turn_idx=1,
+        record_name="call-live-setup-fallback_issue_utt1",
+        path=audio_path,
+        size_bytes=audio_path.stat().st_size,
+        sha256=hashlib.sha256(audio_path.read_bytes()).hexdigest(),
+    )
+    session = CallSession(
+        call_id="call-live-setup-fallback",
+        channel_id="ch-live-setup-fallback",
+        artifact_dir=tmp_path / "artifacts",
+    )
+
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+    monkeypatch.setenv("TELEPHONY_STT_BACKEND", "fixture")
+    monkeypatch.setenv("TELEPHONY_STT_FIXTURE_ISSUE", "batch issue")
+
+    text, details = asyncio.run(ari_app._transcribe_audio_artifact_experimental(settings, session, artifact, None))
+
+    assert text == "batch issue"
+    assert details["stt_streaming_enabled"] is False
+    assert details["stt_batch_baseline_latency_ms"] >= 0

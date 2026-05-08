@@ -105,6 +105,7 @@ class AriClient:
             if status == 404:
                 reason = await self._classify_404(channel_id, action)
             body = (exc.response.text if exc.response is not None else "")[:500]
+            request_url = str(exc.request.url) if exc.request is not None else ""
             return self._result(
                 False,
                 status,
@@ -113,6 +114,12 @@ class AriClient:
                     "action": action,
                     "channel_id": channel_id,
                     "media": media,
+                    "request_method": exc.request.method if exc.request is not None else None,
+                    "request_url": request_url,
+                    "request_path": exc.request.url.path if exc.request is not None else None,
+                    "request_query": exc.request.url.query.decode("utf-8", errors="replace")
+                    if exc.request is not None
+                    else "",
                     "error": str(exc),
                     "body": body,
                 },
@@ -308,20 +315,39 @@ class AriClient:
         """Create a bridge with structured non-throwing result."""
         return await self._safe_call("bridge_create", "", lambda: self.create_bridge(bridge_id, bridge_type))
 
-    async def add_channel_to_bridge(self, bridge_id: str, channel_id: str) -> dict[str, Any]:
+    async def add_channel_to_bridge(
+        self,
+        bridge_id: str,
+        channel_id: str,
+        *,
+        role: str | None = None,
+    ) -> dict[str, Any]:
         """Add a channel to an ARI bridge."""
         url = self._http_url(f"/bridges/{bridge_id}/addChannel")
+        params = {"channel": channel_id}
+        if role:
+            params["role"] = role
         async with httpx.AsyncClient(auth=(self.username, self.password), timeout=10.0) as client:
-            response = await client.post(url, params={"channel": channel_id})
+            response = await client.post(url, params=params)
             response.raise_for_status()
             try:
                 return response.json()
             except Exception:
                 return {}
 
-    async def add_channel_to_bridge_safe(self, bridge_id: str, channel_id: str) -> dict[str, Any]:
+    async def add_channel_to_bridge_safe(
+        self,
+        bridge_id: str,
+        channel_id: str,
+        *,
+        role: str | None = None,
+    ) -> dict[str, Any]:
         """Add a channel to a bridge with structured non-throwing result."""
-        return await self._safe_call("bridge_add_channel", channel_id, lambda: self.add_channel_to_bridge(bridge_id, channel_id))
+        return await self._safe_call(
+            "bridge_add_channel",
+            channel_id,
+            lambda: self.add_channel_to_bridge(bridge_id, channel_id, role=role),
+        )
 
     async def destroy_bridge(self, bridge_id: str) -> dict[str, Any]:
         """Destroy an ARI bridge."""

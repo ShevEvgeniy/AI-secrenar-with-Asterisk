@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import os
@@ -3435,6 +3436,8 @@ async def _finish_live_streaming_probe_task(
         return None
     try:
         return await task
+    except asyncio.CancelledError:
+        return None
     except Exception as exc:
         session.log_event(
             action="stt_live_stream_fallback_to_batch",
@@ -3443,6 +3446,14 @@ async def _finish_live_streaming_probe_task(
             details={"stage": stage.value, "turn_idx": turn_idx, "record_name": record_name, "error": repr(exc)},
         )
         return None
+
+
+async def _cancel_live_streaming_probe_task(task: asyncio.Task[LiveStreamingProofResult] | None) -> None:
+    if task is None or task.done():
+        return
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
 
 
 async def handle_call(
@@ -3597,6 +3608,18 @@ async def handle_call(
                     talk_detect_enabled=talk_detect_enabled,
                 )
                 record_start = time.perf_counter()
+                record_end_perf: float | None = None
+                live_stream_task = _start_live_streaming_probe_task(
+                    settings,
+                    client,
+                    app_name,
+                    session,
+                    stage=stage,
+                    turn_idx=turn_idx,
+                    record_name=record_name,
+                    record_started_at=record_start,
+                    recording_finished_at=lambda: record_end_perf,
+                )
                 record_result = await client.record_safe(
                     channel_id,
                     record_name,
@@ -3605,6 +3628,7 @@ async def handle_call(
                     beep=record_beep,
                 )
                 if not record_result["ok"]:
+                    await _cancel_live_streaming_probe_task(live_stream_task)
                     if event_subscription is not None:
                         event_subscription.close()
                     if record_result.get("reason") == "channel_gone":
@@ -3620,18 +3644,6 @@ async def handle_call(
                     )
                     return
 
-                record_end_perf: float | None = None
-                live_stream_task = _start_live_streaming_probe_task(
-                    settings,
-                    client,
-                    app_name,
-                    session,
-                    stage=stage,
-                    turn_idx=turn_idx,
-                    record_name=record_name,
-                    record_started_at=record_start,
-                    recording_finished_at=lambda: record_end_perf,
-                )
                 try:
                     event = await _wait_for_recording_with_optional_early_stop(
                         client,
@@ -3659,8 +3671,7 @@ async def handle_call(
                 transcript_details: dict[str, Any]
                 stt_ms = 0
                 if event.get("type") != "RecordingFinished":
-                    if live_stream_task is not None and not live_stream_task.done():
-                        live_stream_task.cancel()
+                    await _cancel_live_streaming_probe_task(live_stream_task)
                     reason = event.get("type") or "recording_event_missing"
                     session.log_event(
                         action="record_wait",
@@ -3739,8 +3750,7 @@ async def handle_call(
                             early_stop_completion=event.get("recording_completion_source") == "talk_detect_early_stop",
                         )
                     except Exception as exc:
-                        if live_stream_task is not None and not live_stream_task.done():
-                            live_stream_task.cancel()
+                        await _cancel_live_streaming_probe_task(live_stream_task)
                         session.log_event(
                             action="download_recording",
                             status="handled",
@@ -3767,8 +3777,7 @@ async def handle_call(
                             and event.get("recording_early_stop_used") is True
                             and artifact.size_bytes < city_min_audio_bytes
                         ):
-                            if live_stream_task is not None and not live_stream_task.done():
-                                live_stream_task.cancel()
+                            await _cancel_live_streaming_probe_task(live_stream_task)
                             transcript_text = ""
                             transcript_details = {
                                 **artifact.details(),
