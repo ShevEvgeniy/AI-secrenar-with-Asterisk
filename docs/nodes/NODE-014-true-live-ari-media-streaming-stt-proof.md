@@ -42,7 +42,7 @@ STT_LIVE_STREAMING_MEDIA_SOURCE=ari_external_media_rtp
 STT_LIVE_STREAMING_TOPOLOGY=snoop_external_media_rtp
 STT_LIVE_STREAMING_RTP_HOST=127.0.0.1
 STT_LIVE_STREAMING_RTP_PORT=0
-STT_LIVE_STREAMING_SAMPLE_RATE=16000
+STT_LIVE_STREAMING_SAMPLE_RATE=24000
 STT_LIVE_STREAMING_CHUNK_MS=200
 STT_LIVE_STREAMING_TIMEOUT_SECONDS=12
 STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false
@@ -143,12 +143,28 @@ Follow-ups 2, 3, and 4 improved the live proof path:
 Current unknown until next smoke:
 
 - Whether the remote Asterisk deployment supports snoop channel creation with the chosen parameters: `spy=in`, `whisper=none`.
-- Whether RTP payload arrives from the snoop-to-externalMedia bridge in the expected `slin16` format.
+- Whether RTP payload arrives from the snoop-to-externalMedia bridge in the expected signed-linear format (`slin24` by default for 24 kHz PCM).
 
 If follow-up 4 smoke fails:
 
 - `snoop_channel_failed` or `live_media_topology_failed` should identify the ARI status/body/path/query.
 - If snoop succeeds but no chunks arrive, the next blocker is RTP/media format or snoop direction, not batch fallback.
+
+## Follow-up 5 Realtime Protocol And RTP Diagnostics
+
+Smoke `CALL_ID=1778565454.11` showed that the snoop topology preserves batch fallback, but OpenAI Realtime rejected the adapter's session config with `Unknown parameter: 'session.type'`.
+
+The adapter now uses the transcription WebSocket intent and sends `transcription_session.update` instead of attempting to set `session.type` through a normal Realtime conversation session. It logs session config sent/ok/failed before audio streaming starts. PCM live proof defaults now use 24 kHz because OpenAI Realtime transcription PCM input requires 24 kHz mono 16-bit PCM; externalMedia format follows the sample rate (`slin24` by default).
+
+Added diagnostics distinguish the live pipeline stages:
+
+- RTP listener started.
+- RTP packets received.
+- PCM chunks created from RTP payloads.
+- OpenAI session config sent/accepted/rejected.
+- OpenAI audio chunks sent.
+- OpenAI delta/final received.
+- No RTP/no audio and no delta/final cases.
 
 Status:
 
@@ -173,6 +189,20 @@ NODE-014 emits:
 - `live_media_topology_failed`
 - `snoop_channel_started`
 - `snoop_channel_failed`
+- `stt_live_rtp_listener_started`
+- `stt_live_rtp_packet_received`
+- `stt_live_rtp_packets_received_count`
+- `stt_live_pcm_chunk_created`
+- `stt_live_pcm_chunks_created_count`
+- `stt_live_openai_session_config_sent`
+- `stt_live_openai_session_config_ok`
+- `stt_live_openai_session_config_failed`
+- `stt_live_openai_audio_chunk_sent`
+- `stt_live_openai_audio_chunks_sent_count`
+- `stt_live_openai_delta_received`
+- `stt_live_openai_final_received`
+- `stt_live_openai_no_audio_received`
+- `stt_live_openai_no_delta_received`
 - `stt_batch_baseline_latency_ms`
 - `stt_live_vs_batch_delta_ms`
 

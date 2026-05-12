@@ -7,6 +7,8 @@ from dataclasses import replace
 import hashlib
 import json
 from pathlib import Path
+import socket
+import time
 import wave
 
 from ai_secretary.config.settings import Settings
@@ -250,7 +252,7 @@ def test_realtime_adapter_streams_wav_and_reports_delta_metrics(tmp_path: Path) 
     class _FakeWebSocket:
         def __init__(self) -> None:
             self.responses = [
-                json.dumps({"type": "session.updated"}),
+                json.dumps({"type": "transcription_session.updated"}),
                 json.dumps({"type": "conversation.item.input_audio_transcription.delta", "delta": "pri"}),
                 json.dumps({"type": "conversation.item.input_audio_transcription.completed", "transcript": "privet"}),
             ]
@@ -267,7 +269,10 @@ def test_realtime_adapter_streams_wav_and_reports_delta_metrics(tmp_path: Path) 
         async def recv(self) -> str:
             return self.responses.pop(0)
 
-    async def _connector(_url: str, _headers: dict[str, str]) -> _FakeWebSocket:
+    connected: dict[str, str] = {}
+
+    async def _connector(url: str, _headers: dict[str, str]) -> _FakeWebSocket:
+        connected["url"] = url
         return _FakeWebSocket()
 
     adapter = RealtimeWhisperAdapter(
@@ -282,10 +287,115 @@ def test_realtime_adapter_streams_wav_and_reports_delta_metrics(tmp_path: Path) 
     assert result.text == "privet"
     assert result.first_delta_ms is not None
     assert result.final_ms is not None
-    assert any(message["type"] == "session.update" for message in sent_messages)
+    assert connected["url"].endswith("/realtime?intent=transcription")
+    config_message = sent_messages[0]
+    assert config_message["type"] == "transcription_session.update"
+    assert "session" not in config_message
+    assert "type" not in config_message.get("input_audio_transcription", {})
     assert any(message["type"] == "input_audio_buffer.append" for message in sent_messages)
+    assert any(name == "stt_stream_openai_session_config_sent" for name, _details in metrics)
+    assert any(name == "stt_stream_openai_session_config_ok" for name, _details in metrics)
+    assert any(name == "stt_stream_openai_audio_chunk_sent" for name, _details in metrics)
+    assert any(name == "stt_stream_openai_audio_chunks_sent_count" for name, _details in metrics)
     assert any(name == "stt_stream_first_delta_received" for name, _details in metrics)
     assert any(name == "stt_stream_final_received" for name, _details in metrics)
+
+
+def test_realtime_adapter_logs_session_config_rejection(tmp_path: Path) -> None:
+    audio_path = tmp_path / "stream.wav"
+    _write_pcm_wav(audio_path)
+    sent_messages: list[dict] = []
+    metrics: list[tuple[str, dict]] = []
+
+    class _RejectingWebSocket:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args) -> None:
+            return None
+
+        async def send(self, message: str) -> None:
+            sent_messages.append(json.loads(message))
+
+        async def recv(self) -> str:
+            return json.dumps(
+                {
+                    "type": "error",
+                    "error": {
+                        "type": "invalid_request_error",
+                        "code": "unknown_parameter",
+                        "message": "Unknown parameter: 'session.type'.",
+                        "param": "session.type",
+                    },
+                }
+            )
+
+    async def _connector(_url: str, _headers: dict[str, str]) -> _RejectingWebSocket:
+        return _RejectingWebSocket()
+
+    adapter = RealtimeWhisperAdapter(
+        RealtimeTranscriptionConfig(api_key="key", transcription_model="gpt-realtime-whisper"),
+        connector=_connector,
+    )
+
+    try:
+        asyncio.run(adapter.transcribe_wav_file(audio_path, on_metric=lambda name, details: metrics.append((name, details))))
+    except RuntimeError as exc:
+        assert "unknown_parameter" in str(exc)
+    else:
+        raise AssertionError("session config rejection should raise")
+
+    assert sent_messages[0]["type"] == "transcription_session.update"
+    failed = next(details for name, details in metrics if name == "stt_stream_openai_session_config_failed")
+    assert failed["error"]["code"] == "unknown_parameter"
+
+
+def test_realtime_adapter_logs_chunks_sent_but_no_delta() -> None:
+    metrics: list[tuple[str, dict]] = []
+
+    class _NoDeltaWebSocket:
+        def __init__(self) -> None:
+            self.responses = [json.dumps({"type": "transcription_session.updated"})]
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args) -> None:
+            return None
+
+        async def send(self, _message: str) -> None:
+            return None
+
+        async def recv(self) -> str:
+            if self.responses:
+                return self.responses.pop(0)
+            await asyncio.sleep(0.05)
+            raise asyncio.TimeoutError
+
+    async def _connector(_url: str, _headers: dict[str, str]) -> _NoDeltaWebSocket:
+        return _NoDeltaWebSocket()
+
+    adapter = RealtimeWhisperAdapter(
+        RealtimeTranscriptionConfig(api_key="key", transcription_model="gpt-realtime-whisper", timeout_seconds=0.05),
+        connector=_connector,
+    )
+
+    try:
+        asyncio.run(
+            adapter.transcribe_pcm_chunks(
+                [b"\x00\x00" * 120],
+                total_audio_ms=5,
+                on_metric=lambda name, details: metrics.append((name, details)),
+            )
+        )
+    except TimeoutError:
+        pass
+    else:
+        raise AssertionError("missing delta/final should time out")
+
+    assert any(name == "stt_stream_openai_audio_chunk_sent" for name, _details in metrics)
+    no_delta = next(details for name, details in metrics if name == "stt_stream_openai_no_delta_received")
+    assert no_delta["stt_stream_openai_audio_chunks_sent_count"] == 1
 
 
 def test_feature_flag_off_keeps_batch_whisper_path(monkeypatch, tmp_path: Path) -> None:
@@ -1130,6 +1240,130 @@ def test_live_adapter_exception_is_logged_and_returned_without_unretrieved_task(
         and event["reason"] == "openai_realtime_invalid_api_key"
         for event in events
     )
+
+
+class _SourceSetupClient:
+    async def create_bridge_safe(self, bridge_id: str, bridge_type: str = "mixing"):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {"payload": {"id": bridge_id}}}
+
+    async def snoop_channel_safe(self, channel_id: str, app_name: str, snoop_id: str, *, spy: str = "in", whisper: str = "none"):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {"payload": {"id": snoop_id}}}
+
+    async def add_channel_to_bridge_safe(self, _bridge_id: str, _channel_id: str):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {}}
+
+    async def create_external_media_safe(self, _app_name: str, _external_host: str, *, channel_id: str | None = None, format: str = "slin24", direction: str = "both"):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {"payload": {"id": channel_id, "format": format}}}
+
+    async def destroy_bridge_safe(self, _bridge_id: str):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {}}
+
+    async def hangup_safe(self, _channel_id: str):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {}}
+
+
+def _live_test_config() -> live_streaming.LiveStreamingProofConfig:
+    return live_streaming.LiveStreamingProofConfig(
+        enabled=True,
+        provider="openai_realtime_whisper",
+        model="gpt-realtime-whisper",
+        fallback_to_batch=True,
+        stage_allowlist={"ISSUE"},
+        media_source="ari_external_media_rtp",
+        topology="snoop_external_media_rtp",
+        host="127.0.0.1",
+        port=0,
+        sample_rate=24000,
+        chunk_ms=200,
+        timeout_seconds=0.2,
+        use_live_transcript=False,
+    )
+
+
+def test_live_rtp_and_pcm_chunk_counters_are_logged() -> None:
+    queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+    events: list[dict] = []
+    finished_at: float | None = None
+    config = _live_test_config()
+
+    def _log_metric(action: str, details: dict, status: str, reason: str | None) -> None:
+        events.append({"action": action, "details": details, "status": status, "reason": reason})
+
+    async def _run_source() -> None:
+        nonlocal finished_at
+        source = live_streaming._AriExternalMediaRtpSource(
+            client=_SourceSetupClient(),
+            app_name="app",
+            call_id="call-rtp",
+            channel_id="ch-rtp",
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            record_name="rec",
+            config=config,
+            queue=queue,
+            recording_finished_at=lambda: finished_at,
+            log_metric=_log_metric,
+        )
+        await source.start()
+        assert source.sock is not None
+        host, port = source.sock.getsockname()
+        sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sender.sendto(b"\x80\x00\x00\x01" + b"\x00" * 8 + b"\x01\x02\x03\x04", (host, port))
+            chunk = await asyncio.wait_for(queue.get(), timeout=1)
+            assert chunk == b"\x01\x02\x03\x04"
+            finished_at = time.perf_counter() - 1.0
+            assert source.reader_task is not None
+            await asyncio.wait_for(source.reader_task, timeout=1)
+        finally:
+            sender.close()
+            await source.close()
+
+    asyncio.run(_run_source())
+
+    assert any(event["action"] == "stt_live_rtp_listener_started" for event in events)
+    assert any(event["action"] == "stt_live_rtp_packet_received" for event in events)
+    assert any(event["action"] == "stt_live_pcm_chunk_created" for event in events)
+    rtp_count = next(event for event in events if event["action"] == "stt_live_rtp_packets_received_count")
+    pcm_count = next(event for event in events if event["action"] == "stt_live_pcm_chunks_created_count")
+    assert rtp_count["details"]["stt_live_rtp_packets_received_count"] == 1
+    assert pcm_count["details"]["stt_live_pcm_chunks_created_count"] == 1
+
+
+def test_live_no_rtp_packets_logs_no_audio() -> None:
+    queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+    events: list[dict] = []
+    config = _live_test_config()
+    finished_at = time.perf_counter() - 1.0
+
+    def _log_metric(action: str, details: dict, status: str, reason: str | None) -> None:
+        events.append({"action": action, "details": details, "status": status, "reason": reason})
+
+    async def _run_source() -> None:
+        source = live_streaming._AriExternalMediaRtpSource(
+            client=_SourceSetupClient(),
+            app_name="app",
+            call_id="call-no-rtp",
+            channel_id="ch-no-rtp",
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            record_name="rec",
+            config=config,
+            queue=queue,
+            recording_finished_at=lambda: finished_at,
+            log_metric=_log_metric,
+        )
+        await source.start()
+        assert source.reader_task is not None
+        await asyncio.wait_for(source.reader_task, timeout=1)
+        await source.close()
+
+    asyncio.run(_run_source())
+
+    no_audio = next(event for event in events if event["action"] == "stt_live_openai_no_audio_received")
+    assert no_audio["status"] == "handled"
+    assert no_audio["reason"] == "rtp_packets_zero"
+    assert no_audio["details"]["stt_live_rtp_packets_received_count"] == 0
 
 
 def test_live_setup_failure_still_allows_batch_fallback(monkeypatch, tmp_path: Path) -> None:

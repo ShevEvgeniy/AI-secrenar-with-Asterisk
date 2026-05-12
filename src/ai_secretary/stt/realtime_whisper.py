@@ -22,7 +22,7 @@ import websockets
 
 
 DEFAULT_REALTIME_SESSION_MODEL = "gpt-realtime"
-DEFAULT_REALTIME_BASE_URL = "wss://api.openai.com/v1/realtime"
+DEFAULT_REALTIME_BASE_URL = "wss://api.openai.com/v1/realtime?intent=transcription"
 
 
 @dataclass(frozen=True)
@@ -41,8 +41,10 @@ class RealtimeTranscriptionConfig:
 
     @property
     def websocket_url(self) -> str:
+        if "intent=transcription" in self.base_url:
+            return self.base_url
         separator = "&" if "?" in self.base_url else "?"
-        return f"{self.base_url}{separator}model={self.session_model}"
+        return f"{self.base_url}{separator}intent=transcription"
 
 
 @dataclass(frozen=True)
@@ -153,7 +155,18 @@ class RealtimeWhisperAdapter:
         )
 
         async with await self._connector(self.config.websocket_url, headers) as ws:
-            await ws.send(json.dumps(_session_update(self.config)))
+            session_config = _session_update(self.config)
+            await ws.send(json.dumps(session_config))
+            on_metric(
+                "stt_stream_openai_session_config_sent",
+                {
+                    "stt_stream_model": self.config.transcription_model,
+                    "stt_stream_language": self.config.language,
+                    "stt_stream_sample_rate": self.config.sample_rate,
+                    "event_type": session_config["type"],
+                },
+            )
+            await _wait_for_session_config_ack(ws, on_metric)
             async for chunk in _aiter_chunks(chunks):
                 await ws.send(
                     json.dumps(
@@ -172,13 +185,45 @@ class RealtimeWhisperAdapter:
                         "stt_stream_total_audio_ms": total_audio_ms,
                     },
                 )
+                on_metric(
+                    "stt_stream_openai_audio_chunk_sent",
+                    {
+                        "chunk_index": chunks_sent,
+                        "chunk_bytes": len(chunk),
+                    },
+                )
                 await asyncio.sleep(0)
+            on_metric(
+                "stt_stream_openai_audio_chunks_sent_count",
+                {
+                    "stt_stream_openai_audio_chunks_sent_count": chunks_sent,
+                    "stt_stream_total_audio_ms": total_audio_ms,
+                },
+            )
+            if chunks_sent == 0:
+                on_metric(
+                    "stt_stream_openai_no_audio_received",
+                    {"stt_stream_openai_audio_chunks_sent_count": 0},
+                )
+                return RealtimeTranscriptionResult(
+                    text="",
+                    first_delta_ms=None,
+                    final_ms=None,
+                    total_audio_ms=total_audio_ms,
+                    chunks_sent=0,
+                    deltas=[],
+                    model=self.config.transcription_model,
+                    language=self.config.language,
+                )
             await ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
 
             deadline = self._clock() + self.config.timeout_seconds
             while self._clock() < deadline:
                 timeout = max(0.1, deadline - self._clock())
-                message = await asyncio.wait_for(ws.recv(), timeout=timeout)
+                try:
+                    message = await asyncio.wait_for(ws.recv(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    break
                 payload = json.loads(message)
                 event_type = payload.get("type")
                 if event_type == "conversation.item.input_audio_transcription.delta":
@@ -208,11 +253,20 @@ class RealtimeWhisperAdapter:
                     break
                 elif event_type == "error":
                     raise RuntimeError(json.dumps(payload, ensure_ascii=False))
-            else:
+            if not final_text:
+                on_metric(
+                    "stt_stream_openai_no_delta_received",
+                    {"stt_stream_openai_audio_chunks_sent_count": chunks_sent},
+                )
                 raise TimeoutError("realtime transcription timed out")
 
         if not final_text:
             final_text = "".join(deltas).strip()
+        if chunks_sent > 0 and not deltas and not final_text:
+            on_metric(
+                "stt_stream_openai_no_delta_received",
+                {"stt_stream_openai_audio_chunks_sent_count": chunks_sent},
+            )
         return RealtimeTranscriptionResult(
             text=final_text,
             first_delta_ms=first_delta_ms,
@@ -233,18 +287,48 @@ def _session_update(config: RealtimeTranscriptionConfig) -> dict[str, Any]:
     if config.prompt:
         transcription["prompt"] = config.prompt
     return {
-        "type": "session.update",
-        "session": {
-            "type": "transcription",
-            "audio": {
-                "input": {
-                    "format": {"type": "audio/pcm", "rate": config.sample_rate},
-                    "transcription": transcription,
-                    "turn_detection": None,
-                }
-            },
-        },
+        "type": "transcription_session.update",
+        "input_audio_format": "pcm16",
+        "input_audio_transcription": transcription,
+        "turn_detection": None,
+        "input_audio_noise_reduction": None,
     }
+
+
+async def _wait_for_session_config_ack(
+    ws: Any,
+    on_metric: Callable[[str, dict[str, Any]], None],
+) -> None:
+    try:
+        message = await asyncio.wait_for(ws.recv(), timeout=10)
+    except asyncio.TimeoutError:
+        on_metric(
+            "stt_stream_openai_session_config_failed",
+            {"reason": "session_config_timeout"},
+        )
+        raise
+    payload = json.loads(message)
+    event_type = payload.get("type")
+    if event_type in {"transcription_session.updated", "session.updated"}:
+        on_metric(
+            "stt_stream_openai_session_config_ok",
+            {"event_type": event_type},
+        )
+        return
+    if event_type == "error":
+        on_metric(
+            "stt_stream_openai_session_config_failed",
+            {
+                "event_type": event_type,
+                "error": payload.get("error"),
+            },
+        )
+        raise RuntimeError(json.dumps(payload, ensure_ascii=False))
+    on_metric(
+        "stt_stream_openai_session_config_failed",
+        {"event_type": event_type, "payload": payload},
+    )
+    raise RuntimeError(f"unexpected realtime session config response: {event_type}")
 
 
 def _read_pcm_chunks(path: Path, sample_rate: int, chunk_ms: int) -> tuple[list[bytes], int]:

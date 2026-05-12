@@ -92,7 +92,7 @@ def live_streaming_config() -> LiveStreamingProofConfig:
         topology=os.getenv("STT_LIVE_STREAMING_TOPOLOGY", "snoop_external_media_rtp").strip().lower(),
         host=os.getenv("STT_LIVE_STREAMING_RTP_HOST", "127.0.0.1").strip() or "127.0.0.1",
         port=_env_int("STT_LIVE_STREAMING_RTP_PORT", 0),
-        sample_rate=_env_int("STT_LIVE_STREAMING_SAMPLE_RATE", 16000),
+        sample_rate=_env_int("STT_LIVE_STREAMING_SAMPLE_RATE", 24000),
         chunk_ms=_env_int("STT_LIVE_STREAMING_CHUNK_MS", 200),
         timeout_seconds=float(os.getenv("STT_LIVE_STREAMING_TIMEOUT_SECONDS", "12") or "12"),
         use_live_transcript=_env_bool("STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT", False),
@@ -236,13 +236,28 @@ async def _run_live_streaming_adapter(
     def _on_adapter_metric(action: str, details: dict[str, Any]) -> None:
         mapping = {
             "stt_stream_audio_chunk_sent": "stt_live_stream_audio_chunk_sent",
+            "stt_stream_openai_session_config_sent": "stt_live_openai_session_config_sent",
+            "stt_stream_openai_session_config_ok": "stt_live_openai_session_config_ok",
+            "stt_stream_openai_session_config_failed": "stt_live_openai_session_config_failed",
+            "stt_stream_openai_audio_chunk_sent": "stt_live_openai_audio_chunk_sent",
+            "stt_stream_openai_audio_chunks_sent_count": "stt_live_openai_audio_chunks_sent_count",
+            "stt_stream_openai_no_audio_received": "stt_live_openai_no_audio_received",
+            "stt_stream_openai_no_delta_received": "stt_live_openai_no_delta_received",
             "stt_stream_first_delta_received": "stt_live_stream_first_delta_received",
             "stt_stream_final_received": "stt_live_stream_final_received",
         }
         live_action = mapping.get(action)
         if live_action:
-            status = "sent" if live_action == "stt_live_stream_audio_chunk_sent" else "ok"
+            status = "sent" if live_action in {"stt_live_stream_audio_chunk_sent", "stt_live_openai_audio_chunk_sent"} else "ok"
+            if live_action in {"stt_live_openai_session_config_failed", "stt_live_openai_no_audio_received", "stt_live_openai_no_delta_received"}:
+                status = "handled"
             log_metric(live_action, {**_base_details(config, stage, turn_idx, record_name), **details}, status, None)
+            if live_action == "stt_live_openai_audio_chunk_sent":
+                log_metric("stt_live_stream_audio_chunk_sent", {**_base_details(config, stage, turn_idx, record_name), **details}, "sent", None)
+            if live_action == "stt_live_stream_first_delta_received":
+                log_metric("stt_live_openai_delta_received", {**_base_details(config, stage, turn_idx, record_name), **details}, "ok", None)
+            if live_action == "stt_live_stream_final_received":
+                log_metric("stt_live_openai_final_received", {**_base_details(config, stage, turn_idx, record_name), **details}, "ok", None)
 
     try:
         result = await asyncio.wait_for(
@@ -349,6 +364,8 @@ class _AriExternalMediaRtpSource:
         self._bridge_created = False
         self._external_media_created = False
         self._snoop_channel_created = False
+        self._rtp_packets_received = 0
+        self._pcm_chunks_created = 0
 
     async def start(self) -> None:
         if self.config.media_source != "ari_external_media_rtp":
@@ -374,6 +391,7 @@ class _AriExternalMediaRtpSource:
             "external_channel_id": self.external_channel_id,
             "snoop_channel_id": self.snoop_channel_id,
         }
+        self.log_metric("stt_live_rtp_listener_started", details, "ok", None)
         self.log_metric("live_media_topology_selected", details, "ok", None)
         try:
             await self._create_bridge(details)
@@ -493,7 +511,7 @@ class _AriExternalMediaRtpSource:
             "app": self.app_name,
             "external_host": f"{host}:{port}",
             "channelId": self.external_channel_id,
-            "format": "slin16",
+            "format": _asterisk_slin_format(self.config.sample_rate),
             "direction": "both",
         }
         self._log_step("stt_live_external_media_create_attempt", details, "start", None, endpoint, params)
@@ -504,7 +522,7 @@ class _AriExternalMediaRtpSource:
             self.app_name,
             f"{host}:{port}",
             channel_id=self.external_channel_id,
-            format="slin16",
+            format=_asterisk_slin_format(self.config.sample_rate),
             direction="both",
         )
         result_details = {**details, **_result_details(result)}
@@ -574,10 +592,41 @@ class _AriExternalMediaRtpSource:
                     packet = await asyncio.wait_for(loop.sock_recv(self.sock, 4096), timeout=0.2)
                 except asyncio.TimeoutError:
                     continue
+                self._rtp_packets_received += 1
+                self.log_metric(
+                    "stt_live_rtp_packet_received",
+                    {
+                        **_base_details(self.config, self.stage, self.turn_idx, self.record_name),
+                        "packet_bytes": len(packet),
+                        "stt_live_rtp_packets_received_count": self._rtp_packets_received,
+                    },
+                    "ok",
+                    None,
+                )
                 payload = _rtp_payload(packet)
                 if payload:
+                    self._pcm_chunks_created += 1
+                    self.log_metric(
+                        "stt_live_pcm_chunk_created",
+                        {
+                            **_base_details(self.config, self.stage, self.turn_idx, self.record_name),
+                            "chunk_bytes": len(payload),
+                            "stt_live_pcm_chunks_created_count": self._pcm_chunks_created,
+                        },
+                        "ok",
+                        None,
+                    )
                     await self.queue.put(payload)
         finally:
+            count_details = {
+                **_base_details(self.config, self.stage, self.turn_idx, self.record_name),
+                "stt_live_rtp_packets_received_count": self._rtp_packets_received,
+                "stt_live_pcm_chunks_created_count": self._pcm_chunks_created,
+            }
+            self.log_metric("stt_live_rtp_packets_received_count", count_details, "ok", None)
+            self.log_metric("stt_live_pcm_chunks_created_count", count_details, "ok", None)
+            if self._rtp_packets_received == 0:
+                self.log_metric("stt_live_openai_no_audio_received", count_details, "handled", "rtp_packets_zero")
             await self.queue.put(None)
 
     async def close(self) -> None:
@@ -654,6 +703,14 @@ def _rtp_payload(packet: bytes) -> bytes:
     if len(packet) <= header_len:
         return b""
     return packet[header_len:]
+
+
+def _asterisk_slin_format(sample_rate: int) -> str:
+    if sample_rate == 8000:
+        return "slin"
+    if sample_rate % 1000 == 0:
+        return f"slin{sample_rate // 1000}"
+    return "slin24"
 
 
 def _result_details(result: dict[str, Any] | None) -> dict[str, Any]:
