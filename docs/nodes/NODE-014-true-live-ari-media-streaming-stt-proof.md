@@ -40,7 +40,8 @@ STT_LIVE_STREAMING_FALLBACK_TO_BATCH=true
 STT_LIVE_STREAMING_STAGE_ALLOWLIST=ISSUE,NAME,CITY,PHONE_CONFIRM
 STT_LIVE_STREAMING_MEDIA_SOURCE=ari_external_media_rtp
 STT_LIVE_STREAMING_TOPOLOGY=snoop_external_media_rtp
-STT_LIVE_STREAMING_RTP_HOST=127.0.0.1
+STT_LIVE_RTP_BIND_HOST=0.0.0.0
+STT_LIVE_EXTERNAL_MEDIA_HOST=<ip reachable from Asterisk>
 STT_LIVE_STREAMING_RTP_PORT=0
 STT_LIVE_STREAMING_SAMPLE_RATE=24000
 STT_LIVE_STREAMING_CHUNK_MS=200
@@ -166,6 +167,23 @@ Added diagnostics distinguish the live pipeline stages:
 - OpenAI delta/final received.
 - No RTP/no audio and no delta/final cases.
 
+## Follow-up 6 Session Handshake And RTP Target
+
+Smoke `CALL_ID=1778571204.0` showed two separate blockers:
+
+- The server emits `transcription_session.created` when a transcription WebSocket is established. The adapter treated that as an unexpected config response.
+- externalMedia was advertised as `127.0.0.1:<port>`, which is only valid when Asterisk and the Python process are colocated. In the remote/container deployment, RTP was sent to Asterisk's own loopback instead of the Python listener.
+
+The adapter now accepts `transcription_session.created` as the initial session creation event, logs `stt_live_openai_session_created`, sends `transcription_session.update`, and then waits for `transcription_session.updated` / config OK.
+
+RTP binding and advertising are now separate:
+
+- `STT_LIVE_RTP_BIND_HOST`: local interface for the Python UDP listener, default `0.0.0.0`.
+- `STT_LIVE_EXTERNAL_MEDIA_HOST`: host/IP advertised to Asterisk in `external_host`, required for remote Asterisk.
+- Legacy aliases are also accepted: `STT_LIVE_RTP_ADVERTISED_HOST`, `STT_LIVE_RTP_HOST`, `STT_LIVE_STREAMING_RTP_ADVERTISED_HOST`, `STT_LIVE_STREAMING_RTP_HOST`.
+
+For remote Asterisk, live setup fails cleanly with `live_rtp_advertised_host_required_for_remote_asterisk` if no advertised host is set, and with `live_rtp_loopback_advertised_for_remote_asterisk` if `127.0.0.1` / localhost is advertised. Batch fallback remains stable.
+
 Status:
 
 ```text
@@ -195,6 +213,7 @@ NODE-014 emits:
 - `stt_live_pcm_chunk_created`
 - `stt_live_pcm_chunks_created_count`
 - `stt_live_openai_session_config_sent`
+- `stt_live_openai_session_created`
 - `stt_live_openai_session_config_ok`
 - `stt_live_openai_session_config_failed`
 - `stt_live_openai_audio_chunk_sent`

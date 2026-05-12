@@ -155,6 +155,7 @@ class RealtimeWhisperAdapter:
         )
 
         async with await self._connector(self.config.websocket_url, headers) as ws:
+            await _wait_for_session_created(ws, on_metric)
             session_config = _session_update(self.config)
             await ws.send(json.dumps(session_config))
             on_metric(
@@ -329,6 +330,39 @@ async def _wait_for_session_config_ack(
         {"event_type": event_type, "payload": payload},
     )
     raise RuntimeError(f"unexpected realtime session config response: {event_type}")
+
+
+async def _wait_for_session_created(
+    ws: Any,
+    on_metric: Callable[[str, dict[str, Any]], None],
+) -> None:
+    try:
+        message = await asyncio.wait_for(ws.recv(), timeout=10)
+    except asyncio.TimeoutError:
+        on_metric(
+            "stt_stream_openai_session_config_failed",
+            {"reason": "session_create_timeout"},
+        )
+        raise
+    payload = json.loads(message)
+    event_type = payload.get("type")
+    if event_type in {"transcription_session.created", "session.created"}:
+        on_metric(
+            "stt_stream_openai_session_created",
+            {"event_type": event_type},
+        )
+        return
+    if event_type == "error":
+        on_metric(
+            "stt_stream_openai_session_config_failed",
+            {"event_type": event_type, "error": payload.get("error")},
+        )
+        raise RuntimeError(json.dumps(payload, ensure_ascii=False))
+    on_metric(
+        "stt_stream_openai_session_config_failed",
+        {"event_type": event_type, "payload": payload},
+    )
+    raise RuntimeError(f"unexpected realtime session create response: {event_type}")
 
 
 def _read_pcm_chunks(path: Path, sample_rate: int, chunk_ms: int) -> tuple[list[bytes], int]:

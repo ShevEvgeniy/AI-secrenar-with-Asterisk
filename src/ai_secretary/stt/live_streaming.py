@@ -10,6 +10,7 @@ import os
 import socket
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 from ai_secretary.config.settings import Settings
 from ai_secretary.stt.realtime_whisper import RealtimeTranscriptionConfig, RealtimeTranscriptionResult, RealtimeWhisperAdapter
@@ -46,6 +47,8 @@ class LiveStreamingProofConfig:
     stage_allowlist: set[str]
     media_source: str
     topology: str
+    bind_host: str
+    advertised_host: str
     host: str
     port: int
     sample_rate: int
@@ -90,7 +93,24 @@ def live_streaming_config() -> LiveStreamingProofConfig:
         stage_allowlist=_stage_allowlist(),
         media_source=os.getenv("STT_LIVE_STREAMING_MEDIA_SOURCE", "ari_external_media_rtp").strip().lower(),
         topology=os.getenv("STT_LIVE_STREAMING_TOPOLOGY", "snoop_external_media_rtp").strip().lower(),
-        host=os.getenv("STT_LIVE_STREAMING_RTP_HOST", "127.0.0.1").strip() or "127.0.0.1",
+        bind_host=_env_first(
+            "STT_LIVE_RTP_BIND_HOST",
+            "STT_LIVE_STREAMING_RTP_BIND_HOST",
+            default="0.0.0.0",
+        ),
+        advertised_host=_env_first(
+            "STT_LIVE_EXTERNAL_MEDIA_HOST",
+            "STT_LIVE_RTP_ADVERTISED_HOST",
+            "STT_LIVE_RTP_HOST",
+            "STT_LIVE_STREAMING_RTP_ADVERTISED_HOST",
+            "STT_LIVE_STREAMING_RTP_HOST",
+            default="",
+        ),
+        host=_env_first(
+            "STT_LIVE_RTP_BIND_HOST",
+            "STT_LIVE_STREAMING_RTP_BIND_HOST",
+            default="0.0.0.0",
+        ),
         port=_env_int("STT_LIVE_STREAMING_RTP_PORT", 0),
         sample_rate=_env_int("STT_LIVE_STREAMING_SAMPLE_RATE", 24000),
         chunk_ms=_env_int("STT_LIVE_STREAMING_CHUNK_MS", 200),
@@ -171,6 +191,7 @@ async def start_live_streaming_proof(
         raise LiveStreamingProofError("external_media_channel_excluded")
     if not _openai_api_key_usable(settings.openai_api_key):
         raise LiveStreamingProofError("openai_api_key_missing_or_invalid")
+    config = _resolve_rtp_advertised_host(config, settings.ari_url, log_metric, stage, turn_idx, record_name)
 
     log_metric("stt_live_stream_probe_started", _base_details(config, stage, turn_idx, record_name), "start", None)
     queue: asyncio.Queue[bytes | None] = asyncio.Queue()
@@ -236,6 +257,7 @@ async def _run_live_streaming_adapter(
     def _on_adapter_metric(action: str, details: dict[str, Any]) -> None:
         mapping = {
             "stt_stream_audio_chunk_sent": "stt_live_stream_audio_chunk_sent",
+            "stt_stream_openai_session_created": "stt_live_openai_session_created",
             "stt_stream_openai_session_config_sent": "stt_live_openai_session_config_sent",
             "stt_stream_openai_session_config_ok": "stt_live_openai_session_config_ok",
             "stt_stream_openai_session_config_failed": "stt_live_openai_session_config_failed",
@@ -380,13 +402,18 @@ class _AriExternalMediaRtpSource:
             )
             raise RuntimeError(f"unsupported live media topology: {self.config.topology}")
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.bind((self.config.host, self.config.port))
+        self.sock.bind((self.config.bind_host, self.config.port))
         self.sock.setblocking(False)
-        host, port = self.sock.getsockname()
+        bind_host, port = self.sock.getsockname()
+        advertised_host = self.config.advertised_host
         details = {
             **_base_details(self.config, self.stage, self.turn_idx, self.record_name),
-            "rtp_host": host,
+            "rtp_host": bind_host,
+            "stt_live_rtp_bind_host": bind_host,
+            "stt_live_rtp_advertised_host": advertised_host,
             "rtp_port": port,
+            "stt_live_rtp_port": port,
+            "stt_live_external_media_target": f"{advertised_host}:{port}",
             "bridge_id": self.bridge_id,
             "external_channel_id": self.external_channel_id,
             "snoop_channel_id": self.snoop_channel_id,
@@ -408,7 +435,7 @@ class _AriExternalMediaRtpSource:
                     channel_role="original",
                     details=details,
                 )
-            await self._create_external_media(host, port, details)
+            await self._create_external_media(advertised_host, port, details)
             await self._add_channel_to_bridge(
                 channel_id=self.external_channel_id,
                 channel_role="external_media",
@@ -713,6 +740,76 @@ def _asterisk_slin_format(sample_rate: int) -> str:
     return "slin24"
 
 
+def _resolve_rtp_advertised_host(
+    config: LiveStreamingProofConfig,
+    ari_url: str,
+    log_metric: Callable[[str, dict[str, Any], str, str | None], None],
+    stage: DialogStage,
+    turn_idx: int,
+    record_name: str,
+) -> LiveStreamingProofConfig:
+    details = _base_details(config, stage, turn_idx, record_name)
+    advertised_host = config.advertised_host.strip()
+    ari_host = (urlparse(ari_url).hostname or "").lower()
+    remote_asterisk = ari_host not in {"", "localhost", "127.0.0.1", "::1"}
+    if not advertised_host:
+        if remote_asterisk:
+            log_metric(
+                "stt_live_external_media_target",
+                {
+                    **details,
+                    "ari_host": ari_host,
+                    "stt_live_rtp_bind_host": config.bind_host,
+                    "stt_live_rtp_advertised_host": "",
+                },
+                "fail",
+                "live_rtp_advertised_host_required_for_remote_asterisk",
+            )
+            raise LiveStreamingProofError("live_rtp_advertised_host_required_for_remote_asterisk")
+        advertised_host = "127.0.0.1"
+    if advertised_host in {"127.0.0.1", "localhost", "::1"} and remote_asterisk:
+        log_metric(
+            "stt_live_external_media_target",
+            {
+                **details,
+                "ari_host": ari_host,
+                "stt_live_rtp_bind_host": config.bind_host,
+                "stt_live_rtp_advertised_host": advertised_host,
+            },
+            "fail",
+            "live_rtp_loopback_advertised_for_remote_asterisk",
+        )
+        raise LiveStreamingProofError("live_rtp_loopback_advertised_for_remote_asterisk")
+    log_metric(
+        "stt_live_external_media_target",
+        {
+            **details,
+            "ari_host": ari_host,
+            "stt_live_rtp_bind_host": config.bind_host,
+            "stt_live_rtp_advertised_host": advertised_host,
+        },
+        "ok",
+        None,
+    )
+    return LiveStreamingProofConfig(
+        enabled=config.enabled,
+        provider=config.provider,
+        model=config.model,
+        fallback_to_batch=config.fallback_to_batch,
+        stage_allowlist=config.stage_allowlist,
+        media_source=config.media_source,
+        topology=config.topology,
+        bind_host=config.bind_host,
+        advertised_host=advertised_host,
+        host=config.bind_host,
+        port=config.port,
+        sample_rate=config.sample_rate,
+        chunk_ms=config.chunk_ms,
+        timeout_seconds=config.timeout_seconds,
+        use_live_transcript=config.use_live_transcript,
+    )
+
+
 def _result_details(result: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(result, dict):
         return {}
@@ -759,12 +856,22 @@ def _base_details(config: LiveStreamingProofConfig, stage: DialogStage, turn_idx
         "stt_live_streaming_model": config.model,
         "stt_live_streaming_media_source": config.media_source,
         "live_media_topology": config.topology,
+        "stt_live_rtp_bind_host": config.bind_host,
+        "stt_live_rtp_advertised_host": config.advertised_host,
     }
 
 
 def _stage_allowlist() -> set[str]:
     raw = os.getenv("STT_LIVE_STREAMING_STAGE_ALLOWLIST", DEFAULT_LIVE_STAGE_ALLOWLIST)
     return {item.strip().upper() for item in raw.split(",") if item.strip()}
+
+
+def _env_first(*names: str, default: str = "") -> str:
+    for name in names:
+        value = os.getenv(name)
+        if value is not None and value.strip():
+            return value.strip()
+    return default
 
 
 def _env_bool(name: str, default: bool) -> bool:

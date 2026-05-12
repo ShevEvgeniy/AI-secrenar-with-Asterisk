@@ -252,6 +252,7 @@ def test_realtime_adapter_streams_wav_and_reports_delta_metrics(tmp_path: Path) 
     class _FakeWebSocket:
         def __init__(self) -> None:
             self.responses = [
+                json.dumps({"type": "transcription_session.created"}),
                 json.dumps({"type": "transcription_session.updated"}),
                 json.dumps({"type": "conversation.item.input_audio_transcription.delta", "delta": "pri"}),
                 json.dumps({"type": "conversation.item.input_audio_transcription.completed", "transcript": "privet"}),
@@ -294,6 +295,7 @@ def test_realtime_adapter_streams_wav_and_reports_delta_metrics(tmp_path: Path) 
     assert "type" not in config_message.get("input_audio_transcription", {})
     assert any(message["type"] == "input_audio_buffer.append" for message in sent_messages)
     assert any(name == "stt_stream_openai_session_config_sent" for name, _details in metrics)
+    assert any(name == "stt_stream_openai_session_created" for name, _details in metrics)
     assert any(name == "stt_stream_openai_session_config_ok" for name, _details in metrics)
     assert any(name == "stt_stream_openai_audio_chunk_sent" for name, _details in metrics)
     assert any(name == "stt_stream_openai_audio_chunks_sent_count" for name, _details in metrics)
@@ -318,6 +320,9 @@ def test_realtime_adapter_logs_session_config_rejection(tmp_path: Path) -> None:
             sent_messages.append(json.loads(message))
 
         async def recv(self) -> str:
+            if not hasattr(self, "_created_sent"):
+                self._created_sent = True
+                return json.dumps({"type": "transcription_session.created"})
             return json.dumps(
                 {
                     "type": "error",
@@ -355,7 +360,10 @@ def test_realtime_adapter_logs_chunks_sent_but_no_delta() -> None:
 
     class _NoDeltaWebSocket:
         def __init__(self) -> None:
-            self.responses = [json.dumps({"type": "transcription_session.updated"})]
+            self.responses = [
+                json.dumps({"type": "transcription_session.created"}),
+                json.dumps({"type": "transcription_session.updated"}),
+            ]
 
         async def __aenter__(self):
             return self
@@ -396,6 +404,42 @@ def test_realtime_adapter_logs_chunks_sent_but_no_delta() -> None:
     assert any(name == "stt_stream_openai_audio_chunk_sent" for name, _details in metrics)
     no_delta = next(details for name, details in metrics if name == "stt_stream_openai_no_delta_received")
     assert no_delta["stt_stream_openai_audio_chunks_sent_count"] == 1
+
+
+def test_live_rtp_advertised_host_is_configurable(monkeypatch) -> None:
+    monkeypatch.setenv("STT_LIVE_RTP_BIND_HOST", "0.0.0.0")
+    monkeypatch.setenv("STT_LIVE_EXTERNAL_MEDIA_HOST", "192.0.2.55")
+
+    config = live_streaming.live_streaming_config()
+
+    assert config.bind_host == "0.0.0.0"
+    assert config.advertised_host == "192.0.2.55"
+
+
+def test_live_rtp_loopback_advertised_host_fails_for_remote_asterisk() -> None:
+    config = replace(_live_test_config(), advertised_host="127.0.0.1")
+    events: list[dict] = []
+
+    def _log_metric(action: str, details: dict, status: str, reason: str | None) -> None:
+        events.append({"action": action, "details": details, "status": status, "reason": reason})
+
+    try:
+        live_streaming._resolve_rtp_advertised_host(
+            config,
+            "http://192.0.2.10:8088/ari",
+            _log_metric,
+            DialogStage.ISSUE,
+            1,
+            "rec",
+        )
+    except live_streaming.LiveStreamingProofError as exc:
+        assert exc.reason == "live_rtp_loopback_advertised_for_remote_asterisk"
+    else:
+        raise AssertionError("loopback advertised host should fail for remote Asterisk")
+
+    warning = next(event for event in events if event["action"] == "stt_live_external_media_target")
+    assert warning["status"] == "fail"
+    assert warning["reason"] == "live_rtp_loopback_advertised_for_remote_asterisk"
 
 
 def test_feature_flag_off_keeps_batch_whisper_path(monkeypatch, tmp_path: Path) -> None:
@@ -1271,6 +1315,8 @@ def _live_test_config() -> live_streaming.LiveStreamingProofConfig:
         stage_allowlist={"ISSUE"},
         media_source="ari_external_media_rtp",
         topology="snoop_external_media_rtp",
+        bind_host="127.0.0.1",
+        advertised_host="127.0.0.1",
         host="127.0.0.1",
         port=0,
         sample_rate=24000,
