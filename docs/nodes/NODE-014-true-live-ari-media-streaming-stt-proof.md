@@ -99,6 +99,14 @@ Acceptance-critical event ordering is now covered by tests: `stt_live_bridge_add
 
 The externalMedia channel is not assumed to auto-join the bridge; Asterisk documentation describes creating the externalMedia channel and then adding it to an existing bridge. If a future smoke shows the externalMedia channel is already bridged in this deployment, the next change should make the second add conditional on the failure/status/body details.
 
+## Follow-up 3 Recursion Guard
+
+Smoke `CALL_ID=1778562482.0` showed that ARI `externalMedia` channels enter the same Stasis app as normal caller channels. Because the proof channel id was `live-proof-ext-...`, the app accidentally started a full dialog flow for the externalMedia channel, which then created another `live-proof-ext-...` channel recursively.
+
+The dispatch path and `handle_call` entry now ignore channels whose id or name contains the proof marker `live-proof-ext-` before normal call setup side effects. Ignored channels log `stt_live_external_media_channel_ignored` with reason `external_media_channel_excluded`; they are not answered, do not start MOH, do not play prompts, do not record, and cannot create another live proof channel.
+
+Live setup also refuses to run on a `live-proof-ext-...` channel and logs `stt_live_stream_probe_failed` with reason `external_media_channel_excluded` if reached directly. Realtime adapter task failures, including `invalid_api_key` and connection-closed failures, are caught and logged as `stt_live_stream_error`, then the normal batch fallback path remains responsible for dialog text.
+
 ## Metrics
 
 NODE-014 emits:

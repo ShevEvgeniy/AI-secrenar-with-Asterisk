@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 import hashlib
 import json
 from pathlib import Path
 import wave
 
 from ai_secretary.config.settings import Settings
+from ai_secretary.stt import live_streaming
 from ai_secretary.stt.realtime_whisper import (
     RealtimeTranscriptionConfig,
     RealtimeTranscriptionResult,
@@ -553,7 +555,7 @@ def test_live_streaming_result_logs_baseline_delta_and_falls_back_to_batch(monke
 
 
 def test_live_bridge_add_channel_http_error_logs_status_body_and_cleans_up(monkeypatch, tmp_path: Path) -> None:
-    settings = _settings(tmp_path)
+    settings = replace(_settings(tmp_path), openai_api_key="sk-valid-for-setup-test")
     session = CallSession(call_id="call-bridge-fail", channel_id="ch-bridge-fail", artifact_dir=tmp_path / "artifacts")
     cleanup_calls: list[str] = []
 
@@ -767,6 +769,170 @@ def test_handle_call_live_setup_failure_before_record_start_cleans_up_and_record
     assert failed["details"]["ari_request_query"] == "channel=ch-order-fail"
     assert failed["details"]["bridge_id"] == "live-proof-call-order-fail-1"
     assert failed["details"]["original_channel_id"] == "ch-order-fail"
+
+
+class _ExplodingNormalFlowClient:
+    async def play_safe(self, *_args, **_kwargs):
+        raise AssertionError("externalMedia channel must not play prompts")
+
+    async def record_safe(self, *_args, **_kwargs):
+        raise AssertionError("externalMedia channel must not start recording")
+
+    async def answer_safe(self, *_args, **_kwargs):
+        raise AssertionError("dispatch guard must run before answer")
+
+
+def test_external_media_handle_call_entry_is_ignored_before_dialog(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    session = CallSession(
+        call_id="live-proof-ext-call-entry-1",
+        channel_id="live-proof-ext-call-entry-1",
+        artifact_dir=tmp_path / "artifacts",
+    )
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+
+    asyncio.run(ari_app.handle_call(_ExplodingNormalFlowClient(), settings, "app", session))
+
+    events = _read_events(session)
+    assert [event["action"] for event in events] == [
+        "session_created",
+        "stt_live_external_media_channel_ignored",
+    ]
+    ignored = events[-1]
+    assert ignored["status"] == "skipped"
+    assert ignored["reason"] == "external_media_channel_excluded"
+    assert ignored["details"] == {"channel_id": "live-proof-ext-call-entry-1"}
+
+
+def test_external_media_stasis_channel_is_identified_and_logged_without_call_setup(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    channel = {
+        "id": "live-proof-ext-1778562482.0-1",
+        "name": "UnicastRTP/live-proof-ext-1778562482.0-1",
+    }
+
+    assert ari_app._is_live_external_media_stasis_channel(channel) is True
+    ari_app._log_external_media_channel_ignored(settings, channel)
+
+    events_path = settings.storage_dir / "artifacts" / channel["id"] / "events.jsonl"
+    events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines()]
+    ignored = next(event for event in events if event["action"] == "stt_live_external_media_channel_ignored")
+    assert ignored["reason"] == "external_media_channel_excluded"
+    assert ignored["details"]["channel_id"] == channel["id"]
+
+
+def test_live_setup_refuses_external_media_channel(monkeypatch, tmp_path: Path) -> None:
+    settings = replace(_settings(tmp_path), openai_api_key="sk-valid-for-setup-test")
+    session = CallSession(
+        call_id="live-proof-ext-recursive-1",
+        channel_id="live-proof-ext-recursive-1",
+        artifact_dir=tmp_path / "artifacts",
+    )
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+
+    async def _run_probe():
+        return await ari_app._start_live_streaming_probe(
+            settings,
+            object(),
+            "app",
+            session,
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            record_name="rec",
+            record_started_at=1.0,
+            recording_finished_at=lambda: None,
+        )
+
+    handle = asyncio.run(_run_probe())
+    events = _read_events(session)
+
+    assert handle is None
+    failed = next(event for event in events if event["action"] == "stt_live_stream_probe_failed")
+    assert failed["reason"] == "external_media_channel_excluded"
+    assert not any("live-proof-ext-live-proof-ext" in json.dumps(event) for event in events)
+
+
+def test_live_setup_fails_fast_for_missing_openai_api_key(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    session = CallSession(call_id="call-no-key", channel_id="ch-no-key", artifact_dir=tmp_path / "artifacts")
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+
+    async def _run_probe():
+        return await ari_app._start_live_streaming_probe(
+            settings,
+            object(),
+            "app",
+            session,
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            record_name="rec",
+            record_started_at=1.0,
+            recording_finished_at=lambda: None,
+        )
+
+    handle = asyncio.run(_run_probe())
+    events = _read_events(session)
+
+    assert handle is None
+    assert any(
+        event["action"] == "stt_live_stream_probe_failed"
+        and event["reason"] == "openai_api_key_missing_or_invalid"
+        for event in events
+    )
+    assert any(
+        event["action"] == "stt_live_stream_fallback_to_batch"
+        and event["reason"] == "openai_api_key_missing_or_invalid"
+        for event in events
+    )
+
+
+def test_live_adapter_exception_is_logged_and_returned_without_unretrieved_task(monkeypatch, tmp_path: Path) -> None:
+    settings = replace(_settings(tmp_path), openai_api_key="sk-valid-for-runtime-test")
+    queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+    events: list[dict] = []
+
+    class _FakeSource:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def close(self) -> None:
+            self.closed = True
+
+    class _InvalidKeyAdapter:
+        def __init__(self, _config) -> None:
+            pass
+
+        async def transcribe_pcm_chunks(self, _chunks, *, total_audio_ms: int, on_metric):
+            raise RuntimeError("invalid_request_error.invalid_api_key")
+
+    source = _FakeSource()
+    monkeypatch.setattr(live_streaming, "RealtimeWhisperAdapter", _InvalidKeyAdapter)
+
+    def _log_metric(action: str, details: dict, status: str, reason: str | None) -> None:
+        events.append({"action": action, "details": details, "status": status, "reason": reason})
+
+    result = asyncio.run(
+        live_streaming._run_live_streaming_adapter(
+            settings=settings,
+            source=source,
+            queue=queue,
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            record_name="rec",
+            recording_finished_at=lambda: None,
+            log_metric=_log_metric,
+            config=live_streaming.live_streaming_config(),
+        )
+    )
+
+    assert source.closed is True
+    assert result.text == ""
+    assert any(
+        event["action"] == "stt_live_stream_error"
+        and event["status"] == "handled"
+        and event["reason"] == "openai_realtime_invalid_api_key"
+        for event in events
+    )
 
 
 def test_live_setup_failure_still_allows_batch_fallback(monkeypatch, tmp_path: Path) -> None:

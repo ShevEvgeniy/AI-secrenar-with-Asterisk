@@ -17,8 +17,10 @@ from ..config.settings import Settings
 from ..core.runner import run_pipeline, run_pipeline_from_transcript
 from ..rag.embeddings import warmup_embeddings
 from ..stt.live_streaming import (
+    LiveStreamingProofError,
     LiveStreamingProofHandle,
     LiveStreamingProofResult,
+    is_live_external_media_channel,
     live_streaming_config,
     live_streaming_stage_allowed,
     start_live_streaming_proof,
@@ -3377,6 +3379,14 @@ async def _start_live_streaming_probe(
         "stt_live_streaming_model": config.model,
         "stt_live_streaming_stage_allowlist": sorted(config.stage_allowlist),
     }
+    if is_live_external_media_channel(session.channel_id):
+        session.log_event(
+            action="stt_live_stream_probe_failed",
+            status="skipped",
+            reason="external_media_channel_excluded",
+            details=base_details,
+        )
+        return None
     if not config.enabled:
         return None
     if not live_streaming_stage_allowed(stage, config):
@@ -3407,22 +3417,23 @@ async def _start_live_streaming_probe(
             config=config,
         )
     except Exception as exc:
+        reason = exc.reason if isinstance(exc, LiveStreamingProofError) else "stt_live_stream_error"
         session.log_event(
             action="stt_live_stream_probe_failed",
             status="handled",
-            reason="stt_live_stream_error",
+            reason=reason,
             details={**base_details, "error": repr(exc)},
         )
         session.log_event(
             action="stt_live_stream_error",
             status="handled",
-            reason="stt_live_stream_error",
+            reason=reason,
             details={**base_details, "error": repr(exc)},
         )
         session.log_event(
             action="stt_live_stream_fallback_to_batch",
             status="ok",
-            reason="live_streaming_setup_failed",
+            reason="live_streaming_setup_failed" if reason != "openai_api_key_missing_or_invalid" else reason,
             details={**base_details, "error": repr(exc)},
         )
         return None
@@ -3471,6 +3482,15 @@ async def handle_call(
 ) -> None:
     call_id = session.call_id
     channel_id = session.channel_id
+    if is_live_external_media_channel(channel_id):
+        session.log_event(
+            action="stt_live_external_media_channel_ignored",
+            status="skipped",
+            reason="external_media_channel_excluded",
+            details={"channel_id": channel_id},
+        )
+        print("STASIS_EXTERNAL_MEDIA_IGNORED", channel_id)
+        return
     play_test = os.getenv("PLAY_TEST", "0") == "1"
     record_max_duration_seconds = _env_int("RECORD_MAX_DURATION_SECONDS", 6)
     record_max_silence_seconds = _env_int("RECORD_MAX_SILENCE_SECONDS", 2)
@@ -4250,6 +4270,9 @@ async def main() -> None:
             channel_id = channel.get("id")
 
             if event_type == "StasisStart" and channel_id:
+                if _is_live_external_media_stasis_channel(channel):
+                    _log_external_media_channel_ignored(settings, channel)
+                    continue
                 call_id = channel_id
                 artifact_dir = settings.storage_dir / "artifacts" / call_id
                 session = CallSession(call_id=call_id, channel_id=channel_id, artifact_dir=artifact_dir)
@@ -4293,6 +4316,30 @@ async def main() -> None:
             await asyncio.gather(*call_tasks.values(), return_exceptions=True)
         if _system_sounds_task is not None:
             await asyncio.gather(_system_sounds_task, return_exceptions=True)
+
+
+def _is_live_external_media_stasis_channel(channel: dict[str, Any]) -> bool:
+    return is_live_external_media_channel(
+        str(channel.get("id") or ""),
+        str(channel.get("name") or ""),
+    )
+
+
+def _log_external_media_channel_ignored(settings: Settings, channel: dict[str, Any]) -> None:
+    channel_id = str(channel.get("id") or "")
+    channel_name = str(channel.get("name") or "")
+    artifact_dir = settings.storage_dir / "artifacts" / (channel_id or "live-proof-ext-unknown")
+    session = CallSession(call_id=channel_id, channel_id=channel_id, artifact_dir=artifact_dir)
+    session.log_event(
+        action="stt_live_external_media_channel_ignored",
+        status="skipped",
+        reason="external_media_channel_excluded",
+        details={
+            "channel_id": channel_id,
+            "channel_name": channel_name,
+        },
+    )
+    print("STASIS_EXTERNAL_MEDIA_IGNORED", channel_id, channel_name)
 
 
 def _reset_fallback_cache_for_tests() -> None:

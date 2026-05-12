@@ -16,6 +16,18 @@ from ai_secretary.telephony.call_session import DialogStage
 
 
 DEFAULT_LIVE_STAGE_ALLOWLIST = "ISSUE,NAME,CITY,PHONE_CONFIRM"
+LIVE_EXTERNAL_MEDIA_CHANNEL_PREFIX = "live-proof-ext-"
+
+
+class LiveStreamingProofError(RuntimeError):
+    def __init__(self, reason: str, message: str | None = None) -> None:
+        super().__init__(message or reason)
+        self.reason = reason
+
+
+def is_live_external_media_channel(channel_id: str | None, channel_name: str | None = None) -> bool:
+    values = [value for value in (channel_id, channel_name) if isinstance(value, str) and value]
+    return any(value.startswith(LIVE_EXTERNAL_MEDIA_CHANNEL_PREFIX) or LIVE_EXTERNAL_MEDIA_CHANNEL_PREFIX in value for value in values)
 
 
 @dataclass(frozen=True)
@@ -83,6 +95,15 @@ def live_streaming_stage_allowed(stage: DialogStage, config: LiveStreamingProofC
     return stage.value in config.stage_allowlist and stage != DialogStage.PHONE
 
 
+def _openai_api_key_usable(api_key: str | None) -> bool:
+    value = (api_key or "").strip()
+    if not value:
+        return False
+    lowered = value.lower()
+    placeholders = {"changeme", "change-me", "placeholder", "your-api-key", "your_openai_api_key", "test", "dummy"}
+    return lowered not in placeholders and not lowered.startswith(("sk-placeholder", "sk-test", "sk-dummy"))
+
+
 async def run_live_streaming_proof(
     *,
     settings: Settings,
@@ -137,6 +158,10 @@ async def start_live_streaming_proof(
         raise RuntimeError(f"unsupported live streaming provider: {config.provider}")
     if not live_streaming_stage_allowed(stage, config):
         raise RuntimeError(f"stage is not allowlisted for live streaming proof: {stage.value}")
+    if is_live_external_media_channel(channel_id):
+        raise LiveStreamingProofError("external_media_channel_excluded")
+    if not _openai_api_key_usable(settings.openai_api_key):
+        raise LiveStreamingProofError("openai_api_key_missing_or_invalid")
 
     log_metric("stt_live_stream_probe_started", _base_details(config, stage, turn_idx, record_name), "start", None)
     queue: asyncio.Queue[bytes | None] = asyncio.Queue()
@@ -215,6 +240,30 @@ async def _run_live_streaming_adapter(
             adapter.transcribe_pcm_chunks(_chunks(), total_audio_ms=0, on_metric=_on_adapter_metric),
             timeout=config.timeout_seconds,
         )
+    except Exception as exc:
+        reason = _live_adapter_error_reason(exc)
+        log_metric(
+            "stt_live_stream_error",
+            {
+                **_base_details(config, stage, turn_idx, record_name),
+                "error": repr(exc),
+                "error_type": type(exc).__name__,
+            },
+            "handled",
+            reason,
+        )
+        return LiveStreamingProofResult(
+            text="",
+            first_delta_ms=None,
+            final_ms=None,
+            chunks_sent=0,
+            audio_started_before_recording_finished=(
+                first_audio_at is not None
+                and recording_finished_at() is not None
+                and first_audio_at < recording_finished_at()
+            ),
+            recording_finish_to_final_ms=None,
+        )
     finally:
         await source.close()
 
@@ -243,6 +292,17 @@ async def _run_live_streaming_adapter(
         audio_started_before_recording_finished=audio_before_finish,
         recording_finish_to_final_ms=finish_to_final_ms,
     )
+
+
+def _live_adapter_error_reason(exc: Exception) -> str:
+    message = repr(exc).lower()
+    if "invalid_api_key" in message or "api key" in message:
+        return "openai_realtime_invalid_api_key"
+    if "connectionclosed" in type(exc).__name__.lower() or "connection closed" in message:
+        return "openai_realtime_connection_closed"
+    if isinstance(exc, asyncio.TimeoutError):
+        return "openai_realtime_timeout"
+    return "openai_realtime_error"
 
 
 class _AriExternalMediaRtpSource:
@@ -274,7 +334,7 @@ class _AriExternalMediaRtpSource:
         self.log_metric = log_metric
         self.sock: socket.socket | None = None
         self.bridge_id = f"live-proof-{call_id}-{turn_idx}"
-        self.external_channel_id = f"live-proof-ext-{call_id}-{turn_idx}"
+        self.external_channel_id = f"{LIVE_EXTERNAL_MEDIA_CHANNEL_PREFIX}{call_id}-{turn_idx}"
         self.reader_task: asyncio.Task[None] | None = None
         self._bridge_created = False
         self._external_media_created = False
