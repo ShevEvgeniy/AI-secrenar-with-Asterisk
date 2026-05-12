@@ -417,8 +417,12 @@ def test_live_streaming_feature_flag_initializes_proof_path_only_when_enabled(mo
     session = CallSession(call_id="call-live", channel_id="ch-live", artifact_dir=tmp_path / "artifacts")
     calls: list[dict] = []
 
-    async def _fake_live_proof(**kwargs):
+    async def _fake_start_live_proof(**kwargs):
         calls.append(kwargs)
+        task = asyncio.create_task(_completed_live_result())
+        return ari_app.LiveStreamingProofHandle(task=task)
+
+    async def _completed_live_result():
         return ari_app.LiveStreamingProofResult(
             text="live text",
             first_delta_ms=25,
@@ -428,10 +432,10 @@ def test_live_streaming_feature_flag_initializes_proof_path_only_when_enabled(mo
             recording_finish_to_final_ms=-120,
         )
 
-    monkeypatch.setattr(ari_app, "run_live_streaming_proof", _fake_live_proof)
+    monkeypatch.setattr(ari_app, "start_live_streaming_proof", _fake_start_live_proof)
     monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "false")
-    assert (
-        ari_app._start_live_streaming_probe_task(
+    async def _run_disabled_probe():
+        return await ari_app._start_live_streaming_probe(
             settings,
             object(),
             "app",
@@ -442,13 +446,13 @@ def test_live_streaming_feature_flag_initializes_proof_path_only_when_enabled(mo
             record_started_at=1.0,
             recording_finished_at=lambda: 2.0,
         )
-        is None
-    )
+
+    assert asyncio.run(_run_disabled_probe()) is None
 
     monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
 
     async def _run_enabled_probe():
-        task = ari_app._start_live_streaming_probe_task(
+        handle = await ari_app._start_live_streaming_probe(
             settings,
             object(),
             "app",
@@ -460,7 +464,7 @@ def test_live_streaming_feature_flag_initializes_proof_path_only_when_enabled(mo
             recording_finished_at=lambda: 2.0,
         )
         return await ari_app._finish_live_streaming_probe_task(
-            task,
+            handle,
             session,
             stage=DialogStage.CITY,
             turn_idx=1,
@@ -479,18 +483,20 @@ def test_phone_is_excluded_from_live_streaming_by_default(monkeypatch, tmp_path:
     session = CallSession(call_id="call-live-phone", channel_id="ch-live-phone", artifact_dir=tmp_path / "artifacts")
 
     monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
-    task = ari_app._start_live_streaming_probe_task(
-        settings,
-        object(),
-        "app",
-        session,
-        stage=DialogStage.PHONE,
-        turn_idx=1,
-        record_name="rec",
-        record_started_at=1.0,
-        recording_finished_at=lambda: 2.0,
-    )
+    async def _run_phone_probe():
+        return await ari_app._start_live_streaming_probe(
+            settings,
+            object(),
+            "app",
+            session,
+            stage=DialogStage.PHONE,
+            turn_idx=1,
+            record_name="rec",
+            record_started_at=1.0,
+            recording_finished_at=lambda: 2.0,
+        )
 
+    task = asyncio.run(_run_phone_probe())
     events = _read_events(session)
     assert task is None
     assert any(event["action"] == "stt_live_stream_probe_failed" for event in events)
@@ -589,7 +595,7 @@ def test_live_bridge_add_channel_http_error_logs_status_body_and_cleans_up(monke
     monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
 
     async def _run_probe():
-        task = ari_app._start_live_streaming_probe_task(
+        handle = await ari_app._start_live_streaming_probe(
             settings,
             _BridgeFailClient(),
             "app",
@@ -601,7 +607,7 @@ def test_live_bridge_add_channel_http_error_logs_status_body_and_cleans_up(monke
             recording_finished_at=lambda: None,
         )
         return await ari_app._finish_live_streaming_probe_task(
-            task,
+            handle,
             session,
             stage=DialogStage.ISSUE,
             turn_idx=1,
@@ -625,6 +631,142 @@ def test_live_bridge_add_channel_http_error_logs_status_body_and_cleans_up(monke
     assert any(event["action"] == "stt_live_bridge_cleanup_attempt" for event in events)
     assert any(event["action"] == "stt_live_bridge_cleanup_done" for event in events)
     assert any(event["action"] == "stt_live_stream_fallback_to_batch" for event in events)
+
+
+class _RecordStartOrderingClient:
+    def __init__(self) -> None:
+        self.record_safe_called = False
+
+    async def play_safe(self, _channel_id: str, _media: str):
+        return {
+            "ok": True,
+            "details": {"payload": {"id": "playback-ordering"}},
+        }
+
+    async def wait_for_playback_finished(self, _app_name: str, _playback_id: str, timeout: int = 30):
+        return {"type": "PlaybackFinished"}
+
+    async def record_safe(self, *_args, **_kwargs):
+        self.record_safe_called = True
+        return {
+            "ok": False,
+            "reason": "test_record_stop",
+            "http_status": 599,
+            "details": {"test": "stop_after_record_safe"},
+        }
+
+
+async def _pending_live_result() -> ari_app.LiveStreamingProofResult:
+    await asyncio.Event().wait()
+    raise AssertionError("pending live result should be cancelled")
+
+
+def _event_index(events: list[dict], action: str, *, status: str | None = None) -> int:
+    for idx, event in enumerate(events):
+        if event["action"] == action and (status is None or event["status"] == status):
+            return idx
+    raise AssertionError(f"event not found: {action} status={status}")
+
+
+def test_handle_call_starts_live_bridge_before_record_start(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    session = CallSession(call_id="call-order", channel_id="ch-order", artifact_dir=tmp_path / "artifacts")
+    client = _RecordStartOrderingClient()
+
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+    monkeypatch.setenv("RECORDING_EARLY_STOP_ENABLED", "false")
+    monkeypatch.setattr(
+        ari_app,
+        "_system_sounds_snapshot",
+        lambda: {sound_id: True for sound_id in ari_app._SYSTEM_SOUND_TEXTS},
+    )
+
+    async def _fake_start_live_proof(**kwargs):
+        log_metric = kwargs["log_metric"]
+        log_metric("stt_live_stream_probe_started", {}, "start", None)
+        log_metric("stt_live_bridge_create_attempt", {}, "start", None)
+        log_metric("stt_live_bridge_create_ok", {}, "ok", None)
+        log_metric("stt_live_bridge_add_channel_attempt", {}, "start", None)
+        log_metric("stt_live_bridge_add_channel_ok", {}, "ok", None)
+        log_metric("stt_live_external_media_create_attempt", {}, "start", None)
+        log_metric("stt_live_external_media_create_ok", {}, "ok", None)
+        log_metric("stt_live_stream_media_started", {}, "ok", None)
+        return ari_app.LiveStreamingProofHandle(task=asyncio.create_task(_pending_live_result()))
+
+    monkeypatch.setattr(ari_app, "start_live_streaming_proof", _fake_start_live_proof)
+
+    asyncio.run(ari_app.handle_call(client, settings, "app", session))
+
+    events = _read_events(session)
+    barrier_idx = _event_index(events, "prompt_playback_barrier", status="ok")
+    probe_idx = _event_index(events, "stt_live_stream_probe_started", status="start")
+    add_ok_idx = _event_index(events, "stt_live_bridge_add_channel_ok", status="ok")
+    media_idx = _event_index(events, "stt_live_stream_media_started", status="ok")
+    record_start_idx = _event_index(events, "record_start", status="start")
+
+    assert client.record_safe_called is True
+    assert barrier_idx < probe_idx
+    assert probe_idx < add_ok_idx
+    assert add_ok_idx < media_idx
+    assert media_idx < record_start_idx
+
+
+def test_handle_call_live_setup_failure_before_record_start_cleans_up_and_records(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    session = CallSession(call_id="call-order-fail", channel_id="ch-order-fail", artifact_dir=tmp_path / "artifacts")
+    client = _RecordStartOrderingClient()
+
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+    monkeypatch.setenv("RECORDING_EARLY_STOP_ENABLED", "false")
+    monkeypatch.setattr(
+        ari_app,
+        "_system_sounds_snapshot",
+        lambda: {sound_id: True for sound_id in ari_app._SYSTEM_SOUND_TEXTS},
+    )
+
+    async def _fake_start_live_proof(**kwargs):
+        log_metric = kwargs["log_metric"]
+        log_metric("stt_live_stream_probe_started", {}, "start", None)
+        log_metric("stt_live_bridge_create_attempt", {}, "start", None)
+        log_metric("stt_live_bridge_create_ok", {}, "ok", None)
+        log_metric("stt_live_bridge_add_channel_attempt", {}, "start", None)
+        log_metric(
+            "stt_live_bridge_add_channel_failed",
+            {
+                "ari_http_status": 409,
+                "ari_response_body": '{"message":"Channel ch-order-fail currently recording"}',
+                "ari_request_url": "http://localhost:8088/ari/bridges/live-proof-call-order-fail-1/addChannel?channel=ch-order-fail",
+                "ari_request_path": "/ari/bridges/live-proof-call-order-fail-1/addChannel",
+                "ari_request_query": "channel=ch-order-fail",
+                "bridge_id": "live-proof-call-order-fail-1",
+                "original_channel_id": "ch-order-fail",
+            },
+            "fail",
+            "bridge_add_channel_http_error",
+        )
+        log_metric("stt_live_bridge_cleanup_attempt", {}, "start", None)
+        log_metric("stt_live_bridge_cleanup_done", {}, "ok", None)
+        raise RuntimeError("add_channel_to_bridge_safe failed: bridge_add_channel_http_error")
+
+    monkeypatch.setattr(ari_app, "start_live_streaming_proof", _fake_start_live_proof)
+
+    asyncio.run(ari_app.handle_call(client, settings, "app", session))
+
+    events = _read_events(session)
+    cleanup_idx = _event_index(events, "stt_live_bridge_cleanup_done", status="ok")
+    probe_failed_idx = _event_index(events, "stt_live_stream_probe_failed", status="handled")
+    record_start_idx = _event_index(events, "record_start", status="start")
+    failed = next(event for event in events if event["action"] == "stt_live_bridge_add_channel_failed")
+
+    assert client.record_safe_called is True
+    assert cleanup_idx < probe_failed_idx < record_start_idx
+    assert failed["details"]["ari_http_status"] == 409
+    assert failed["details"]["ari_response_body"] == '{"message":"Channel ch-order-fail currently recording"}'
+    assert failed["details"]["ari_request_url"].endswith("/addChannel?channel=ch-order-fail")
+    assert failed["details"]["ari_request_path"] == "/ari/bridges/live-proof-call-order-fail-1/addChannel"
+    assert failed["details"]["ari_request_query"] == "channel=ch-order-fail"
+    assert failed["details"]["bridge_id"] == "live-proof-call-order-fail-1"
+    assert failed["details"]["original_channel_id"] == "ch-order-fail"
 
 
 def test_live_setup_failure_still_allows_batch_fallback(monkeypatch, tmp_path: Path) -> None:

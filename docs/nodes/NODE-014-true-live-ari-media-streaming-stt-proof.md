@@ -23,7 +23,7 @@ Implementation:
   - `destroy_bridge_safe`
 - `ai_secretary.stt.live_streaming` starts a local UDP socket, creates a temporary mixing bridge, adds the caller channel, creates an externalMedia channel pointed at the UDP socket, adds that external channel to the bridge, strips RTP headers, and streams RTP payload bytes into the existing Realtime Whisper adapter.
 - `RealtimeWhisperAdapter` now supports `transcribe_pcm_chunks(...)` so NODE-013 stored-WAV replay and NODE-014 live chunks share the same WebSocket/STT adapter code.
-- Follow-up 1 moved bridge setup to just before ARI recording starts, then the proof task runs concurrently with the normal recording wait. Asterisk ARI documents `POST /bridges/{bridgeId}/addChannel` as returning `409` when the channel is currently recording, which matches the first smoke failure shape.
+- Follow-up 2 split live proof startup into synchronous setup plus a background STT task. The bridge/externalMedia setup is now awaited before `record_start` is logged and before `record_safe(...)` enters ARI channel recording. Asterisk ARI documents `POST /bridges/{bridgeId}/addChannel` as returning `409` when the channel is currently recording, which matches the first smoke failure shape and is the failure this ordering change is intended to avoid.
 
 This was selected over AudioSocket because the current repo already uses ARI heavily and has a shared ARI WebSocket/event model. No AudioSocket dialplan or channel-driver integration exists in the repo.
 
@@ -58,13 +58,14 @@ STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false
 
 ## What Failed / Limitations
 
-- Follow-up smoke `CALL_ID=1778266458.4` failed immediately on `bridge_add_channel_http_error` for `ISSUE`, `NAME`, and `CITY`. The original implementation attempted bridge add-channel after `/channels/{channelId}/record`, so the most likely failure is Asterisk refusing to bridge a currently recording channel.
+- Follow-up smoke `CALL_ID=1778266458.4` failed immediately on `bridge_add_channel_http_error` for `ISSUE`, `NAME`, and `CITY`.
+- Follow-up smoke `CALL_ID=1778267391.6` confirmed the exact blocker: `POST /ari/bridges/<bridge_id>/addChannel?channel=<original_channel_id>` returned HTTP `409 Conflict` with `{"message":"Channel 1778267391.6 currently recording"}`. The code was starting the proof via a background task before `record_safe(...)`, but the task could race behind recording startup.
 - This implementation cannot prove the remote Asterisk host actually supports `externalMedia` until a controlled ARI run is executed against that host.
 - Moving the active caller channel into a temporary mixing bridge is the riskiest part of the proof. It is guarded by `STT_LIVE_STREAMING_ENABLED=false` and should be tested only on a controlled call.
 - Codec assumptions are explicit: the RTP payload is treated as raw `slin16` PCM at `STT_LIVE_STREAMING_SAMPLE_RATE`.
 - No production routing, transfer, callback, after-hours, SAFE_FINISH, CITY validation, or PHONE digit behavior was changed.
 
-## Follow-up 1 Diagnostics
+## Follow-up Diagnostics And Ordering
 
 Bridge/externalMedia setup now logs each ARI step:
 
@@ -82,13 +83,19 @@ Bridge/externalMedia setup now logs each ARI step:
 
 Failure events include `bridge_id`, `original_channel_id`, `external_media_channel_id`, `ari_endpoint`, `ari_request_params`, `ari_http_status`, `ari_response_body`, `ari_request_method`, `ari_request_url`, `ari_request_path`, and `ari_request_query`.
 
-Current setup order:
+Current Follow-up 2 setup order:
 
-1. Create temporary mixing bridge.
-2. Add original caller channel to the bridge before starting ARI recording.
-3. Create externalMedia channel pointed at the local RTP socket.
-4. Add returned/configured externalMedia channel id to the bridge.
-5. Start the normal ARI channel recording.
+1. Prompt playback barrier completes.
+2. `stt_live_stream_probe_started`.
+3. Create temporary mixing bridge.
+4. Add original caller channel to the bridge before starting ARI recording.
+5. Create externalMedia channel pointed at the local RTP socket.
+6. Add returned/configured externalMedia channel id to the bridge.
+7. Log `stt_live_stream_media_started`.
+8. Log `record_start`.
+9. Start the normal ARI channel recording through `record_safe(...)`.
+
+Acceptance-critical event ordering is now covered by tests: `stt_live_bridge_add_channel_ok` and `stt_live_stream_media_started` must occur before `record_start` in the live-enabled setup-success path. If setup fails before recording, cleanup and `stt_live_stream_fallback_to_batch` are logged, then the normal batch recording path still starts.
 
 The externalMedia channel is not assumed to auto-join the bridge; Asterisk documentation describes creating the externalMedia channel and then adding it to an existing bridge. If a future smoke shows the externalMedia channel is already bridged in this deployment, the next change should make the second add conditional on the failure/status/body details.
 

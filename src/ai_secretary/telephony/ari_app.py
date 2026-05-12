@@ -17,10 +17,11 @@ from ..config.settings import Settings
 from ..core.runner import run_pipeline, run_pipeline_from_transcript
 from ..rag.embeddings import warmup_embeddings
 from ..stt.live_streaming import (
+    LiveStreamingProofHandle,
     LiveStreamingProofResult,
     live_streaming_config,
     live_streaming_stage_allowed,
-    run_live_streaming_proof,
+    start_live_streaming_proof,
 )
 from ..stt.realtime_whisper import RealtimeTranscriptionConfig, RealtimeWhisperAdapter
 from ..stt.whisper_api import WhisperAPIClient
@@ -3354,7 +3355,7 @@ async def _fallback_to_batch_stt(
     }
 
 
-def _start_live_streaming_probe_task(
+async def _start_live_streaming_probe(
     settings: Settings,
     client: AriClient,
     app_name: str,
@@ -3365,7 +3366,7 @@ def _start_live_streaming_probe_task(
     record_name: str,
     record_started_at: float,
     recording_finished_at: Callable[[], float | None],
-) -> asyncio.Task[LiveStreamingProofResult] | None:
+) -> LiveStreamingProofHandle | None:
     config = live_streaming_config()
     base_details = {
         "stage": stage.value,
@@ -3390,50 +3391,54 @@ def _start_live_streaming_probe_task(
     def log_metric(action: str, details: dict[str, Any], status: str, reason: str | None) -> None:
         session.log_event(action=action, status=status, reason=reason, details={**base_details, **details})
 
-    async def _run() -> LiveStreamingProofResult:
-        try:
-            return await run_live_streaming_proof(
-                settings=settings,
-                client=client,
-                app_name=app_name,
-                call_id=session.call_id,
-                channel_id=session.channel_id,
-                stage=stage,
-                turn_idx=turn_idx,
-                record_name=record_name,
-                record_started_at=record_started_at,
-                recording_finished_at=recording_finished_at,
-                log_metric=log_metric,
-                config=config,
-            )
-        except Exception as exc:
-            session.log_event(
-                action="stt_live_stream_probe_failed",
-                status="handled",
-                reason="stt_live_stream_error",
-                details={**base_details, "error": repr(exc)},
-            )
-            session.log_event(
-                action="stt_live_stream_error",
-                status="handled",
-                reason="stt_live_stream_error",
-                details={**base_details, "error": repr(exc)},
-            )
-            raise
-
-    return asyncio.create_task(_run(), name=f"live-stt-proof-{session.call_id}-{turn_idx}")
+    try:
+        return await start_live_streaming_proof(
+            settings=settings,
+            client=client,
+            app_name=app_name,
+            call_id=session.call_id,
+            channel_id=session.channel_id,
+            stage=stage,
+            turn_idx=turn_idx,
+            record_name=record_name,
+            record_started_at=record_started_at,
+            recording_finished_at=recording_finished_at,
+            log_metric=log_metric,
+            config=config,
+        )
+    except Exception as exc:
+        session.log_event(
+            action="stt_live_stream_probe_failed",
+            status="handled",
+            reason="stt_live_stream_error",
+            details={**base_details, "error": repr(exc)},
+        )
+        session.log_event(
+            action="stt_live_stream_error",
+            status="handled",
+            reason="stt_live_stream_error",
+            details={**base_details, "error": repr(exc)},
+        )
+        session.log_event(
+            action="stt_live_stream_fallback_to_batch",
+            status="ok",
+            reason="live_streaming_setup_failed",
+            details={**base_details, "error": repr(exc)},
+        )
+        return None
 
 
 async def _finish_live_streaming_probe_task(
-    task: asyncio.Task[LiveStreamingProofResult] | None,
+    handle: LiveStreamingProofHandle | None,
     session: CallSession,
     *,
     stage: DialogStage,
     turn_idx: int,
     record_name: str,
 ) -> LiveStreamingProofResult | None:
-    if task is None:
+    if handle is None:
         return None
+    task = handle.task
     try:
         return await task
     except asyncio.CancelledError:
@@ -3448,9 +3453,10 @@ async def _finish_live_streaming_probe_task(
         return None
 
 
-async def _cancel_live_streaming_probe_task(task: asyncio.Task[LiveStreamingProofResult] | None) -> None:
-    if task is None or task.done():
+async def _cancel_live_streaming_probe_task(handle: LiveStreamingProofHandle | None) -> None:
+    if handle is None or handle.task.done():
         return
+    task = handle.task
     task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await task
@@ -3586,16 +3592,6 @@ async def handle_call(
                     turn_idx,
                     early_stop_policy,
                 )
-                session.transition(
-                    CallState.RECORDING,
-                    action="record_start",
-                    status="start",
-                    details={
-                        "stage": stage.value,
-                        "turn_idx": turn_idx,
-                        **record_profile.details(),
-                    },
-                )
                 record_name = f"{call_id}_{stage.value.lower()}_utt{turn_idx}"
                 event_subscription = await _open_recording_event_subscription(
                     client,
@@ -3609,7 +3605,7 @@ async def handle_call(
                 )
                 record_start = time.perf_counter()
                 record_end_perf: float | None = None
-                live_stream_task = _start_live_streaming_probe_task(
+                live_stream_task = await _start_live_streaming_probe(
                     settings,
                     client,
                     app_name,
@@ -3619,6 +3615,16 @@ async def handle_call(
                     record_name=record_name,
                     record_started_at=record_start,
                     recording_finished_at=lambda: record_end_perf,
+                )
+                session.transition(
+                    CallState.RECORDING,
+                    action="record_start",
+                    status="start",
+                    details={
+                        "stage": stage.value,
+                        "turn_idx": turn_idx,
+                        **record_profile.details(),
+                    },
                 )
                 record_result = await client.record_safe(
                     channel_id,

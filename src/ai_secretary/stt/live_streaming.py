@@ -56,6 +56,11 @@ class LiveStreamingProofResult:
         }
 
 
+@dataclass(frozen=True)
+class LiveStreamingProofHandle:
+    task: asyncio.Task[LiveStreamingProofResult]
+
+
 def live_streaming_config() -> LiveStreamingProofConfig:
     return LiveStreamingProofConfig(
         enabled=_env_bool("STT_LIVE_STREAMING_ENABLED", False),
@@ -93,6 +98,38 @@ async def run_live_streaming_proof(
     log_metric: Callable[[str, dict[str, Any], str, str | None], None],
     config: LiveStreamingProofConfig | None = None,
 ) -> LiveStreamingProofResult:
+    handle = await start_live_streaming_proof(
+        settings=settings,
+        client=client,
+        app_name=app_name,
+        call_id=call_id,
+        channel_id=channel_id,
+        stage=stage,
+        turn_idx=turn_idx,
+        record_name=record_name,
+        record_started_at=record_started_at,
+        recording_finished_at=recording_finished_at,
+        log_metric=log_metric,
+        config=config,
+    )
+    return await handle.task
+
+
+async def start_live_streaming_proof(
+    *,
+    settings: Settings,
+    client: Any,
+    app_name: str,
+    call_id: str,
+    channel_id: str,
+    stage: DialogStage,
+    turn_idx: int,
+    record_name: str,
+    record_started_at: float,
+    recording_finished_at: Callable[[], float | None],
+    log_metric: Callable[[str, dict[str, Any], str, str | None], None],
+    config: LiveStreamingProofConfig | None = None,
+) -> LiveStreamingProofHandle:
     config = config or live_streaming_config()
     if not config.enabled:
         raise RuntimeError("live streaming proof is disabled")
@@ -119,6 +156,36 @@ async def run_live_streaming_proof(
     await source.start()
     log_metric("stt_live_stream_session_started", _base_details(config, stage, turn_idx, record_name), "ok", None)
 
+    task = asyncio.create_task(
+        _run_live_streaming_adapter(
+            settings=settings,
+            source=source,
+            queue=queue,
+            stage=stage,
+            turn_idx=turn_idx,
+            record_name=record_name,
+            recording_finished_at=recording_finished_at,
+            log_metric=log_metric,
+            config=config,
+        ),
+        name=f"live-stt-proof-{call_id}-{turn_idx}",
+    )
+    return LiveStreamingProofHandle(task=task)
+
+
+async def _run_live_streaming_adapter(
+    *,
+    settings: Settings,
+    source: "_AriExternalMediaRtpSource",
+    queue: asyncio.Queue[bytes | None],
+    stage: DialogStage,
+    turn_idx: int,
+    record_name: str,
+    recording_finished_at: Callable[[], float | None],
+    log_metric: Callable[[str, dict[str, Any], str, str | None], None],
+    config: LiveStreamingProofConfig,
+) -> LiveStreamingProofResult:
+
     adapter = RealtimeWhisperAdapter(_realtime_config(settings, config))
     first_audio_at: float | None = None
 
@@ -130,7 +197,6 @@ async def run_live_streaming_proof(
                 return
             if first_audio_at is None:
                 first_audio_at = time.perf_counter()
-                log_metric("stt_live_stream_media_started", _base_details(config, stage, turn_idx, record_name), "ok", None)
             yield chunk
 
     def _on_adapter_metric(action: str, details: dict[str, Any]) -> None:
@@ -347,6 +413,7 @@ class _AriExternalMediaRtpSource:
             params,
             result,
         )
+        self.log_metric("stt_live_stream_media_started", result_details, "ok", None)
 
     def _log_step(
         self,
