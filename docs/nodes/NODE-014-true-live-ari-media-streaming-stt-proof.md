@@ -107,6 +107,32 @@ The dispatch path and `handle_call` entry now ignore channels whose id or name c
 
 Live setup also refuses to run on a `live-proof-ext-...` channel and logs `stt_live_stream_probe_failed` with reason `external_media_channel_excluded` if reached directly. Realtime adapter task failures, including `invalid_api_key` and connection-closed failures, are caught and logged as `stt_live_stream_error`, then the normal batch fallback path remains responsible for dialog text.
 
+## Checkpoint After Follow-ups 2 And 3
+
+Follow-ups 2 and 3 improved the live proof path:
+
+- ExternalMedia recursion is guarded.
+- The old HTTP `409` blocker with message `Channel currently recording` is gone.
+- ExternalMedia channels are ignored before normal call setup side effects.
+- Live setup still falls back to the normal batch path when the Realtime task fails.
+
+Current blocker:
+
+- After the caller channel is bridged for `externalMedia`, normal `record_safe` / channel recording fails with `RecordingFailed`.
+- Because normal recording fails, the batch fallback/baseline is not preserved.
+- This means NODE-014 still has not proven a usable true-live streaming STT path that preserves the existing batch fallback contract.
+
+Likely next follow-up:
+
+- Preserve batch recording when the caller channel is bridged.
+- Investigate bridge recording, a snoop channel, or another media tap that does not break normal channel recording.
+
+Status:
+
+```text
+NODE-014 remains open.
+```
+
 ## Metrics
 
 NODE-014 emits:
