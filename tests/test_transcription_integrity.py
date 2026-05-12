@@ -595,6 +595,7 @@ def test_live_bridge_add_channel_http_error_logs_status_body_and_cleans_up(monke
             }
 
     monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+    monkeypatch.setenv("STT_LIVE_STREAMING_TOPOLOGY", "bridge_original_external_media_rtp")
 
     async def _run_probe():
         handle = await ari_app._start_live_streaming_probe(
@@ -648,6 +649,12 @@ class _RecordStartOrderingClient:
     async def wait_for_playback_finished(self, _app_name: str, _playback_id: str, timeout: int = 30):
         return {"type": "PlaybackFinished"}
 
+    async def moh_start_safe(self, _channel_id: str, moh_class: str = "default"):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {}}
+
+    async def moh_stop_safe(self, _channel_id: str):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {}}
+
     async def record_safe(self, *_args, **_kwargs):
         self.record_safe_called = True
         return {
@@ -656,6 +663,75 @@ class _RecordStartOrderingClient:
             "http_status": 599,
             "details": {"test": "stop_after_record_safe"},
         }
+
+
+class _SnoopPreservesRecordingClient:
+    def __init__(self, audio_payload: bytes) -> None:
+        self.audio_payload = audio_payload
+        self.bridge_channels: list[str] = []
+        self.snoop_calls: list[tuple[str, str]] = []
+        self.record_safe_called = False
+        self.original_channel_bridged_before_record = False
+
+    async def play_safe(self, _channel_id: str, _media: str):
+        return {"ok": True, "details": {"payload": {"id": "playback-snoop"}}}
+
+    async def wait_for_playback_finished(self, _app_name: str, _playback_id: str, timeout: int = 30):
+        return {"type": "PlaybackFinished"}
+
+    async def moh_start_safe(self, _channel_id: str, moh_class: str = "default"):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {}}
+
+    async def moh_stop_safe(self, _channel_id: str):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {}}
+
+    async def create_bridge_safe(self, bridge_id: str, bridge_type: str = "mixing"):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {"payload": {"id": bridge_id}}}
+
+    async def snoop_channel_safe(self, channel_id: str, app_name: str, snoop_id: str, *, spy: str = "in", whisper: str = "none"):
+        self.snoop_calls.append((channel_id, snoop_id))
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {"payload": {"id": snoop_id}}}
+
+    async def add_channel_to_bridge_safe(self, _bridge_id: str, channel_id: str):
+        self.bridge_channels.append(channel_id)
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {}}
+
+    async def create_external_media_safe(self, _app_name: str, _external_host: str, *, channel_id: str | None = None, format: str = "slin16", direction: str = "both"):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {"payload": {"id": channel_id}}}
+
+    async def destroy_bridge_safe(self, _bridge_id: str):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {}}
+
+    async def hangup_safe(self, _channel_id: str):
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {}}
+
+    async def record_safe(self, channel_id: str, record_name: str, **_kwargs):
+        self.record_safe_called = True
+        self.original_channel_bridged_before_record = channel_id in self.bridge_channels
+        return {"ok": True, "http_status": 200, "reason": "ok", "details": {"payload": {"name": record_name}}}
+
+    async def wait_for_recording_finished(self, _app_name: str, record_name: str, **_kwargs):
+        return {"type": "RecordingFinished", "recording": {"name": record_name}}
+
+    async def download_recording(self, _name: str, dest_path: str) -> None:
+        Path(dest_path).write_bytes(self.audio_payload)
+
+
+class _LegacyBridgeRecordingFailedClient(_SnoopPreservesRecordingClient):
+    async def snoop_channel_safe(self, *_args, **_kwargs):
+        raise AssertionError("legacy bridge topology should not create a snoop channel")
+
+    async def record_safe(self, channel_id: str, record_name: str, **_kwargs):
+        self.record_safe_called = True
+        self.original_channel_bridged_before_record = channel_id in self.bridge_channels
+        if self.original_channel_bridged_before_record:
+            return {
+                "ok": False,
+                "http_status": 500,
+                "reason": "RecordingFailed",
+                "details": {"record_name": record_name},
+            }
+        return await super().record_safe(channel_id, record_name, **_kwargs)
 
 
 async def _pending_live_result() -> ari_app.LiveStreamingProofResult:
@@ -769,6 +845,127 @@ def test_handle_call_live_setup_failure_before_record_start_cleans_up_and_record
     assert failed["details"]["ari_request_query"] == "channel=ch-order-fail"
     assert failed["details"]["bridge_id"] == "live-proof-call-order-fail-1"
     assert failed["details"]["original_channel_id"] == "ch-order-fail"
+
+
+def test_snoop_topology_preserves_original_channel_batch_recording(monkeypatch, tmp_path: Path) -> None:
+    settings = replace(_settings(tmp_path), openai_api_key="sk-valid-for-snoop-test")
+    session = CallSession(call_id="call-snoop", channel_id="ch-snoop", artifact_dir=tmp_path / "artifacts")
+    client = _SnoopPreservesRecordingClient(b"batch-audio")
+
+    class _EmptyLiveAdapter:
+        def __init__(self, _config) -> None:
+            pass
+
+        async def transcribe_pcm_chunks(self, chunks, *, total_audio_ms: int, on_metric):
+            async for _chunk in chunks:
+                pass
+            return RealtimeTranscriptionResult(
+                text="",
+                first_delta_ms=None,
+                final_ms=None,
+                total_audio_ms=0,
+                chunks_sent=0,
+                model="gpt-realtime-whisper",
+                language="ru",
+            )
+
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+    monkeypatch.setenv("STT_LIVE_STREAMING_TOPOLOGY", "snoop_external_media_rtp")
+    monkeypatch.setenv("TELEPHONY_STT_BACKEND", "fixture")
+    monkeypatch.setenv("TELEPHONY_STT_FIXTURE_ISSUE", "batch issue")
+    monkeypatch.setattr(live_streaming, "RealtimeWhisperAdapter", _EmptyLiveAdapter)
+
+    record_end_perf: float | None = None
+
+    async def _run_probe_and_batch():
+        nonlocal record_end_perf
+        handle = await ari_app._start_live_streaming_probe(
+            settings,
+            client,
+            "app",
+            session,
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            record_name="call-snoop_issue_utt1",
+            record_started_at=1.0,
+            recording_finished_at=lambda: record_end_perf,
+        )
+        record_result = await client.record_safe("ch-snoop", "call-snoop_issue_utt1")
+        record_end_perf = 2.0
+        live_result = await ari_app._finish_live_streaming_probe_task(
+            handle,
+            session,
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            record_name="call-snoop_issue_utt1",
+        )
+        audio_path = tmp_path / "turn_issue.wav"
+        audio_path.write_bytes(b"batch-audio")
+        artifact = ari_app.TranscriptionArtifact(
+            call_id="call-snoop",
+            channel_id="ch-snoop",
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            record_name="call-snoop_issue_utt1",
+            path=audio_path,
+            size_bytes=audio_path.stat().st_size,
+            sha256=hashlib.sha256(audio_path.read_bytes()).hexdigest(),
+        )
+        text, details = await ari_app._transcribe_audio_artifact_experimental(
+            settings,
+            session,
+            artifact,
+            live_result,
+            recording_finished_at=record_end_perf,
+        )
+        return record_result, text, details
+
+    record_result, text, details = asyncio.run(_run_probe_and_batch())
+
+    events = _read_events(session)
+    assert record_result["ok"] is True
+    assert client.record_safe_called is True
+    assert client.original_channel_bridged_before_record is False
+    assert client.snoop_calls == [("ch-snoop", "live-proof-snoop-call-snoop-1")]
+    assert "ch-snoop" not in client.bridge_channels
+    assert "live-proof-snoop-call-snoop-1" in client.bridge_channels
+    assert any(event["action"] == "live_media_topology_selected" for event in events)
+    assert any(event["action"] == "snoop_channel_started" and event["status"] == "ok" for event in events)
+    assert text == "batch issue"
+    assert details["stt_live_stream_fallback_to_batch"] is True
+
+
+def test_legacy_bridge_original_topology_covers_recording_failed_conflict(monkeypatch, tmp_path: Path) -> None:
+    settings = replace(_settings(tmp_path), openai_api_key="sk-valid-for-legacy-test")
+    session = CallSession(call_id="call-legacy", channel_id="ch-legacy", artifact_dir=tmp_path / "artifacts")
+    client = _LegacyBridgeRecordingFailedClient(b"batch-audio")
+
+    class _UnusedLiveAdapter:
+        def __init__(self, _config) -> None:
+            pass
+
+        async def transcribe_pcm_chunks(self, *_args, **_kwargs):
+            raise AssertionError("recording failure cancels the live task before adapter result is needed")
+
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+    monkeypatch.setenv("STT_LIVE_STREAMING_TOPOLOGY", "bridge_original_external_media_rtp")
+    monkeypatch.setenv("RECORDING_EARLY_STOP_ENABLED", "false")
+    monkeypatch.setattr(live_streaming, "RealtimeWhisperAdapter", _UnusedLiveAdapter)
+    monkeypatch.setattr(
+        ari_app,
+        "_system_sounds_snapshot",
+        lambda: {sound_id: True for sound_id in ari_app._SYSTEM_SOUND_TEXTS},
+    )
+
+    asyncio.run(ari_app.handle_call(client, settings, "app", session))
+
+    events = _read_events(session)
+    assert client.record_safe_called is True
+    assert client.original_channel_bridged_before_record is True
+    assert any(event["action"] == "live_media_topology_selected" for event in events)
+    record_failure = next(event for event in events if event["action"] == "record_start" and event["status"] == "fail")
+    assert record_failure["reason"] == "RecordingFailed"
+    assert not any(event["action"] == "user_transcribed" for event in events)
 
 
 class _ExplodingNormalFlowClient:

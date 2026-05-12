@@ -3378,6 +3378,7 @@ async def _start_live_streaming_probe(
         "stt_live_streaming_provider": config.provider,
         "stt_live_streaming_model": config.model,
         "stt_live_streaming_stage_allowlist": sorted(config.stage_allowlist),
+        "live_media_topology": config.topology,
     }
     if is_live_external_media_channel(session.channel_id):
         session.log_event(

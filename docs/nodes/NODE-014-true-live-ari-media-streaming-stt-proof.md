@@ -12,16 +12,17 @@ NODE-013 remains a stored-WAV streaming adapter spike. NODE-014 adds the first t
 
 ## Chosen Live Media Approach
 
-Chosen option: ARI `externalMedia` with a local UDP RTP listener.
+Chosen option after follow-up 4: ARI snoop channel bridged to ARI `externalMedia` with a local UDP RTP listener.
 
 Implementation:
 
 - `AriClient` now has proof-only bridge/externalMedia helpers:
   - `create_bridge_safe`
+  - `snoop_channel_safe`
   - `add_channel_to_bridge_safe`
   - `create_external_media_safe`
   - `destroy_bridge_safe`
-- `ai_secretary.stt.live_streaming` starts a local UDP socket, creates a temporary mixing bridge, adds the caller channel, creates an externalMedia channel pointed at the UDP socket, adds that external channel to the bridge, strips RTP headers, and streams RTP payload bytes into the existing Realtime Whisper adapter.
+- `ai_secretary.stt.live_streaming` starts a local UDP socket, creates a temporary mixing bridge, creates a snoop channel for the caller, adds the snoop channel to the bridge, creates an externalMedia channel pointed at the UDP socket, adds that external channel to the bridge, strips RTP headers, and streams RTP payload bytes into the existing Realtime Whisper adapter.
 - `RealtimeWhisperAdapter` now supports `transcribe_pcm_chunks(...)` so NODE-013 stored-WAV replay and NODE-014 live chunks share the same WebSocket/STT adapter code.
 - Follow-up 2 split live proof startup into synchronous setup plus a background STT task. The bridge/externalMedia setup is now awaited before `record_start` is logged and before `record_safe(...)` enters ARI channel recording. Asterisk ARI documents `POST /bridges/{bridgeId}/addChannel` as returning `409` when the channel is currently recording, which matches the first smoke failure shape and is the failure this ordering change is intended to avoid.
 
@@ -38,6 +39,7 @@ STT_LIVE_STREAMING_MODEL=gpt-realtime-whisper
 STT_LIVE_STREAMING_FALLBACK_TO_BATCH=true
 STT_LIVE_STREAMING_STAGE_ALLOWLIST=ISSUE,NAME,CITY,PHONE_CONFIRM
 STT_LIVE_STREAMING_MEDIA_SOURCE=ari_external_media_rtp
+STT_LIVE_STREAMING_TOPOLOGY=snoop_external_media_rtp
 STT_LIVE_STREAMING_RTP_HOST=127.0.0.1
 STT_LIVE_STREAMING_RTP_PORT=0
 STT_LIVE_STREAMING_SAMPLE_RATE=16000
@@ -60,8 +62,9 @@ STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false
 
 - Follow-up smoke `CALL_ID=1778266458.4` failed immediately on `bridge_add_channel_http_error` for `ISSUE`, `NAME`, and `CITY`.
 - Follow-up smoke `CALL_ID=1778267391.6` confirmed the exact blocker: `POST /ari/bridges/<bridge_id>/addChannel?channel=<original_channel_id>` returned HTTP `409 Conflict` with `{"message":"Channel 1778267391.6 currently recording"}`. The code was starting the proof via a background task before `record_safe(...)`, but the task could race behind recording startup.
+- Follow-up smoke `CALL_ID=1778563548.0` proved that bridging the original caller channel before `record_safe(...)` avoids the old `409`, but breaks normal channel recording with `RecordingFailed`. That topology is now retained only as explicit diagnostic mode `STT_LIVE_STREAMING_TOPOLOGY=bridge_original_external_media_rtp`.
 - This implementation cannot prove the remote Asterisk host actually supports `externalMedia` until a controlled ARI run is executed against that host.
-- Moving the active caller channel into a temporary mixing bridge is the riskiest part of the proof. It is guarded by `STT_LIVE_STREAMING_ENABLED=false` and should be tested only on a controlled call.
+- Moving the active caller channel into a temporary mixing bridge is no longer the default proof topology because it broke batch recording. The default proof topology uses a snoop channel so the original caller channel can keep normal channel recording.
 - Codec assumptions are explicit: the RTP payload is treated as raw `slin16` PCM at `STT_LIVE_STREAMING_SAMPLE_RATE`.
 - No production routing, transfer, callback, after-hours, SAFE_FINISH, CITY validation, or PHONE digit behavior was changed.
 
@@ -83,7 +86,7 @@ Bridge/externalMedia setup now logs each ARI step:
 
 Failure events include `bridge_id`, `original_channel_id`, `external_media_channel_id`, `ari_endpoint`, `ari_request_params`, `ari_http_status`, `ari_response_body`, `ari_request_method`, `ari_request_url`, `ari_request_path`, and `ari_request_query`.
 
-Current Follow-up 2 setup order:
+Legacy Follow-up 2 setup order:
 
 1. Prompt playback barrier completes.
 2. `stt_live_stream_probe_started`.
@@ -99,33 +102,53 @@ Acceptance-critical event ordering is now covered by tests: `stt_live_bridge_add
 
 The externalMedia channel is not assumed to auto-join the bridge; Asterisk documentation describes creating the externalMedia channel and then adding it to an existing bridge. If a future smoke shows the externalMedia channel is already bridged in this deployment, the next change should make the second add conditional on the failure/status/body details.
 
+## Follow-up 4 Snoop Topology
+
+Follow-up 4 changes the selected proof topology to `snoop_external_media_rtp` so live media tap does not require adding the original caller channel to the proof bridge.
+
+Current default setup order:
+
+1. Prompt playback barrier completes.
+2. `stt_live_stream_probe_started`.
+3. `live_media_topology_selected` with `live_media_topology=snoop_external_media_rtp`.
+4. Create temporary mixing bridge.
+5. Create ARI snoop channel `live-proof-snoop-...` spying on the original caller channel.
+6. Add the snoop channel to the proof bridge.
+7. Create externalMedia channel `live-proof-ext-...` pointed at the local RTP socket.
+8. Add the externalMedia channel to the proof bridge.
+9. Log `stt_live_stream_media_started`.
+10. Log `stt_live_stream_session_started`.
+11. Start normal `record_safe(...)` on the original caller channel.
+
+The original caller channel is not added to the proof bridge in this topology. Batch recording therefore remains on the same original channel path as the default call flow. Tests cover both the old `bridge_original_external_media_rtp` `RecordingFailed` conflict and the new snoop topology preserving batch fallback/baseline transcription.
+
 ## Follow-up 3 Recursion Guard
 
 Smoke `CALL_ID=1778562482.0` showed that ARI `externalMedia` channels enter the same Stasis app as normal caller channels. Because the proof channel id was `live-proof-ext-...`, the app accidentally started a full dialog flow for the externalMedia channel, which then created another `live-proof-ext-...` channel recursively.
 
-The dispatch path and `handle_call` entry now ignore channels whose id or name contains the proof marker `live-proof-ext-` before normal call setup side effects. Ignored channels log `stt_live_external_media_channel_ignored` with reason `external_media_channel_excluded`; they are not answered, do not start MOH, do not play prompts, do not record, and cannot create another live proof channel.
+The dispatch path and `handle_call` entry now ignore channels whose id or name contains proof markers `live-proof-ext-` or `live-proof-snoop-` before normal call setup side effects. Ignored channels log `stt_live_external_media_channel_ignored` with reason `external_media_channel_excluded`; they are not answered, do not start MOH, do not play prompts, do not record, and cannot create another live proof channel.
 
 Live setup also refuses to run on a `live-proof-ext-...` channel and logs `stt_live_stream_probe_failed` with reason `external_media_channel_excluded` if reached directly. Realtime adapter task failures, including `invalid_api_key` and connection-closed failures, are caught and logged as `stt_live_stream_error`, then the normal batch fallback path remains responsible for dialog text.
 
-## Checkpoint After Follow-ups 2 And 3
+## Checkpoint After Follow-up 4
 
-Follow-ups 2 and 3 improved the live proof path:
+Follow-ups 2, 3, and 4 improved the live proof path:
 
 - ExternalMedia recursion is guarded.
 - The old HTTP `409` blocker with message `Channel currently recording` is gone.
-- ExternalMedia channels are ignored before normal call setup side effects.
+- ExternalMedia and snoop proof channels are ignored before normal call setup side effects.
 - Live setup still falls back to the normal batch path when the Realtime task fails.
+- The selected topology no longer bridges the original caller channel, so batch channel recording should remain available during live proof.
 
-Current blocker:
+Current unknown until next smoke:
 
-- After the caller channel is bridged for `externalMedia`, normal `record_safe` / channel recording fails with `RecordingFailed`.
-- Because normal recording fails, the batch fallback/baseline is not preserved.
-- This means NODE-014 still has not proven a usable true-live streaming STT path that preserves the existing batch fallback contract.
+- Whether the remote Asterisk deployment supports snoop channel creation with the chosen parameters: `spy=in`, `whisper=none`.
+- Whether RTP payload arrives from the snoop-to-externalMedia bridge in the expected `slin16` format.
 
-Likely next follow-up:
+If follow-up 4 smoke fails:
 
-- Preserve batch recording when the caller channel is bridged.
-- Investigate bridge recording, a snoop channel, or another media tap that does not break normal channel recording.
+- `snoop_channel_failed` or `live_media_topology_failed` should identify the ARI status/body/path/query.
+- If snoop succeeds but no chunks arrive, the next blocker is RTP/media format or snoop direction, not batch fallback.
 
 Status:
 
@@ -146,6 +169,10 @@ NODE-014 emits:
 - `stt_live_stream_final_received`
 - `stt_live_stream_error`
 - `stt_live_stream_fallback_to_batch`
+- `live_media_topology_selected`
+- `live_media_topology_failed`
+- `snoop_channel_started`
+- `snoop_channel_failed`
 - `stt_batch_baseline_latency_ms`
 - `stt_live_vs_batch_delta_ms`
 

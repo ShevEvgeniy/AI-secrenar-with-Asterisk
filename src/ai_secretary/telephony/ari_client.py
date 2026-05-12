@@ -315,6 +315,46 @@ class AriClient:
         """Create a bridge with structured non-throwing result."""
         return await self._safe_call("bridge_create", "", lambda: self.create_bridge(bridge_id, bridge_type))
 
+    async def snoop_channel(
+        self,
+        channel_id: str,
+        app_name: str,
+        snoop_id: str,
+        *,
+        spy: str = "in",
+        whisper: str = "none",
+    ) -> dict[str, Any]:
+        """Create an ARI snoop channel for a non-invasive media tap."""
+        url = self._http_url(f"/channels/{channel_id}/snoop/{snoop_id}")
+        params = {
+            "app": app_name,
+            "spy": spy,
+            "whisper": whisper,
+        }
+        async with httpx.AsyncClient(auth=(self.username, self.password), timeout=10.0) as client:
+            response = await client.post(url, params=params)
+            response.raise_for_status()
+            try:
+                return response.json()
+            except Exception:
+                return {}
+
+    async def snoop_channel_safe(
+        self,
+        channel_id: str,
+        app_name: str,
+        snoop_id: str,
+        *,
+        spy: str = "in",
+        whisper: str = "none",
+    ) -> dict[str, Any]:
+        """Create a snoop channel with structured non-throwing result."""
+        return await self._safe_call(
+            "snoop_channel_create",
+            channel_id,
+            lambda: self.snoop_channel(channel_id, app_name, snoop_id, spy=spy, whisper=whisper),
+        )
+
     async def add_channel_to_bridge(
         self,
         bridge_id: str,

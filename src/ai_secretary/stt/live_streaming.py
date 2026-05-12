@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 import os
@@ -17,6 +18,7 @@ from ai_secretary.telephony.call_session import DialogStage
 
 DEFAULT_LIVE_STAGE_ALLOWLIST = "ISSUE,NAME,CITY,PHONE_CONFIRM"
 LIVE_EXTERNAL_MEDIA_CHANNEL_PREFIX = "live-proof-ext-"
+LIVE_SNOOP_CHANNEL_PREFIX = "live-proof-snoop-"
 
 
 class LiveStreamingProofError(RuntimeError):
@@ -27,7 +29,12 @@ class LiveStreamingProofError(RuntimeError):
 
 def is_live_external_media_channel(channel_id: str | None, channel_name: str | None = None) -> bool:
     values = [value for value in (channel_id, channel_name) if isinstance(value, str) and value]
-    return any(value.startswith(LIVE_EXTERNAL_MEDIA_CHANNEL_PREFIX) or LIVE_EXTERNAL_MEDIA_CHANNEL_PREFIX in value for value in values)
+    return any(
+        value.startswith((LIVE_EXTERNAL_MEDIA_CHANNEL_PREFIX, LIVE_SNOOP_CHANNEL_PREFIX))
+        or LIVE_EXTERNAL_MEDIA_CHANNEL_PREFIX in value
+        or LIVE_SNOOP_CHANNEL_PREFIX in value
+        for value in values
+    )
 
 
 @dataclass(frozen=True)
@@ -38,6 +45,7 @@ class LiveStreamingProofConfig:
     fallback_to_batch: bool
     stage_allowlist: set[str]
     media_source: str
+    topology: str
     host: str
     port: int
     sample_rate: int
@@ -81,6 +89,7 @@ def live_streaming_config() -> LiveStreamingProofConfig:
         fallback_to_batch=_env_bool("STT_LIVE_STREAMING_FALLBACK_TO_BATCH", True),
         stage_allowlist=_stage_allowlist(),
         media_source=os.getenv("STT_LIVE_STREAMING_MEDIA_SOURCE", "ari_external_media_rtp").strip().lower(),
+        topology=os.getenv("STT_LIVE_STREAMING_TOPOLOGY", "snoop_external_media_rtp").strip().lower(),
         host=os.getenv("STT_LIVE_STREAMING_RTP_HOST", "127.0.0.1").strip() or "127.0.0.1",
         port=_env_int("STT_LIVE_STREAMING_RTP_PORT", 0),
         sample_rate=_env_int("STT_LIVE_STREAMING_SAMPLE_RATE", 16000),
@@ -335,13 +344,24 @@ class _AriExternalMediaRtpSource:
         self.sock: socket.socket | None = None
         self.bridge_id = f"live-proof-{call_id}-{turn_idx}"
         self.external_channel_id = f"{LIVE_EXTERNAL_MEDIA_CHANNEL_PREFIX}{call_id}-{turn_idx}"
+        self.snoop_channel_id = f"{LIVE_SNOOP_CHANNEL_PREFIX}{call_id}-{turn_idx}"
         self.reader_task: asyncio.Task[None] | None = None
         self._bridge_created = False
         self._external_media_created = False
+        self._snoop_channel_created = False
 
     async def start(self) -> None:
         if self.config.media_source != "ari_external_media_rtp":
             raise RuntimeError(f"unsupported live media source: {self.config.media_source}")
+        if self.config.topology not in {"snoop_external_media_rtp", "bridge_original_external_media_rtp"}:
+            topology_details = _base_details(self.config, self.stage, self.turn_idx, self.record_name)
+            self.log_metric(
+                "live_media_topology_failed",
+                topology_details,
+                "fail",
+                "unsupported_live_media_topology",
+            )
+            raise RuntimeError(f"unsupported live media topology: {self.config.topology}")
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind((self.config.host, self.config.port))
         self.sock.setblocking(False)
@@ -352,14 +372,24 @@ class _AriExternalMediaRtpSource:
             "rtp_port": port,
             "bridge_id": self.bridge_id,
             "external_channel_id": self.external_channel_id,
+            "snoop_channel_id": self.snoop_channel_id,
         }
+        self.log_metric("live_media_topology_selected", details, "ok", None)
         try:
             await self._create_bridge(details)
-            await self._add_channel_to_bridge(
-                channel_id=self.channel_id,
-                channel_role="original",
-                details=details,
-            )
+            if self.config.topology == "snoop_external_media_rtp":
+                await self._create_snoop_channel(details)
+                await self._add_channel_to_bridge(
+                    channel_id=self.snoop_channel_id,
+                    channel_role="snoop",
+                    details=details,
+                )
+            else:
+                await self._add_channel_to_bridge(
+                    channel_id=self.channel_id,
+                    channel_role="original",
+                    details=details,
+                )
             await self._create_external_media(host, port, details)
             await self._add_channel_to_bridge(
                 channel_id=self.external_channel_id,
@@ -392,6 +422,36 @@ class _AriExternalMediaRtpSource:
             raise RuntimeError(f"create_bridge_safe failed: {result.get('reason')}")
         self._bridge_created = True
         self._log_step("stt_live_bridge_create_ok", {**details, **_result_details(result)}, "ok", None, endpoint, params, result)
+
+    async def _create_snoop_channel(self, details: dict[str, Any]) -> None:
+        endpoint = f"/channels/{self.channel_id}/snoop/{self.snoop_channel_id}"
+        params = {"app": self.app_name, "spy": "in", "whisper": "none"}
+        self._log_step("snoop_channel_started", details, "start", None, endpoint, params)
+        method = getattr(self.client, "snoop_channel_safe", None)
+        if not callable(method):
+            self._log_step("snoop_channel_failed", details, "fail", "ari_client_snoop_unavailable", endpoint, params)
+            self.log_metric("live_media_topology_failed", details, "fail", "ari_client_snoop_unavailable")
+            raise RuntimeError("ARI client lacks snoop_channel_safe")
+        result = await method(self.channel_id, self.app_name, self.snoop_channel_id, spy="in", whisper="none")
+        result_details = {**details, **_result_details(result)}
+        if not result.get("ok", True):
+            self._log_step(
+                "snoop_channel_failed",
+                result_details,
+                "fail",
+                result.get("reason"),
+                endpoint,
+                params,
+                result,
+            )
+            self.log_metric("live_media_topology_failed", result_details, "fail", result.get("reason"))
+            raise RuntimeError(f"snoop_channel_safe failed: {result.get('reason')}")
+        payload = result.get("details", {}).get("payload") if isinstance(result.get("details"), dict) else None
+        if isinstance(payload, dict) and payload.get("id"):
+            self.snoop_channel_id = str(payload["id"])
+            result_details["snoop_channel_id"] = self.snoop_channel_id
+        self._snoop_channel_created = True
+        self._log_step("snoop_channel_started", result_details, "ok", None, endpoint, params, result)
 
     async def _add_channel_to_bridge(self, *, channel_id: str, channel_role: str, details: dict[str, Any]) -> None:
         endpoint = f"/bridges/{self.bridge_id}/addChannel"
@@ -492,6 +552,7 @@ class _AriExternalMediaRtpSource:
                 "bridge_id": self.bridge_id,
                 "original_channel_id": self.channel_id,
                 "external_media_channel_id": self.external_channel_id,
+                "snoop_channel_id": self.snoop_channel_id,
                 "ari_endpoint": endpoint,
                 "ari_request_params": params,
                 **_http_details(result),
@@ -532,7 +593,9 @@ class _AriExternalMediaRtpSource:
                     "bridge_id": self.bridge_id,
                     "original_channel_id": self.channel_id,
                     "external_media_channel_id": self.external_channel_id,
+                    "snoop_channel_id": self.snoop_channel_id,
                     "external_media_created": self._external_media_created,
+                    "snoop_channel_created": self._snoop_channel_created,
                     "ari_endpoint": f"/bridges/{self.bridge_id}",
                 },
                 "start",
@@ -547,7 +610,9 @@ class _AriExternalMediaRtpSource:
                 "bridge_id": self.bridge_id,
                 "original_channel_id": self.channel_id,
                 "external_media_channel_id": self.external_channel_id,
+                "snoop_channel_id": self.snoop_channel_id,
                 "external_media_created": self._external_media_created,
+                "snoop_channel_created": self._snoop_channel_created,
                 "ari_endpoint": f"/bridges/{self.bridge_id}",
                 **_result_details(result),
                 **_http_details(result),
@@ -562,8 +627,23 @@ class _AriExternalMediaRtpSource:
                     "fail",
                     result.get("reason"),
                 )
+        await self._cleanup_internal_channels()
         if self.sock is not None:
             self.sock.close()
+            self.sock = None
+
+    async def _cleanup_internal_channels(self) -> None:
+        hangup = getattr(self.client, "hangup_safe", None)
+        if not callable(hangup):
+            return
+        for channel_id, created in (
+            (self.external_channel_id, self._external_media_created),
+            (self.snoop_channel_id, self._snoop_channel_created),
+        ):
+            if not created:
+                continue
+            with contextlib.suppress(Exception):
+                await hangup(channel_id)
 
 
 def _rtp_payload(packet: bytes) -> bytes:
@@ -621,6 +701,7 @@ def _base_details(config: LiveStreamingProofConfig, stage: DialogStage, turn_idx
         "stt_live_streaming_provider": config.provider,
         "stt_live_streaming_model": config.model,
         "stt_live_streaming_media_source": config.media_source,
+        "live_media_topology": config.topology,
     }
 
 
