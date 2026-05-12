@@ -3391,10 +3391,13 @@ async def _start_live_streaming_probe(
     if not config.enabled:
         return None
     if not live_streaming_stage_allowed(stage, config):
+        reason = "stage_not_allowlisted"
+        if stage == DialogStage.PHONE_CONFIRM:
+            reason = "phone_confirm_not_in_default_live_allowlist"
         session.log_event(
             action="stt_live_stream_probe_failed",
             status="skipped",
-            reason="stage_not_allowlisted",
+            reason=reason,
             details=base_details,
         )
         return None

@@ -291,8 +291,10 @@ def test_realtime_adapter_streams_wav_and_reports_delta_metrics(tmp_path: Path) 
     assert connected["url"].endswith("/realtime?intent=transcription")
     config_message = sent_messages[0]
     assert config_message["type"] == "transcription_session.update"
-    assert "session" not in config_message
-    assert "type" not in config_message.get("input_audio_transcription", {})
+    assert "session" in config_message
+    assert config_message["session"]["input_audio_format"] == "pcm16"
+    assert "type" not in config_message["session"]
+    assert "type" not in config_message["session"].get("input_audio_transcription", {})
     assert any(message["type"] == "input_audio_buffer.append" for message in sent_messages)
     assert any(name == "stt_stream_openai_session_config_sent" for name, _details in metrics)
     assert any(name == "stt_stream_openai_session_created" for name, _details in metrics)
@@ -351,6 +353,7 @@ def test_realtime_adapter_logs_session_config_rejection(tmp_path: Path) -> None:
         raise AssertionError("session config rejection should raise")
 
     assert sent_messages[0]["type"] == "transcription_session.update"
+    assert "session" in sent_messages[0]
     failed = next(details for name, details in metrics if name == "stt_stream_openai_session_config_failed")
     assert failed["error"]["code"] == "unknown_parameter"
 
@@ -656,7 +659,48 @@ def test_phone_is_excluded_from_live_streaming_by_default(monkeypatch, tmp_path:
     events = _read_events(session)
     assert task is None
     assert any(event["action"] == "stt_live_stream_probe_failed" for event in events)
-    assert any(event["details"].get("stt_live_streaming_stage_allowlist") == ["CITY", "ISSUE", "NAME", "PHONE_CONFIRM"] for event in events)
+    assert any(event["details"].get("stt_live_streaming_stage_allowlist") == ["CITY", "ISSUE", "NAME"] for event in events)
+
+
+def test_phone_confirm_is_excluded_from_default_live_streaming_allowlist(monkeypatch, tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    session = CallSession(
+        call_id="call-live-phone-confirm",
+        channel_id="ch-live-phone-confirm",
+        artifact_dir=tmp_path / "artifacts",
+    )
+
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+
+    async def _run_probe():
+        return await ari_app._start_live_streaming_probe(
+            settings,
+            object(),
+            "app",
+            session,
+            stage=DialogStage.PHONE_CONFIRM,
+            turn_idx=1,
+            record_name="rec",
+            record_started_at=1.0,
+            recording_finished_at=lambda: 2.0,
+        )
+
+    handle = asyncio.run(_run_probe())
+    events = _read_events(session)
+    skipped = next(event for event in events if event["action"] == "stt_live_stream_probe_failed")
+
+    assert handle is None
+    assert skipped["reason"] == "phone_confirm_not_in_default_live_allowlist"
+    assert skipped["details"]["stt_live_streaming_stage_allowlist"] == ["CITY", "ISSUE", "NAME"]
+
+
+def test_phone_confirm_can_be_enabled_explicitly_for_live_diagnostics(monkeypatch) -> None:
+    monkeypatch.setenv("STT_LIVE_STREAMING_STAGE_ALLOWLIST", "ISSUE,NAME,CITY,PHONE_CONFIRM")
+
+    config = live_streaming.live_streaming_config()
+
+    assert live_streaming.live_streaming_stage_allowed(DialogStage.PHONE_CONFIRM, config) is True
+    assert live_streaming.live_streaming_stage_allowed(DialogStage.PHONE, config) is False
 
 
 def test_live_streaming_result_logs_baseline_delta_and_falls_back_to_batch(monkeypatch, tmp_path: Path) -> None:

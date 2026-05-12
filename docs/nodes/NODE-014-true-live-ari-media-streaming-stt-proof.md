@@ -37,7 +37,7 @@ STT_LIVE_STREAMING_ENABLED=false
 STT_LIVE_STREAMING_PROVIDER=openai_realtime_whisper
 STT_LIVE_STREAMING_MODEL=gpt-realtime-whisper
 STT_LIVE_STREAMING_FALLBACK_TO_BATCH=true
-STT_LIVE_STREAMING_STAGE_ALLOWLIST=ISSUE,NAME,CITY,PHONE_CONFIRM
+STT_LIVE_STREAMING_STAGE_ALLOWLIST=ISSUE,NAME,CITY
 STT_LIVE_STREAMING_MEDIA_SOURCE=ari_external_media_rtp
 STT_LIVE_STREAMING_TOPOLOGY=snoop_external_media_rtp
 STT_LIVE_RTP_BIND_HOST=0.0.0.0
@@ -49,7 +49,7 @@ STT_LIVE_STREAMING_TIMEOUT_SECONDS=12
 STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false
 ```
 
-`PHONE` is hard-excluded even if someone adds it to the allowlist. `PHONE_CONFIRM` remains allowed for proof metrics, but the static fast path and confirmation safety are unchanged.
+`PHONE` is hard-excluded even if someone adds it to the allowlist. `PHONE_CONFIRM` is also excluded from the default live proof allowlist and should remain batch-only unless explicitly enabled for a controlled diagnostic smoke.
 
 ## What Worked
 
@@ -183,6 +183,12 @@ RTP binding and advertising are now separate:
 - Legacy aliases are also accepted: `STT_LIVE_RTP_ADVERTISED_HOST`, `STT_LIVE_RTP_HOST`, `STT_LIVE_STREAMING_RTP_ADVERTISED_HOST`, `STT_LIVE_STREAMING_RTP_HOST`.
 
 For remote Asterisk, live setup fails cleanly with `live_rtp_advertised_host_required_for_remote_asterisk` if no advertised host is set, and with `live_rtp_loopback_advertised_for_remote_asterisk` if `127.0.0.1` / localhost is advertised. Batch fallback remains stable.
+
+## Follow-up 7 Config Wrapper And PHONE_CONFIRM Safety
+
+Smoke `CALL_ID=1778572758.20` showed OpenAI accepting the transcription session connection but rejecting the update event with `Missing required parameter: 'session'`. The adapter now sends `transcription_session.update` with a required top-level `session` object containing `input_audio_format`, `input_audio_transcription`, `turn_detection`, and `input_audio_noise_reduction`.
+
+The default live proof stage allowlist is now `ISSUE,NAME,CITY`. `PHONE_CONFIRM` logs `stt_live_stream_probe_failed` with reason `phone_confirm_not_in_default_live_allowlist` unless explicitly added through `STT_LIVE_STREAMING_STAGE_ALLOWLIST` for diagnostics. `PHONE` remains excluded even if configured.
 
 Status:
 

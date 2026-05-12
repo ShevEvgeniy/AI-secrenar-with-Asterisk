@@ -289,10 +289,12 @@ def _session_update(config: RealtimeTranscriptionConfig) -> dict[str, Any]:
         transcription["prompt"] = config.prompt
     return {
         "type": "transcription_session.update",
-        "input_audio_format": "pcm16",
-        "input_audio_transcription": transcription,
-        "turn_detection": None,
-        "input_audio_noise_reduction": None,
+        "session": {
+            "input_audio_format": "pcm16",
+            "input_audio_transcription": transcription,
+            "turn_detection": None,
+            "input_audio_noise_reduction": None,
+        },
     }
 
 

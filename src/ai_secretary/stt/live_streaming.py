@@ -17,7 +17,7 @@ from ai_secretary.stt.realtime_whisper import RealtimeTranscriptionConfig, Realt
 from ai_secretary.telephony.call_session import DialogStage
 
 
-DEFAULT_LIVE_STAGE_ALLOWLIST = "ISSUE,NAME,CITY,PHONE_CONFIRM"
+DEFAULT_LIVE_STAGE_ALLOWLIST = "ISSUE,NAME,CITY"
 LIVE_EXTERNAL_MEDIA_CHANNEL_PREFIX = "live-proof-ext-"
 LIVE_SNOOP_CHANNEL_PREFIX = "live-proof-snoop-"
 
