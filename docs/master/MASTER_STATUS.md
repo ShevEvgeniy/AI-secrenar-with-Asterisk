@@ -7,7 +7,7 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-016-dialog-isolated-rtp-diagnostics-and-server-stt-measurement`
+- Latest completed node branch: `feat/node-017-server-side-ari-app-systemd-autostart`
 - Latest completed node commit: pending closeout commit
 
 ## Confirmed Working
@@ -223,6 +223,7 @@ OpenAI Realtime transcription over approved server egress -> batch fallback/base
 - NODE-014 validates colocated/server-side `ari_app`, local sound publish, ARI `Stasis(ai_secretary)`, and `snoop_external_media_rtp` delivery of RTP/PCM chunks to server host `172.18.0.1`.
 - NODE-015 recommends approved server egress to OpenAI Realtime transcription as the first production STT candidate, with batch fallback/baseline, local STT deferred until hardware benchmark, and dialog-isolated RTP diagnostics before dialog-driving live STT.
 - NODE-016 validates dialog-isolated RTP/STT diagnostics: `rtp_diagnostics_only` can prove RTP/PCM and tolerate dummy batch STT failure without business retries, SAFE_FINISH, transfer, or callback.
+- NODE-017 documents restart-safe systemd/autostart for the server-side `ari_app` using secret-free templates, an `/etc/ai-secretary/ari-app.env` environment file, and runtime ARI password loading from `/home/tulauser/asterisk-config/ari.conf`.
 
 ## NODE-004 Live Smoke
 
@@ -626,3 +627,32 @@ Decision:
 
 - Isolated RTP diagnostics can now be used on the server without poisoning normal business dialog evidence.
 - Dummy or unavailable STT in diagnostics no longer causes misleading business SAFE_FINISH/retry/transfer/callback behavior.
+
+## NODE-017 Validation
+
+Result:
+
+```text
+PASS as docs/templates closeout.
+```
+
+Deliverables:
+
+```text
+docs/nodes/NODE-017-server-side-ari-app-systemd-autostart.md
+deploy/examples/systemd/ari-app.env.example
+deploy/examples/systemd/ai-secretary-ari-wrapper.sh
+deploy/examples/systemd/ai-secretary-ari.service
+```
+
+Validated plan:
+
+- Service runs as `tulauser`.
+- Startup is ordered after `network-online.target` and `docker.service`.
+- Restart policy is `Restart=on-failure` with `RestartSec=5`.
+- Logs stay in journald.
+- `PYTHONUNBUFFERED=1` and `PYTHONPATH=src` are set.
+- `/etc/ai-secretary/ari-app.env` carries runtime non-secret config and diagnostic-safe placeholders.
+- `ARI_PASSWORD` is read at runtime from `/home/tulauser/asterisk-config/ari.conf`.
+- The safe profile keeps `STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only`, `STT_LIVE_OPENAI_DISABLED=true`, and `STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true`.
+- Production OpenAI STT remains a separate scoped node.
