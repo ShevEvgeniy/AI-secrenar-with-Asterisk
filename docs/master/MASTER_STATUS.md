@@ -7,7 +7,7 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-017-server-side-ari-app-systemd-autostart`
+- Latest completed node branch: `feat/node-020-openai-realtime-supported-region-gateway-proxy`
 - Latest completed node commit: pending closeout commit
 
 ## Confirmed Working
@@ -224,6 +224,8 @@ OpenAI Realtime transcription over approved server egress -> batch fallback/base
 - NODE-015 recommends approved server egress to OpenAI Realtime transcription as the first production STT candidate, with batch fallback/baseline, local STT deferred until hardware benchmark, and dialog-isolated RTP diagnostics before dialog-driving live STT.
 - NODE-016 validates dialog-isolated RTP/STT diagnostics: `rtp_diagnostics_only` can prove RTP/PCM and tolerate dummy batch STT failure without business retries, SAFE_FINISH, transfer, or callback.
 - NODE-017 documents restart-safe systemd/autostart for the server-side `ari_app` using secret-free templates, an `/etc/ai-secretary/ari-app.env` environment file, and runtime ARI password loading from `/home/tulauser/asterisk-config/ari.conf`.
+- NODE-019 validates that direct OpenAI Realtime egress from the current Asterisk server is blocked with `403 Forbidden`, OpenAI code `unsupported_country_region_territory`, before audio upload.
+- NODE-020 defines the supported-region gateway/proxy measurement path, with the OpenAI key stored only on the gateway and no business dialog integration by default.
 
 ## NODE-004 Live Smoke
 
@@ -715,3 +717,60 @@ Validated:
 - Installed env contains only dummy OpenAI diagnostics values.
 - Dummy batch STT failure against `127.0.0.1:9` was isolated.
 - No business `safe_finish`, `transfer`, or `callback` action occurred during the diagnostic smoke.
+
+## NODE-019 Validation
+
+Result:
+
+```text
+PASS as direct-egress measurement closeout; direct OpenAI Realtime is blocked from the current server region.
+```
+
+Observed:
+
+```text
+endpoint=api.openai.com/v1/realtime
+status_code=403 Forbidden
+openai_error_code=unsupported_country_region_territory
+chunks_sent=0
+```
+
+Validated:
+
+- Direct egress reached OpenAI but failed before session creation.
+- No audio was uploaded.
+- No production STT was enabled.
+- `ai-secretary-ari.service` remained in `rtp_diagnostics_only`.
+- Business dialog remained unchanged.
+
+## NODE-020 Validation
+
+Result:
+
+```text
+PASS as supported-region gateway/proxy design and prepared measurement node.
+```
+
+Deliverables:
+
+```text
+docs/nodes/NODE-020-openai-realtime-supported-region-gateway-proxy.md
+docs/stt_gateway_protocol.md
+deploy/examples/gateway/openai-realtime-gateway.env.example
+deploy/examples/gateway/asterisk-stt-gateway-client.env.example
+```
+
+Decision:
+
+- Use a supported-region gateway for OpenAI Realtime measurement.
+- Keep `OPENAI_API_KEY` on the gateway only.
+- Start with a one-shot HTTP WAV measurement gateway.
+- Return redacted metrics and transcript presence flags by default.
+- Defer streaming relay and production dialog integration.
+- Keep NODE-016 diagnostic isolation and NODE-018 systemd profile intact.
+
+Next implementation:
+
+```text
+NODE-021 / supported-region-gateway-minimal-realtime-measurement
+```

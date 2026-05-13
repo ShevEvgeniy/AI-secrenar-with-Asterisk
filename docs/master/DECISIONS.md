@@ -368,3 +368,35 @@ Accepted decision:
 - On this server, keep the systemd drop-in `ExecStartPre=+/usr/bin/chmod 0711 /var/lib/docker` so `tulauser` can traverse to the Docker sounds volume after reboot while the service itself still runs unprivileged.
 
 Server smoke `1778672473.13` validated reboot-safe `rtp_diagnostics_only` over `snoop_external_media_rtp`, with `228` RTP packets, `228` PCM chunks, `stt_live_rtp_diagnostics_result=rtp_packets_received`, and `diagnostic_call_finished status=ok`. No business `safe_finish`, `transfer`, or `callback` action occurred.
+
+## Direct OpenAI Realtime Egress Blocked
+
+NODE-019 proved direct OpenAI Realtime egress from server `92.118.85.117` is not viable.
+
+Accepted decision:
+
+- The server reached `api.openai.com/v1/realtime` but OpenAI returned `403 Forbidden` with code `unsupported_country_region_territory`.
+- The rejection happened before session creation and before audio upload (`chunks_sent=0`).
+- Do not store a real `OPENAI_API_KEY` on the current Asterisk server as the production plan.
+- Keep `ai-secretary-ari.service` in the safe diagnostic profile.
+- Use a supported-region gateway/proxy for further OpenAI Realtime measurement.
+
+## Supported-Region OpenAI Realtime Gateway
+
+NODE-020 defines the supported-region gateway/proxy path.
+
+Accepted decision:
+
+- The Asterisk server remains colocated with RTP and ARI.
+- The gateway runs in an OpenAI-supported Realtime region and owns `OPENAI_API_KEY`.
+- The Asterisk server authenticates to the gateway with its own gateway bearer token only.
+- The first proof should be an HTTP one-shot short WAV measurement endpoint, not a production streaming relay.
+- The first proof returns structured metrics and transcript presence flags, not transcript text by default.
+- Later WebSocket relay work must remain feature-flagged and dialog-isolated until explicitly accepted.
+- NODE-016 diagnostic isolation and NODE-018 systemd diagnostic profile must remain intact.
+
+Next implementation node:
+
+```text
+NODE-021 / supported-region-gateway-minimal-realtime-measurement
+```

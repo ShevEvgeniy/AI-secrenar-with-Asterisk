@@ -120,6 +120,18 @@ NODE-017 completed systemd/autostart templates for the server-side `ari_app`, an
 systemd ai-secretary-ari -> runtime ARI password from ari.conf -> local publish -> reboot -> RTP diagnostics smoke passed
 ```
 
+NODE-019 prepared direct OpenAI Realtime egress/STT measurement and proved direct egress from the current Asterisk server is not viable:
+
+```text
+api.openai.com/v1/realtime -> 403 unsupported_country_region_territory -> chunks_sent=0
+```
+
+NODE-020 defines the supported-region gateway/proxy measurement path:
+
+```text
+Asterisk server -> short WAV/PCM measurement upload -> supported-region gateway -> OpenAI Realtime -> redacted metrics/result flags
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -132,7 +144,7 @@ systemd ai-secretary-ari -> runtime ARI password from ari.conf -> local publish 
 
 ## Current Action Plan
 
-1. Treat NODE-001 through NODE-018 as complete and recorded in `master`.
+1. Treat NODE-001 through NODE-020 as complete and recorded in `master`.
 2. Preserve the validated sales transfer target:
 
 ```text
@@ -179,14 +191,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 33. Preserve NODE-018 server autostart: `ai-secretary-ari.service` is enabled and active after reboot, reads `ARI_PASSWORD` from `ari.conf`, and reaches `ARI_WS_CONNECTED` plus `READY_WAITING_FOR_CALLS` without manual exports.
 34. Preserve NODE-018 local publish permissions for the colocated service, including the server-side systemd drop-in that runs `ExecStartPre=+/usr/bin/chmod 0711 /var/lib/docker` before starting as `tulauser`.
 35. Preserve NODE-018 smoke result: server call `1778672473.13` received `228` RTP packets and `228` PCM chunks and ended with `diagnostic_call_finished status=ok`.
+36. Preserve NODE-019 direct OpenAI Realtime result: direct server egress reached OpenAI but failed with `403 Forbidden`, `unsupported_country_region_territory`, before audio upload.
+37. Preserve NODE-020 gateway boundary: `OPENAI_API_KEY` lives on the supported-region gateway, not on the Asterisk server.
+38. Preserve NODE-020 first-proof scope: one-shot short WAV/PCM measurement with redacted metrics, no transcript text by default, and no business dialog integration.
 
 ## Next Recommended Step
 
 ```text
-Open the next production-STT node only after confirming approved server egress and secret handling for a real OpenAI key.
+NODE-021 / supported-region-gateway-minimal-realtime-measurement
 ```
 
-The next production-STT node should measure OpenAI Realtime transcription over the proven colocated `snoop_external_media_rtp` path, keep `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false` by default, and preserve the NODE-016/NODE-018 diagnostic isolation boundary until transcript quality and fallback behavior are explicitly accepted.
+Implement and run the minimal supported-region gateway measurement. Keep `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false` by default, keep the Asterisk server in the NODE-016/NODE-018 diagnostic profile, and preserve business dialog isolation until transcript quality and fallback behavior are explicitly accepted.
 
 ## Node Completion Report Format
 
