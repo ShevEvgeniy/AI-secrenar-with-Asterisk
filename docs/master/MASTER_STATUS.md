@@ -3,11 +3,11 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `f91e713`
-- Source-of-truth commit message: `NODE-021 prepare supported-region gateway measurement`
+- Source-of-truth commit: `34f055e`
+- Source-of-truth commit message: `Record NODE-022 gateway deployment smoke blocker`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-022-deploy-supported-region-gateway-and-run-live-measurement`
+- Latest completed node branch: `feat/node-023-deploy-kamatera-usa-gateway-and-run-live-measurement`
 - Latest completed node commit: pending closeout commit
 
 ## Confirmed Working
@@ -228,6 +228,7 @@ OpenAI Realtime transcription over approved server egress -> batch fallback/base
 - NODE-020 defines the supported-region gateway/proxy measurement path, with the OpenAI key stored only on the gateway and no business dialog integration by default.
 - NODE-021 implements the prepared minimal supported-region gateway measurement path and Asterisk-side gateway client mode without requiring `OPENAI_API_KEY` on the Asterisk server.
 - NODE-022 records the supported-region gateway deployment path and one-off runbook, but live smoke remains blocked because no supported-region gateway host, gateway URL, or gateway token was available.
+- NODE-023 deploys the gateway on Kamatera USA / New York 2 and validates a live one-off Asterisk-side gateway measurement: gateway reachable, gateway auth ok, OpenAI Realtime from gateway ok, `chunks_sent=6`, transcript text not logged, and business dialog/systemd profile unchanged.
 
 ## NODE-004 Live Smoke
 
@@ -867,4 +868,54 @@ Next implementation:
 
 ```text
 Provision supported-region gateway host and rerun the NODE-022 one-off gateway smoke.
+```
+
+## NODE-023 Validation
+
+Result:
+
+```text
+PASS as live supported-region gateway smoke.
+```
+
+Gateway:
+
+```text
+host=Kamatera USA / New York 2
+public_ip=45.61.48.199
+deploy_path=/opt/ai-secretary-gateway
+protocol=HTTP for smoke
+port=8080
+```
+
+Structured result:
+
+```text
+gateway_reachable=true
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+asterisk_server_openai_key_present=no
+chunks_sent=6
+transcript_present=false
+transcript_text_logged=false
+error_type=none
+error_status=none
+error_redacted=true
+business_dialog_changed=false
+systemd_profile_changed=false
+```
+
+Validated:
+
+- Gateway owned `OPENAI_API_KEY` and `GATEWAY_TOKEN` through `/etc/ai-secretary/openai-realtime-gateway.env`.
+- Asterisk-side measurement used only gateway URL/token.
+- OpenAI Realtime connection and transcription session creation succeeded from the gateway.
+- Transcript text was not requested, returned, or logged.
+- `ai-secretary-ari.service` stayed active in `rtp_diagnostics_only`.
+- Gateway process was stopped after smoke because it was plain HTTP on a public IP and NODE-023 required only one measurement.
+
+Next implementation:
+
+```text
+Productionize supported-region gateway or adopt live STT in a separate scoped node.
 ```

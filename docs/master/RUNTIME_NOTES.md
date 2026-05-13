@@ -540,6 +540,65 @@ STT_LIVE_OPENAI_DISABLED=true
 STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
 ```
 
+## NODE-023 Runtime Notes
+
+- NODE-023 deployed the measurement-only gateway on Kamatera USA / New York 2:
+
+```text
+host=ai-secretary-gateway-node023
+public_ip=45.61.48.199
+deploy_path=/opt/ai-secretary-gateway
+secret_env=/etc/ai-secretary/openai-realtime-gateway.env
+protocol=HTTP for smoke
+port=8080
+```
+
+- Gateway-only secrets remain:
+
+```text
+OPENAI_API_KEY
+GATEWAY_TOKEN
+```
+
+- The Asterisk server one-off measurement used only:
+
+```text
+gateway_url=http://45.61.48.199:8080/v1/stt/realtime-measurement
+gateway_token=<redacted>
+```
+
+- Recorded live-smoke result:
+
+```text
+gateway_reachable=true
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+chunks_sent=6
+transcript_present=false
+transcript_text_logged=false
+error_type=none
+error_status=none
+```
+
+- The Asterisk server had no `OPENAI_API_KEY` in the measurement shell.
+- Business dialog was unchanged.
+- `ai-secretary-ari.service` remained active and kept:
+
+```text
+STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+STT_LIVE_OPENAI_DISABLED=true
+STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
+```
+
+- The manual gateway process was stopped after smoke:
+
+```text
+gateway_listener_stopped=yes
+```
+
+- No gateway systemd service was installed in NODE-023.
+- Do not leave the gateway exposed over plain HTTP for production. A productionization node should add TLS, firewall allowlisting, systemd, and token rotation/runbook before persistent use.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

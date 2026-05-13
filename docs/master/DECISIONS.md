@@ -444,3 +444,31 @@ transcript_text_logged=false
 business_dialog_changed=false
 systemd_profile_changed=false
 ```
+
+## Kamatera USA Gateway Live Smoke Passed
+
+NODE-023 deployed the NODE-021 measurement gateway on Kamatera USA / New York 2 and ran one Asterisk-side gateway-mode measurement.
+
+Accepted decision:
+
+- Keep `OPENAI_API_KEY` on the gateway host only.
+- Keep `GATEWAY_TOKEN` outside git and use it only for Asterisk-to-gateway measurement auth.
+- Treat HTTP port `8080` as smoke-only, not a production exposure.
+- Stop the manual gateway process after the one-off smoke because it was plain HTTP on a public IP.
+- Do not enable gateway STT in business dialog by default.
+- Do not change `ai-secretary-ari.service`; keep the diagnostic-safe profile until a separate adoption node explicitly changes it.
+
+Recorded NODE-023 result:
+
+```text
+gateway_reachable=true
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+asterisk_server_openai_key_present=no
+chunks_sent=6
+transcript_present=false
+transcript_text_logged=false
+business_dialog_changed=false
+systemd_profile_changed=false
+gateway_process_stopped=true
+```

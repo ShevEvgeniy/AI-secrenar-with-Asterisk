@@ -144,6 +144,12 @@ NODE-022 records the supported-region gateway deployment/runbook and blocked liv
 No supported-region host available -> no gateway request made -> no fabricated success -> exact deployment and one-off run commands ready
 ```
 
+NODE-023 deploys the gateway on Kamatera USA / New York 2 and runs the live one-off measurement:
+
+```text
+Asterisk server -> Kamatera HTTP gateway on 45.61.48.199:8080 -> OpenAI Realtime -> 200 OK, chunks_sent=6, transcript_text_logged=false
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -156,7 +162,7 @@ No supported-region host available -> no gateway request made -> no fabricated s
 
 ## Current Action Plan
 
-1. Treat NODE-001 through NODE-022 as complete and recorded in `master`.
+1. Treat NODE-001 through NODE-023 as complete and recorded in `master`.
 2. Preserve the validated sales transfer target:
 
 ```text
@@ -207,17 +213,19 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 37. Preserve NODE-020 gateway boundary: `OPENAI_API_KEY` lives on the supported-region gateway, not on the Asterisk server.
 38. Preserve NODE-020 first-proof scope: one-shot short WAV/PCM measurement with redacted metrics, no transcript text by default, and no business dialog integration.
 39. Preserve NODE-021 gateway/client boundary: the Asterisk-side measurement mode uses gateway URL/token only and does not require or read `OPENAI_API_KEY`.
-40. Preserve NODE-021 prepared-only result until a supported-region host runs the live measurement.
+40. Preserve NODE-021 prepared-only result as superseded by the NODE-023 live supported-region measurement.
 41. Preserve NODE-022 blocked-smoke result: no supported-region host, gateway URL, or gateway token was available, so gateway reachability, gateway auth, and OpenAI Realtime from gateway remain `not_run`.
 42. Preserve NODE-022 runtime boundary: no OpenAI key on the Asterisk server, no business dialog integration, and no `ai-secretary-ari.service` diagnostic profile change.
+43. Preserve NODE-023 live-smoke result: Kamatera USA gateway reachable, gateway auth ok, OpenAI Realtime from gateway ok, `chunks_sent=6`, `transcript_present=false`, and transcript text not logged.
+44. Preserve NODE-023 operational conclusion: the manual HTTP gateway process was stopped after smoke; code and host-only secrets remain on the gateway, but no gateway systemd service was installed.
 
 ## Next Recommended Step
 
 ```text
-Provision supported-region gateway host and rerun the NODE-022 one-off gateway smoke
+Productionize supported-region gateway or adopt live STT in a separate scoped node
 ```
 
-Deploy the minimal NODE-021 gateway on a supported-region host and run the one-off Asterisk-side measurement from the recorded NODE-022 runbook. Keep `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false` by default, keep the Asterisk server in the NODE-016/NODE-018 diagnostic profile, and preserve business dialog isolation until transcript quality and fallback behavior are explicitly accepted.
+If gateway STT should continue beyond measurement, add TLS, firewall allowlisting, systemd, token rotation/runbook, and feature-flagged dialog integration in a new node. Keep `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false` by default, keep the Asterisk server in the NODE-016/NODE-018 diagnostic profile, and preserve business dialog isolation until transcript quality and fallback behavior are explicitly accepted.
 
 ## Node Completion Report Format
 
