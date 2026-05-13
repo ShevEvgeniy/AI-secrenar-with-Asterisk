@@ -222,6 +222,83 @@ Interpretation:
 - `stt_live_rtp_packets_received_count > 0`: Asterisk externalMedia can reach the Python UDP listener; continue with OpenAI/audio-format debugging.
 - `stt_live_rtp_packets_received_count = 0`: Remaining blocker is network/VPN/firewall/Asterisk externalMedia routing, independent of OpenAI.
 
+## Follow-up 9 Colocated RTP Diagnostics
+
+Decision: do not spend more NODE-014 time trying to route Asterisk externalMedia RTP from the remote server to Windows over VPN. The preferred proof architecture is to run `ari_app` colocated with Asterisk on the server, or at least on the same network side as Asterisk.
+
+Why:
+
+- Windows VezarusPro IP `10.67.186.74` is active locally, but the Asterisk server `92.118.85.117` has no VPN/tun/wg/tailscale/zerotier/vezarus interface.
+- Server route check showed `10.67.186.74 via 92.118.85.113 dev eth0 src 92.118.85.117`, so packets to the Windows VPN IP leave through the public gateway instead of a VPN route.
+- A direct UDP test from `92.118.85.117` to a Windows listener on `10.67.186.74:50555` did not arrive.
+- This explains the prior live proof counters: `stt_live_rtp_packets_received_count=0`, `stt_live_pcm_chunks_created_count=0`, and `stt_live_openai_no_audio_received reason=rtp_packets_zero`.
+
+Server-side RTP diagnostics should be run before another OpenAI-enabled smoke. First identify which server-side address the Asterisk container can reach.
+
+Inspect host/container networking on the server:
+
+```bash
+ip -br addr
+ip route
+docker inspect asterisk
+docker exec asterisk ip route
+docker exec asterisk ip addr
+```
+
+Start a UDP listener on the server:
+
+```bash
+python -c "import socket; host='0.0.0.0'; port=50555; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.bind((host,port)); print(f'UDP listening on {host}:{port}'); data,addr=s.recvfrom(2048); print('RECEIVED',data,'FROM',addr)"
+```
+
+Send UDP from the Asterisk container, replacing `<SERVER_REACHABLE_HOST>` with each candidate:
+
+```bash
+docker exec asterisk bash -lc 'echo container-udp-test > /dev/udp/<SERVER_REACHABLE_HOST>/50555'
+```
+
+Candidate values for `<SERVER_REACHABLE_HOST>`:
+
+- `172.18.0.1`
+- `172.17.0.1`
+- `92.118.85.117`
+
+Acceptance for the preflight:
+
+- If the listener prints `RECEIVED`, use that exact `<SERVER_REACHABLE_HOST>` as `STT_LIVE_EXTERNAL_MEDIA_HOST`.
+- If no packet arrives, try the next candidate and document the failed candidate/result.
+- If all candidates fail, the next blocker is Asterisk/Docker/server firewall routing, not OpenAI and not Windows/VPN.
+
+Server-side RTP diagnostics-only smoke environment:
+
+```bash
+export STT_LIVE_STREAMING_ENABLED=true
+export STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+export STT_LIVE_OPENAI_DISABLED=true
+export STT_LIVE_STREAMING_FALLBACK_TO_BATCH=true
+export STT_LIVE_STREAMING_STAGE_ALLOWLIST=ISSUE,NAME,CITY
+export STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false
+export STT_LIVE_STREAMING_TOPOLOGY=snoop_external_media_rtp
+export STT_LIVE_RTP_BIND_HOST=0.0.0.0
+export STT_LIVE_EXTERNAL_MEDIA_HOST=<SERVER_REACHABLE_HOST>
+```
+
+Expected diagnostic logs:
+
+- `stt_live_rtp_listener_started` with `stt_live_rtp_bind_host=0.0.0.0`, the selected `stt_live_rtp_advertised_host`, and the dynamic `stt_live_rtp_port`.
+- `stt_live_external_media_target` showing `<SERVER_REACHABLE_HOST>:<dynamic_port>`.
+- `stt_live_rtp_diagnostics_only_started`.
+- `stt_live_rtp_packets_received_count`.
+- `stt_live_pcm_chunks_created_count`.
+- `stt_live_rtp_diagnostics_result`.
+
+Interpretation:
+
+- RTP packets greater than zero means the server/container media path works; then run OpenAI GA mode.
+- RTP packets equal zero means the blocker is colocated Asterisk/Docker/externalMedia topology or server firewall.
+
+Windows/VPN RTP remains a debug-only path. It is not the recommended architecture for this project unless the Asterisk host later gets an explicit route/interface to the Windows VPN network.
+
 Status:
 
 ```text
@@ -299,4 +376,4 @@ When live proof succeeds but `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false`, the
 
 Continue, not adopt yet.
 
-Next smoke should first run `STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only` or `STT_LIVE_OPENAI_DISABLED=true` to prove whether RTP reaches Windows. If RTP remains zero, fix network/externalMedia routing before spending more time on OpenAI. If RTP is positive, run OpenAI-enabled GA mode and inspect whether chunks are sent and whether delta/final events arrive before `record_done`.
+Next smoke should run RTP diagnostics-only colocated with Asterisk, using the preflight UDP test above to choose `STT_LIVE_EXTERNAL_MEDIA_HOST`. If RTP remains zero colocated, fix Asterisk/Docker/externalMedia topology before spending more time on OpenAI. If RTP is positive, run OpenAI-enabled GA mode and inspect whether chunks are sent and whether delta/final events arrive before `record_done`.
