@@ -2,7 +2,9 @@
 
 ## Status
 
-PREPARED. The safe one-off OpenAI Realtime transcription measurement path exists, but the real server measurement has not been run yet.
+CLOSED. The safe one-off OpenAI Realtime transcription measurement path was prepared and then run manually on server `92.118.85.117`.
+
+Result: direct OpenAI Realtime egress from the current Asterisk server is not viable. The server can reach `api.openai.com`, but OpenAI rejects the WebSocket request before audio is sent because the server location is in an unsupported country, region, or territory.
 
 ## Goal
 
@@ -93,15 +95,27 @@ realtime_cleanup_done
 
 ## Manual Server Measurement
 
-Not run yet.
+Run manually after the prepared measurement path landed on `master` at `f50b6f1`.
 
-When authorized later, use a temporary shell environment only:
+Temporary shell environment only:
 
 ```bash
 read -rsp "OPENAI_API_KEY: " OPENAI_API_KEY; echo
 export OPENAI_API_KEY
-PYTHONPATH=src python -m ai_secretary.stt.realtime_measurement --audio <server-local-wav>
+PYTHONPATH=src python -m ai_secretary.stt.realtime_measurement \
+  --audio /tmp/ai-secretary-node019/realtime_measurement_24k.wav \
+  --language ru \
+  --timeout-seconds 30
 unset OPENAI_API_KEY
+```
+
+Audio:
+
+```text
+source=data/storage/_system/prompt_1.wav
+converted_temp_file=/tmp/ai-secretary-node019/realtime_measurement_24k.wav
+format=pcm_s16le, 24000 Hz, mono
+duration=5.51 sec
 ```
 
 Do not write the real key into:
@@ -115,6 +129,43 @@ Do not restart or reconfigure:
 ```text
 ai-secretary-ari.service
 ```
+
+## Server Measurement Result
+
+Observed events:
+
+```text
+realtime_connection_attempt
+realtime_connection_failed
+realtime_cleanup_done
+```
+
+Connection attempt details:
+
+```text
+model=gpt-realtime-whisper
+websocket_host=api.openai.com/v1/realtime
+language=ru
+timeout_seconds=30
+```
+
+Failure:
+
+```text
+error_type=InvalidStatus
+status_code=403 Forbidden
+openai_error_code=unsupported_country_region_territory
+message=Country, region, or territory not supported
+chunks_sent=0
+```
+
+Interpretation:
+
+- DNS/network egress to the OpenAI Realtime endpoint was sufficient to receive an OpenAI HTTP/WebSocket rejection.
+- Rejection happened before session creation and before audio upload.
+- `realtime_audio_send_started`, `realtime_first_delta_ms`, `realtime_final_ms`, and `realtime_transcript_text_present` were not reached.
+- No production STT was enabled.
+- No business dialog state was changed.
 
 ## Validation
 
@@ -145,4 +196,21 @@ node014-server.tar
 - Measurement path exists and is safe.
 - Normal business dialog remains unchanged.
 - Systemd service remains in diagnostic profile.
-- Real server measurement is explicitly recorded as not run.
+- Real server measurement is recorded as failed before audio due to OpenAI `unsupported_country_region_territory`.
+
+## Next Recommendation
+
+Open:
+
+```text
+NODE-020 / openai-realtime-supported-region-gateway-proxy
+```
+
+Goal:
+
+Design and test a supported-region gateway/proxy for OpenAI Realtime transcription while keeping:
+
+- The Asterisk server in colocated RTP mode.
+- The real `OPENAI_API_KEY` off the Asterisk server as the production plan.
+- `ai-secretary-ari.service` in the safe diagnostic profile.
+- Business dialog behavior unchanged until gateway measurement passes.
