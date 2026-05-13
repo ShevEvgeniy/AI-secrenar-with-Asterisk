@@ -108,6 +108,12 @@ NODE-015 completed the production server-side STT strategy:
 colocated ari_app -> approved server egress to OpenAI Realtime transcription -> batch fallback/baseline -> local STT deferred until benchmark
 ```
 
+NODE-016 completed and validated dialog-isolated RTP/STT diagnostics:
+
+```text
+rtp_diagnostics_only -> snoop_external_media_rtp -> RTP/PCM measured -> dummy STT failure isolated from business dialog
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -120,7 +126,7 @@ colocated ari_app -> approved server egress to OpenAI Realtime transcription -> 
 
 ## Current Action Plan
 
-1. Treat NODE-001 through NODE-014 as complete and recorded in `master`.
+1. Treat NODE-001 through NODE-016 as complete and recorded in `master`.
 2. Preserve the validated sales transfer target:
 
 ```text
@@ -162,14 +168,16 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 28. Treat NODE-014 as media-path proof only, not production STT adoption.
 29. Treat NODE-015 as planning closeout only, not production STT implementation.
 30. Preserve NODE-015 decision that RTP diagnostics should be dialog-isolated before live STT drives the business dialog.
+31. Preserve NODE-016 `STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true` behavior so RTP/STT diagnostics do not advance business dialog, increment retries, trigger SAFE_FINISH, transfer, or callback.
+32. Preserve NODE-016 smoke result: server call `1778668979.22` received `429` RTP packets and `429` PCM chunks and ended with `diagnostic_call_finished status=ok`.
 
 ## Next Recommended Step
 
 ```text
-Open NODE-016 / dialog-isolated-rtp-diagnostics-and-server-stt-measurement.
+Open NODE-017 / production-safe OpenAI Realtime server STT measurement.
 ```
 
-NODE-016 should implement dialog-isolated RTP diagnostics, server-side service/env guidance, and production-safe OpenAI Realtime measurement mode without enabling dialog-driving live STT by default.
+NODE-017 should measure OpenAI Realtime transcription over the proven colocated `snoop_external_media_rtp` path, keep `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false` by default, and preserve the NODE-016 diagnostic isolation boundary until transcript quality and fallback behavior are explicitly accepted.
 
 ## Node Completion Report Format
 

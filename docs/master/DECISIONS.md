@@ -337,3 +337,18 @@ Next implementation node:
 ```text
 NODE-016 / dialog-isolated-rtp-diagnostics-and-server-stt-measurement
 ```
+
+## Dialog-Isolated RTP Diagnostics
+
+NODE-016 completed dialog-isolated RTP/STT diagnostics.
+
+Accepted decision:
+
+- `STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true` separates diagnostic RTP/STT measurement from customer dialog state.
+- In isolated diagnostics for `ISSUE`, `NAME`, and `CITY`, live RTP diagnostics and STT measurement may run and log timing/errors, but failed or empty diagnostic STT must not call the business dialog state machine.
+- Diagnostic failures must not increment business retry counters.
+- Diagnostic failures must not trigger `SAFE_FINISH`, transfer, callback, or customer-facing side effects.
+- Diagnostic closeout is reported with explicit events such as `stt_live_diagnostics_result`, `stt_live_diagnostics_dialog_bypass`, and `diagnostic_call_finished`.
+- Normal non-diagnostic calls remain governed by existing transfer, callback, after-hours, PHONE, PHONE_CONFIRM, CITY validation, and SAFE_FINISH contracts.
+
+Server smoke `1778668979.22` validated `rtp_diagnostics_only` over `snoop_external_media_rtp` to advertised host `172.18.0.1`, with `429` RTP packets, `429` PCM chunks, and `diagnostic_call_finished status=ok` while dummy batch STT failed as expected.

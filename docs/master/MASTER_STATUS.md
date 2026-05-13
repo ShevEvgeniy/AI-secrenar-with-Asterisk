@@ -7,8 +7,8 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-014-true-live-ari-media-streaming-stt-proof`
-- Latest completed node commit: `8879372`
+- Latest completed node branch: `feat/node-016-dialog-isolated-rtp-diagnostics-and-server-stt-measurement`
+- Latest completed node commit: pending closeout commit
 
 ## Confirmed Working
 
@@ -222,6 +222,7 @@ OpenAI Realtime transcription over approved server egress -> batch fallback/base
 - NODE-013 validates adapter, metrics, feature flag, and fallback behavior, but does not prove caller-perceived pause reduction in live calls.
 - NODE-014 validates colocated/server-side `ari_app`, local sound publish, ARI `Stasis(ai_secretary)`, and `snoop_external_media_rtp` delivery of RTP/PCM chunks to server host `172.18.0.1`.
 - NODE-015 recommends approved server egress to OpenAI Realtime transcription as the first production STT candidate, with batch fallback/baseline, local STT deferred until hardware benchmark, and dialog-isolated RTP diagnostics before dialog-driving live STT.
+- NODE-016 validates dialog-isolated RTP/STT diagnostics: `rtp_diagnostics_only` can prove RTP/PCM and tolerate dummy batch STT failure without business retries, SAFE_FINISH, transfer, or callback.
 
 ## NODE-004 Live Smoke
 
@@ -520,7 +521,7 @@ Known remaining UX debt:
 ## Next Recommended Step
 
 ```text
-Open NODE-016 / dialog-isolated-rtp-diagnostics-and-server-stt-measurement.
+Completed by NODE-016 / dialog-isolated-rtp-diagnostics-and-server-stt-measurement.
 ```
 
 ## NODE-014 Validation
@@ -562,7 +563,7 @@ node014-server.tar
 ## Next Recommended Step
 
 ```text
-Open NODE-016 / dialog-isolated-rtp-diagnostics-and-server-stt-measurement.
+Completed by NODE-016 / dialog-isolated-rtp-diagnostics-and-server-stt-measurement.
 ```
 
 ## NODE-015 Validation
@@ -587,3 +588,41 @@ Next implementation:
 ```text
 NODE-016 / dialog-isolated-rtp-diagnostics-and-server-stt-measurement
 ```
+
+## NODE-016 Validation
+
+Result:
+
+```text
+PASS as dialog-isolated RTP/STT diagnostics closeout.
+```
+
+Server smoke:
+
+```text
+call_id=1778668979.22
+stage=ISSUE
+provider=rtp_diagnostics_only
+topology=snoop_external_media_rtp
+advertised_host=172.18.0.1
+stt_live_rtp_packets_received_count=429
+stt_live_pcm_chunks_created_count=429
+stt_live_rtp_diagnostics_result=rtp_packets_received
+diagnostic_call_finished status=ok
+```
+
+Validated:
+
+- Batch STT failed as expected against dummy `OPENAI_BASE_URL` / `ConnectError`.
+- `stt_live_diagnostics_dialog_bypass` was emitted.
+- `diagnostic_dialog_isolated=true`.
+- `dialog_state_preserved=true`.
+- `safe_finish_suppressed=true`.
+- `transfer_suppressed=true`.
+- `callback_suppressed=true`.
+- Final diagnostic state stayed at `ISSUE` with `turns_done=0`.
+
+Decision:
+
+- Isolated RTP diagnostics can now be used on the server without poisoning normal business dialog evidence.
+- Dummy or unavailable STT in diagnostics no longer causes misleading business SAFE_FINISH/retry/transfer/callback behavior.

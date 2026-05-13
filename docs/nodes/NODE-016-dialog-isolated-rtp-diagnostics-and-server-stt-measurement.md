@@ -81,3 +81,32 @@ Focused NODE-016 coverage proves:
 - isolated diagnostics do not transition `ISSUE`, `NAME`, or `CITY` through the business dialog;
 - diagnostic events are emitted clearly;
 - existing live streaming guards for `PHONE` and default `PHONE_CONFIRM` remain in place.
+
+## Server Smoke Closeout
+
+Result: PASS.
+
+Evidence:
+
+- `call_id`: `1778668979.22`
+- stage: `ISSUE`
+- provider: `rtp_diagnostics_only`
+- topology: `snoop_external_media_rtp`
+- advertised host: `172.18.0.1`
+- `stt_live_rtp_packets_received_count=429`
+- `stt_live_pcm_chunks_created_count=429`
+- `stt_live_rtp_diagnostics_result=rtp_packets_received`
+- batch STT failed as expected with dummy `OPENAI_BASE_URL` / `ConnectError`
+- `stt_live_diagnostics_dialog_bypass` emitted
+- `diagnostic_dialog_isolated=true`
+- `dialog_state_preserved=true`
+- `safe_finish_suppressed=true`
+- `transfer_suppressed=true`
+- `callback_suppressed=true`
+- `diagnostic_call_finished status=ok`
+- `dialog_stage_at_finish=ISSUE`
+- `turns_done=0`
+
+Conclusion:
+
+NODE-016 successfully isolates RTP/STT diagnostics from the business dialog. Dummy or unavailable STT no longer causes misleading business `SAFE_FINISH`, retry, transfer, or callback behavior during isolated diagnostics.

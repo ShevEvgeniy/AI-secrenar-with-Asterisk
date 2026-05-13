@@ -334,7 +334,7 @@ advertised_host=172.18.0.1
   - `stt_live_pcm_chunks_created_count > 0`;
   - `stt_live_rtp_diagnostics_result=rtp_packets_received`.
 - The later `NAME -> SAFE_FINISH` path in the RTP-only smoke is not a media failure. Batch STT was intentionally pointed to dummy `OPENAI_BASE_URL=http://127.0.0.1:9/v1`.
-- Production STT adoption remains outside NODE-014. NODE-015 closed the strategy; NODE-016 should implement dialog-isolated diagnostics plus server-side STT measurement.
+- Production STT adoption remains outside NODE-014. NODE-015 closed the strategy; NODE-016 closed dialog-isolated diagnostics.
 
 ## NODE-015 Runtime Notes
 
@@ -346,6 +346,34 @@ advertised_host=172.18.0.1
 - RTP diagnostics should become fully dialog-isolated before live STT drives business dialog, so RTP-only tests do not call dummy batch STT or create misleading SAFE_FINISH outcomes.
 - PHONE remains excluded from live STT adoption by default.
 - PHONE_CONFIRM fast path remains unchanged.
+
+## NODE-016 Runtime Notes
+
+- NODE-016 completed dialog-isolated RTP/STT diagnostics.
+- Enable isolation explicitly with:
+
+```text
+STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
+```
+
+- In isolated diagnostics for `ISSUE`, `NAME`, and `CITY`, RTP diagnostics and STT measurement may run, but diagnostic STT failure does not feed `apply_turn`.
+- Diagnostic failure must not increment business retries, trigger `SAFE_FINISH`, transfer, or callback.
+- Expected diagnostic closeout events:
+  - `stt_live_diagnostics_result`;
+  - `stt_live_diagnostics_dialog_bypass`;
+  - `diagnostic_call_finished`.
+- Server smoke `1778668979.22` passed with:
+  - `provider=rtp_diagnostics_only`;
+  - `topology=snoop_external_media_rtp`;
+  - `advertised_host=172.18.0.1`;
+  - `stt_live_rtp_packets_received_count=429`;
+  - `stt_live_pcm_chunks_created_count=429`;
+  - `stt_live_rtp_diagnostics_result=rtp_packets_received`;
+  - dummy batch STT `ConnectError` isolated from business dialog;
+  - `diagnostic_call_finished status=ok`;
+  - `dialog_stage_at_finish=ISSUE`;
+  - `turns_done=0`.
+- Normal production dialog behavior remains unchanged when isolation is unset.
 
 ## NODE-010 Runtime Notes
 
