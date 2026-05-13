@@ -375,6 +375,77 @@ STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
   - `turns_done=0`.
 - Normal production dialog behavior remains unchanged when isolation is unset.
 
+## NODE-018 Runtime Notes
+
+- Server `92.118.85.117` now runs the colocated ARI app through systemd:
+
+```text
+ai-secretary-ari.service
+```
+
+- Installed runtime paths:
+  - `/etc/ai-secretary/ari-app.env`;
+  - `/usr/local/bin/ai-secretary-ari-wrapper`;
+  - `/etc/systemd/system/ai-secretary-ari.service`;
+  - `/etc/systemd/system/ai-secretary-ari.service.d/local-publish-permissions.conf`.
+- The installed env file must not contain real secrets.
+- `ARI_PASSWORD` is read by the wrapper from:
+
+```text
+/home/tulauser/asterisk-config/ari.conf
+```
+
+- The reboot-safe diagnostic profile is:
+
+```text
+TELEPHONY_STT_BACKEND=openai
+OPENAI_API_KEY=dummy
+OPENAI_BASE_URL=http://127.0.0.1:9/v1
+STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+STT_LIVE_OPENAI_DISABLED=true
+STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
+ASTERISK_PUBLISH_MODE=local
+STT_LIVE_RTP_BIND_HOST=0.0.0.0
+STT_LIVE_EXTERNAL_MEDIA_HOST=172.18.0.1
+```
+
+- The local publish root on the server is:
+
+```text
+/var/lib/docker/volumes/40c494a6543fbb493376133cfc53ef56471bdf18819aebfb20d4ffd9bfffeeb9/_data
+```
+
+- Because Docker restores `/var/lib/docker` permissions during boot, the server uses this drop-in:
+
+```text
+[Service]
+ExecStartPre=+/usr/bin/chmod 0711 /var/lib/docker
+```
+
+- Final reboot evidence:
+  - `ai-secretary-ari.service enabled`;
+  - `ai-secretary-ari.service active`;
+  - `ExecStartPre=/usr/bin/chmod 0711 /var/lib/docker status=0/SUCCESS`;
+  - `ARI_LISTENING http://127.0.0.1:8088/ari ai_secretary`;
+  - `ARI_WS_CONNECTED`;
+  - `SYSTEM_SOUNDS_DONE ok`;
+  - `READY_WAITING_FOR_CALLS`.
+- Post-reboot smoke `1778672473.13` used:
+
+```text
+docker exec asterisk /usr/sbin/asterisk -rx 'channel originate Local/501@from-internal application Echo'
+```
+
+- Smoke evidence:
+  - `stt_live_rtp_packets_received_count=228`;
+  - `stt_live_pcm_chunks_created_count=228`;
+  - `stt_live_rtp_diagnostics_result=rtp_packets_received`;
+  - `stt_live_diagnostics_dialog_bypass status=handled`;
+  - `diagnostic_call_finished status=ok`;
+  - `dialog_stage_at_finish=ISSUE`;
+  - `turns_done=0`;
+  - no business `safe_finish`, `transfer`, or `callback` action.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

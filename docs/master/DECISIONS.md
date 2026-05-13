@@ -352,3 +352,19 @@ Accepted decision:
 - Normal non-diagnostic calls remain governed by existing transfer, callback, after-hours, PHONE, PHONE_CONFIRM, CITY validation, and SAFE_FINISH contracts.
 
 Server smoke `1778668979.22` validated `rtp_diagnostics_only` over `snoop_external_media_rtp` to advertised host `172.18.0.1`, with `429` RTP packets, `429` PCM chunks, and `diagnostic_call_finished status=ok` while dummy batch STT failed as expected.
+
+## Server-Side Systemd Autostart Applied
+
+NODE-018 applied the NODE-017 systemd launch shape on server `92.118.85.117`.
+
+Accepted decision:
+
+- Keep `ai-secretary-ari.service` enabled for reboot autostart.
+- Keep the service process running as `tulauser`.
+- Keep runtime non-secret config in `/etc/ai-secretary/ari-app.env`.
+- Continue reading `ARI_PASSWORD` from `/home/tulauser/asterisk-config/ari.conf` at runtime instead of storing it in the env file or git.
+- Keep the safe diagnostics profile until a separate production-STT node provides real OpenAI egress and secret handling.
+- Use local publish through the actual Docker sounds volume path.
+- On this server, keep the systemd drop-in `ExecStartPre=+/usr/bin/chmod 0711 /var/lib/docker` so `tulauser` can traverse to the Docker sounds volume after reboot while the service itself still runs unprivileged.
+
+Server smoke `1778672473.13` validated reboot-safe `rtp_diagnostics_only` over `snoop_external_media_rtp`, with `228` RTP packets, `228` PCM chunks, `stt_live_rtp_diagnostics_result=rtp_packets_received`, and `diagnostic_call_finished status=ok`. No business `safe_finish`, `transfer`, or `callback` action occurred.

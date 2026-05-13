@@ -114,6 +114,12 @@ NODE-016 completed and validated dialog-isolated RTP/STT diagnostics:
 rtp_diagnostics_only -> snoop_external_media_rtp -> RTP/PCM measured -> dummy STT failure isolated from business dialog
 ```
 
+NODE-017 completed systemd/autostart templates for the server-side `ari_app`, and NODE-018 applied them on the actual server with reboot-safe validation:
+
+```text
+systemd ai-secretary-ari -> runtime ARI password from ari.conf -> local publish -> reboot -> RTP diagnostics smoke passed
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -126,7 +132,7 @@ rtp_diagnostics_only -> snoop_external_media_rtp -> RTP/PCM measured -> dummy ST
 
 ## Current Action Plan
 
-1. Treat NODE-001 through NODE-016 as complete and recorded in `master`.
+1. Treat NODE-001 through NODE-018 as complete and recorded in `master`.
 2. Preserve the validated sales transfer target:
 
 ```text
@@ -170,14 +176,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 30. Preserve NODE-015 decision that RTP diagnostics should be dialog-isolated before live STT drives the business dialog.
 31. Preserve NODE-016 `STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true` behavior so RTP/STT diagnostics do not advance business dialog, increment retries, trigger SAFE_FINISH, transfer, or callback.
 32. Preserve NODE-016 smoke result: server call `1778668979.22` received `429` RTP packets and `429` PCM chunks and ended with `diagnostic_call_finished status=ok`.
+33. Preserve NODE-018 server autostart: `ai-secretary-ari.service` is enabled and active after reboot, reads `ARI_PASSWORD` from `ari.conf`, and reaches `ARI_WS_CONNECTED` plus `READY_WAITING_FOR_CALLS` without manual exports.
+34. Preserve NODE-018 local publish permissions for the colocated service, including the server-side systemd drop-in that runs `ExecStartPre=+/usr/bin/chmod 0711 /var/lib/docker` before starting as `tulauser`.
+35. Preserve NODE-018 smoke result: server call `1778672473.13` received `228` RTP packets and `228` PCM chunks and ended with `diagnostic_call_finished status=ok`.
 
 ## Next Recommended Step
 
 ```text
-Open NODE-017 / production-safe OpenAI Realtime server STT measurement.
+Open the next production-STT node only after confirming approved server egress and secret handling for a real OpenAI key.
 ```
 
-NODE-017 should measure OpenAI Realtime transcription over the proven colocated `snoop_external_media_rtp` path, keep `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false` by default, and preserve the NODE-016 diagnostic isolation boundary until transcript quality and fallback behavior are explicitly accepted.
+The next production-STT node should measure OpenAI Realtime transcription over the proven colocated `snoop_external_media_rtp` path, keep `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false` by default, and preserve the NODE-016/NODE-018 diagnostic isolation boundary until transcript quality and fallback behavior are explicitly accepted.
 
 ## Node Completion Report Format
 

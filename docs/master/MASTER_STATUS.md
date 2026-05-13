@@ -656,3 +656,62 @@ Validated plan:
 - `ARI_PASSWORD` is read at runtime from `/home/tulauser/asterisk-config/ari.conf`.
 - The safe profile keeps `STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only`, `STT_LIVE_OPENAI_DISABLED=true`, and `STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true`.
 - Production OpenAI STT remains a separate scoped node.
+
+## NODE-018 Validation
+
+Result:
+
+```text
+PASS as server-side systemd/autostart application and reboot smoke.
+```
+
+Server:
+
+```text
+92.118.85.117
+/home/tulauser/AI-secrenar-with-Asterisk-node014
+```
+
+Installed:
+
+- `/etc/ai-secretary/ari-app.env`
+- `/usr/local/bin/ai-secretary-ari-wrapper`
+- `/etc/systemd/system/ai-secretary-ari.service`
+- `/etc/systemd/system/ai-secretary-ari.service.d/local-publish-permissions.conf`
+
+Final reboot validation:
+
+```text
+ai-secretary-ari.service enabled
+ai-secretary-ari.service active
+ExecStartPre=/usr/bin/chmod 0711 /var/lib/docker status=0/SUCCESS
+ARI_LISTENING http://127.0.0.1:8088/ari ai_secretary
+ARI_WS_CONNECTED
+SYSTEM_SOUNDS_DONE ok
+READY_WAITING_FOR_CALLS
+```
+
+Smoke:
+
+```text
+call_id=1778672473.13
+provider=rtp_diagnostics_only
+topology=snoop_external_media_rtp
+advertised_host=172.18.0.1
+stt_live_rtp_packets_received_count=228
+stt_live_pcm_chunks_created_count=228
+stt_live_rtp_diagnostics_result=rtp_packets_received
+stt_live_diagnostics_dialog_bypass status=handled
+diagnostic_call_finished status=ok
+dialog_stage_at_finish=ISSUE
+turns_done=0
+```
+
+Validated:
+
+- Service starts after reboot without manual shell exports.
+- Local publish remains `ASTERISK_PUBLISH_MODE=local`.
+- `ARI_PASSWORD` is read at runtime from `/home/tulauser/asterisk-config/ari.conf`.
+- Installed env contains only dummy OpenAI diagnostics values.
+- Dummy batch STT failure against `127.0.0.1:9` was isolated.
+- No business `safe_finish`, `transfer`, or `callback` action occurred during the diagnostic smoke.
