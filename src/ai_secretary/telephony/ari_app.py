@@ -3219,6 +3219,28 @@ def _streaming_stt_fallback_enabled() -> bool:
     return os.getenv("STT_STREAMING_FALLBACK_TO_BATCH", "true").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _stt_live_diagnostics_dialog_isolated_enabled() -> bool:
+    return os.getenv("STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _stt_live_diagnostics_dialog_isolated_for_stage(stage: DialogStage) -> bool:
+    if stage not in {DialogStage.ISSUE, DialogStage.NAME, DialogStage.CITY}:
+        return False
+    if not _stt_live_diagnostics_dialog_isolated_enabled():
+        return False
+    config = live_streaming_config()
+    return config.enabled and live_streaming_stage_allowed(stage, config)
+
+
+def _dialog_retry_profile_key(stage: DialogStage) -> str:
+    return f"{stage.value.lower()}_retry_count"
+
+
 def _streaming_stt_config(settings: Settings) -> RealtimeTranscriptionConfig:
     default_base_url = "wss://api.openai.com/v1/realtime"
     return RealtimeTranscriptionConfig(
@@ -3402,6 +3424,17 @@ async def _start_live_streaming_probe(
             details=base_details,
         )
         return None
+    if _stt_live_diagnostics_dialog_isolated_enabled() and stage in {
+        DialogStage.ISSUE,
+        DialogStage.NAME,
+        DialogStage.CITY,
+    }:
+        session.log_event(
+            action="stt_live_diagnostics_isolated_enabled",
+            status="ok",
+            details=base_details,
+        )
+        print("STT_LIVE_DIAGNOSTICS_ISOLATED_ENABLED", session.call_id, stage.value, config.provider)
 
     def log_metric(action: str, details: dict[str, Any], status: str, reason: str | None) -> None:
         session.log_event(action=action, status=status, reason=reason, details={**base_details, **details})
@@ -3897,6 +3930,62 @@ async def handle_call(
                         "text_present": bool(transcript_text),
                     },
                 )
+                if _stt_live_diagnostics_dialog_isolated_for_stage(stage):
+                    diagnostic_reason = (
+                        None
+                        if transcript_text
+                        else str(transcript_details.get("reason") or "empty_transcript")
+                    )
+                    diagnostic_details = {
+                        **transcript_details,
+                        "stage": stage.value,
+                        "turn_idx": turn_idx,
+                        "record_name": record_name,
+                        "text_present": bool(transcript_text),
+                        "diagnostic_dialog_isolated": True,
+                        "stt_live_diagnostics_dialog_isolated": True,
+                    }
+                    session.log_event(
+                        action="stt_live_diagnostics_result",
+                        status="ok" if transcript_text else "handled",
+                        reason=diagnostic_reason,
+                        dur_ms=stt_ms,
+                        details={**diagnostic_details, "text": transcript_text},
+                    )
+                    session.log_event(
+                        action="stt_live_diagnostics_dialog_bypass",
+                        status="handled",
+                        reason="diagnostic_dialog_isolated",
+                        details={
+                            **diagnostic_details,
+                            "current_stage": stage.value,
+                            "dialog_state_preserved": True,
+                            "business_retry_count_preserved": session.dialog.profile.get(_dialog_retry_profile_key(stage)),
+                            "transfer_suppressed": True,
+                            "callback_suppressed": True,
+                            "safe_finish_suppressed": True,
+                        },
+                    )
+                    print(
+                        "STT_LIVE_DIAGNOSTICS_DIALOG_BYPASS",
+                        call_id,
+                        stage.value,
+                        diagnostic_reason or "transcript_measured",
+                    )
+                    session.transition(
+                        CallState.DONE,
+                        action="diagnostic_call_finished",
+                        status="ok",
+                        reason="diagnostic_dialog_isolated",
+                        details={
+                            **diagnostic_details,
+                            "dialog_stage_at_finish": session.dialog.stage.value,
+                            "turns_done": session.dialog.turns_done,
+                            "business_retry_count_preserved": session.dialog.profile.get(_dialog_retry_profile_key(stage)),
+                        },
+                    )
+                    await client.hangup_safe(channel_id)
+                    return
                 prompt_text = next_prompt(stage, session.dialog.profile)
                 _append_turn(artifact_dir, build_turn_record(stage, prompt_text, transcript_text).to_dict())
 

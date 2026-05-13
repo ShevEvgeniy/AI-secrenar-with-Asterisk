@@ -11,6 +11,8 @@ import socket
 import time
 import wave
 
+import pytest
+
 from ai_secretary.config.settings import Settings
 from ai_secretary.stt import live_streaming
 from ai_secretary.stt.realtime_whisper import (
@@ -762,6 +764,143 @@ def test_live_streaming_result_logs_baseline_delta_and_falls_back_to_batch(monke
     assert "stt_batch_baseline_latency_ms" in details
     assert any(event["action"] == "stt_live_vs_batch_delta_ms" for event in events)
     assert any(event["action"] == "stt_live_stream_fallback_to_batch" for event in events)
+
+
+async def _completed_empty_live_diagnostics() -> ari_app.LiveStreamingProofResult:
+    return ari_app.LiveStreamingProofResult(
+        text="",
+        first_delta_ms=None,
+        final_ms=None,
+        chunks_sent=0,
+        audio_started_before_recording_finished=None,
+        recording_finish_to_final_ms=5,
+    )
+
+
+def test_live_diagnostics_default_empty_batch_stt_still_uses_business_retries(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    settings = _settings(tmp_path)
+    session = CallSession(call_id="call-diag-default", channel_id="ch-diag-default", artifact_dir=tmp_path / "artifacts")
+    session.dialog.stage = DialogStage.NAME
+    session.dialog.profile = {"name_retry_count": 2}
+    client = _SnoopPreservesRecordingClient(b"batch-audio")
+
+    async def _fake_start_live_proof(**kwargs):
+        log_metric = kwargs["log_metric"]
+        log_metric("stt_live_rtp_diagnostics_only_started", {}, "ok", None)
+        log_metric(
+            "stt_live_rtp_diagnostics_result",
+            {
+                "stt_live_rtp_packets_received_count": 4,
+                "stt_live_pcm_chunks_created_count": 4,
+                "stt_live_rtp_diagnostics_result": "rtp_packets_received",
+            },
+            "ok",
+            None,
+        )
+        return ari_app.LiveStreamingProofHandle(task=asyncio.create_task(_completed_empty_live_diagnostics()))
+
+    monkeypatch.delenv("STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED", raising=False)
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+    monkeypatch.setenv("STT_LIVE_STREAMING_PROVIDER", "rtp_diagnostics_only")
+    monkeypatch.setenv("STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT", "false")
+    monkeypatch.setenv("TELEPHONY_STT_BACKEND", "fixture")
+    monkeypatch.setenv("RECORDING_EARLY_STOP_ENABLED", "false")
+    monkeypatch.setattr(
+        ari_app,
+        "_system_sounds_snapshot",
+        lambda: {sound_id: True for sound_id in ari_app._SYSTEM_SOUND_TEXTS},
+    )
+    monkeypatch.setattr(ari_app, "start_live_streaming_proof", _fake_start_live_proof)
+
+    asyncio.run(ari_app.handle_call(client, settings, "app", session))
+
+    events = _read_events(session)
+    assert session.dialog.stage == DialogStage.SAFE_FINISH
+    assert session.dialog.profile["name_retry_count"] == 3
+    assert session.dialog.profile["safe_finish_reason"] == "name_retry_limit"
+    assert any(event["action"] == "safe_finish" and event["reason"] == "name_retry_limit" for event in events)
+    assert not any(event["action"] == "stt_live_diagnostics_dialog_bypass" for event in events)
+
+
+@pytest.mark.parametrize(
+    ("stage", "initial_profile", "retry_key"),
+    [
+        (DialogStage.ISSUE, {"issue_retry_count": 2}, "issue_retry_count"),
+        (DialogStage.NAME, {"name_retry_count": 2}, "name_retry_count"),
+        (DialogStage.CITY, {"name": "Иван", "city_retry_count": 2}, "city_retry_count"),
+    ],
+)
+def test_rtp_diagnostics_isolated_empty_batch_stt_bypasses_business_dialog(
+    monkeypatch,
+    tmp_path: Path,
+    stage: DialogStage,
+    initial_profile: dict,
+    retry_key: str,
+) -> None:
+    settings = _settings(tmp_path)
+    session = CallSession(
+        call_id=f"call-diag-isolated-{stage.value.lower()}",
+        channel_id=f"ch-diag-isolated-{stage.value.lower()}",
+        artifact_dir=tmp_path / "artifacts",
+    )
+    session.dialog.stage = stage
+    session.dialog.profile = dict(initial_profile)
+    client = _SnoopPreservesRecordingClient(b"batch-audio")
+
+    async def _fake_start_live_proof(**kwargs):
+        log_metric = kwargs["log_metric"]
+        log_metric("stt_live_rtp_diagnostics_only_started", {}, "ok", None)
+        log_metric(
+            "stt_live_rtp_diagnostics_result",
+            {
+                "stt_live_rtp_packets_received_count": 5,
+                "stt_live_pcm_chunks_created_count": 5,
+                "stt_live_rtp_diagnostics_result": "rtp_packets_received",
+            },
+            "ok",
+            None,
+        )
+        return ari_app.LiveStreamingProofHandle(task=asyncio.create_task(_completed_empty_live_diagnostics()))
+
+    monkeypatch.setenv("STT_LIVE_STREAMING_ENABLED", "true")
+    monkeypatch.setenv("STT_LIVE_STREAMING_PROVIDER", "rtp_diagnostics_only")
+    monkeypatch.setenv("STT_LIVE_OPENAI_DISABLED", "true")
+    monkeypatch.setenv("STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT", "false")
+    monkeypatch.setenv("STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED", "true")
+    monkeypatch.setenv("TELEPHONY_STT_BACKEND", "fixture")
+    monkeypatch.setenv("RECORDING_EARLY_STOP_ENABLED", "false")
+    monkeypatch.setattr(
+        ari_app,
+        "_system_sounds_snapshot",
+        lambda: {sound_id: True for sound_id in ari_app._SYSTEM_SOUND_TEXTS},
+    )
+    monkeypatch.setattr(ari_app, "start_live_streaming_proof", _fake_start_live_proof)
+
+    asyncio.run(ari_app.handle_call(client, settings, "app", session))
+
+    events = _read_events(session)
+    assert session.dialog.stage == stage
+    assert session.dialog.turns_done == 0
+    assert session.dialog.profile == initial_profile
+    assert not any(event["action"] == "dialog_decision" for event in events)
+    assert not any(event["action"] == "safe_finish" for event in events)
+    assert not any(event["action"] == "transfer_attempt" for event in events)
+    assert (settings.storage_dir / "callbacks" / "callback_records.jsonl").exists() is False
+    assert any(event["action"] == "stt_live_diagnostics_isolated_enabled" for event in events)
+    assert any(event["action"] == "stt_live_rtp_diagnostics_result" for event in events)
+    result = next(event for event in events if event["action"] == "stt_live_diagnostics_result")
+    bypass = next(event for event in events if event["action"] == "stt_live_diagnostics_dialog_bypass")
+    finished = next(event for event in events if event["action"] == "diagnostic_call_finished")
+    assert result["status"] == "handled"
+    assert result["reason"] == "empty_transcript"
+    assert bypass["details"]["business_retry_count_preserved"] == initial_profile[retry_key]
+    assert bypass["details"]["safe_finish_suppressed"] is True
+    assert bypass["details"]["transfer_suppressed"] is True
+    assert bypass["details"]["callback_suppressed"] is True
+    assert finished["reason"] == "diagnostic_dialog_isolated"
 
 
 def test_live_bridge_add_channel_http_error_logs_status_body_and_cleans_up(monkeypatch, tmp_path: Path) -> None:
