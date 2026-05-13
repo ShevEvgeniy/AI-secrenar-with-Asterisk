@@ -30,6 +30,8 @@ class Settings:
     asterisk_ssh_key: str
     asterisk_ssh_password: str
     asterisk_docker_container: str
+    asterisk_publish_mode: str = "ssh"
+    asterisk_local_sounds_root: Path = Path("")
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -52,6 +54,8 @@ class Settings:
         asterisk_ssh_key = os.getenv("ASTERISK_SSH_KEY", "")
         asterisk_ssh_password = os.getenv("ASTERISK_SSH_PASSWORD", "")
         asterisk_docker_container = os.getenv("ASTERISK_DOCKER_CONTAINER", "")
+        asterisk_publish_mode = os.getenv("ASTERISK_PUBLISH_MODE", "ssh").strip().lower() or "ssh"
+        asterisk_local_sounds_root = Path(os.getenv("ASTERISK_LOCAL_SOUNDS_ROOT", ""))
         return cls(
             openai_api_key=os.getenv("OPENAI_API_KEY", ""),
             elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", ""),
@@ -72,4 +76,6 @@ class Settings:
             asterisk_ssh_key=asterisk_ssh_key,
             asterisk_ssh_password=asterisk_ssh_password,
             asterisk_docker_container=asterisk_docker_container,
+            asterisk_publish_mode=asterisk_publish_mode,
+            asterisk_local_sounds_root=asterisk_local_sounds_root,
         )

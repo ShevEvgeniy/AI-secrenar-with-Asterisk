@@ -272,6 +272,9 @@ Acceptance for the preflight:
 Server-side RTP diagnostics-only smoke environment:
 
 ```bash
+export ASTERISK_PUBLISH_MODE=local
+export ASTERISK_LOCAL_SOUNDS_ROOT=/var/lib/docker/volumes/40c494a6543fbb493376133cfc53ef56471bdf18819aebfb20d4ffd9bfffeeb9/_data
+export ASTERISK_SOUNDS_SUBDIR=ai_secretary
 export STT_LIVE_STREAMING_ENABLED=true
 export STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
 export STT_LIVE_OPENAI_DISABLED=true
@@ -298,6 +301,58 @@ Interpretation:
 - RTP packets equal zero means the blocker is colocated Asterisk/Docker/externalMedia topology or server firewall.
 
 Windows/VPN RTP remains a debug-only path. It is not the recommended architecture for this project unless the Asterisk host later gets an explicit route/interface to the Windows VPN network.
+
+## Follow-up 10 Local Sound Publish For Colocated Launch
+
+Server-side colocated launch reached ARI readiness but system sound prepublish failed because the default publish path still expected SSH/SCP credentials:
+
+```text
+SYSTEM_SOUNDS_ITEM ... fail
+error="ASTERISK_SSH_KEY is required for publishing"
+details.reason="missing_key"
+```
+
+For colocated/server-side `ari_app`, SSH back into the same server is unnecessary. The publish pipeline now supports explicit local mode while keeping SSH/SCP as the default for Windows/local development.
+
+Server-side publish environment:
+
+```bash
+export ASTERISK_PUBLISH_MODE=local
+export ASTERISK_LOCAL_SOUNDS_ROOT=/var/lib/docker/volumes/40c494a6543fbb493376133cfc53ef56471bdf18819aebfb20d4ffd9bfffeeb9/_data
+export ASTERISK_SOUNDS_SUBDIR=ai_secretary
+```
+
+Notes:
+
+- Do not hardcode the Docker volume path in code; set `ASTERISK_LOCAL_SOUNDS_ROOT` from `docker inspect asterisk`.
+- Local mode writes WAV files under `${ASTERISK_LOCAL_SOUNDS_ROOT}/${ASTERISK_SOUNDS_SUBDIR}/...`.
+- Local mode returns the same ARI media ids, for example `sound:ai_secretary/_system/prompt_1`.
+- Local mode creates missing directories and does not require `ASTERISK_SSH_HOST`, `ASTERISK_SSH_USER`, or `ASTERISK_SSH_KEY`.
+- SSH/SCP publishing remains the default when `ASTERISK_PUBLISH_MODE` is unset.
+
+Expected local publish logs:
+
+- `publish_mode_selected` with `mode=local`.
+- `publish_local_attempt`.
+- `publish_local_success`, or `publish_local_failed` with `reason` and `failed_step`.
+
+Recommended colocated NODE-014 launch combines local publish and RTP diagnostics first:
+
+```bash
+export ASTERISK_PUBLISH_MODE=local
+export ASTERISK_LOCAL_SOUNDS_ROOT=/var/lib/docker/volumes/40c494a6543fbb493376133cfc53ef56471bdf18819aebfb20d4ffd9bfffeeb9/_data
+export ASTERISK_SOUNDS_SUBDIR=ai_secretary
+export STT_LIVE_STREAMING_ENABLED=true
+export STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+export STT_LIVE_OPENAI_DISABLED=true
+export STT_LIVE_EXTERNAL_MEDIA_HOST=172.18.0.1
+export STT_LIVE_RTP_BIND_HOST=0.0.0.0
+export STT_LIVE_STREAMING_TOPOLOGY=snoop_external_media_rtp
+export STT_LIVE_STREAMING_STAGE_ALLOWLIST=ISSUE,NAME,CITY
+export STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false
+```
+
+If system sound prepublish still fails in local mode, inspect `publish_local_failed`. If it succeeds, `SYSTEM_SOUNDS_DONE` should become `ok` or at least key static sounds should show `true` in the status map.
 
 Status:
 

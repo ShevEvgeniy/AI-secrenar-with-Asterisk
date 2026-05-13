@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import json
+import shutil
 import subprocess
 import time
 import wave
@@ -60,6 +62,10 @@ def _ssh_base_args(key_path: Path) -> list[str]:
 
 def _log_cmd(prefix: str, cmd: Sequence[str]) -> None:
     print(prefix, " ".join(cmd))
+
+
+def _log_publish_event(action: str, details: dict[str, Any]) -> None:
+    print(action, json.dumps(details, ensure_ascii=False))
 
 
 def _utc_now_iso() -> str:
@@ -160,6 +166,19 @@ def _cmd_timeout_sec() -> int:
     return value if value > 0 else 6
 
 
+def _publish_mode(settings: Settings) -> str:
+    value = getattr(settings, "asterisk_publish_mode", "") or os.getenv("ASTERISK_PUBLISH_MODE", "ssh")
+    mode = str(value).strip().lower()
+    return mode or "ssh"
+
+
+def _local_sounds_root(settings: Settings) -> Path:
+    value = getattr(settings, "asterisk_local_sounds_root", None)
+    if value is None or str(value) == ".":
+        value = os.getenv("ASTERISK_LOCAL_SOUNDS_ROOT", "")
+    return Path(str(value or ""))
+
+
 def _run_cmd(cmd: Sequence[str], label: str, cmd_timeout_sec: int | None = None) -> subprocess.CompletedProcess[str]:
     _log_cmd(label, cmd)
     timeout_sec = cmd_timeout_sec if (cmd_timeout_sec is not None and cmd_timeout_sec > 0) else _cmd_timeout_sec()
@@ -211,6 +230,74 @@ def _run_cmd(cmd: Sequence[str], label: str, cmd_timeout_sec: int | None = None)
     if result.returncode != 0:
         _handle_ssh_error(cmd, result.returncode, result.stderr, result.stdout)
     return result
+
+
+def _publish_wav_local(
+    *,
+    converted_wav: Path,
+    remote_rel: PurePosixPath,
+    settings: Settings,
+    timings_ms: dict[str, int | None],
+    total_start: float,
+) -> dict[str, Any]:
+    local_root = _local_sounds_root(settings)
+    if str(local_root) in {"", "."}:
+        raise PublishStepError(
+            "config",
+            "missing_local_sounds_root",
+            "ASTERISK_LOCAL_SOUNDS_ROOT is required when ASTERISK_PUBLISH_MODE=local",
+        )
+    subdir = settings.asterisk_sounds_subdir.strip().strip("/")
+    if subdir and (not remote_rel.parts or remote_rel.parts[0] != subdir):
+        remote_rel = PurePosixPath(subdir) / remote_rel
+
+    destination = local_root / Path(remote_rel.as_posix())
+    _log_publish_event(
+        "publish_local_attempt",
+        {
+            "mode": "local",
+            "local_sounds_root": local_root.as_posix(),
+            "remote_rel_path": remote_rel.as_posix(),
+            "destination_path": destination.as_posix(),
+        },
+    )
+    step_start = time.perf_counter()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    timings_ms["mkdir_ms"] = int((time.perf_counter() - step_start) * 1000)
+
+    step_start = time.perf_counter()
+    shutil.copyfile(converted_wav, destination)
+    timings_ms["scp_ms"] = int((time.perf_counter() - step_start) * 1000)
+
+    step_start = time.perf_counter()
+    if not destination.is_file():
+        raise PublishStepError("host_stat", "remote_stat_failed", f"Local published WAV not found: {destination.as_posix()}")
+    timings_ms["stat_ms"] = int((time.perf_counter() - step_start) * 1000)
+
+    sound_id = build_remote_sound_id(remote_rel.as_posix())
+    timings_ms["total_ms"] = int((time.perf_counter() - total_start) * 1000)
+    _log_publish_event(
+        "publish_local_success",
+        {
+            "mode": "local",
+            "sound_id": sound_id,
+            "remote_path": destination.as_posix(),
+            "remote_rel_path": remote_rel.as_posix(),
+        },
+    )
+    return {
+        "ok": True,
+        "sound_id": sound_id,
+        "remote_path": destination.as_posix(),
+        "error": None,
+        "details": {
+            "publish_mode": "local",
+            "local_sounds_root": local_root.as_posix(),
+            "remote_rel_path": remote_rel.as_posix(),
+            "cmd_timeout_sec": None,
+            **timings_ms,
+        },
+    }
 
 
 def _ensure_wav_8k_mono(local_wav_path: Path) -> Path:
@@ -366,6 +453,7 @@ def publish_wav_to_asterisk(
 ) -> dict[str, Any]:
     """Publish WAV to Asterisk and return structured result."""
     remote_wav = ""
+    publish_mode = "ssh"
     timings_ms: dict[str, int | None] = {
         "mkdir_ms": None,
         "scp_ms": None,
@@ -380,6 +468,29 @@ def publish_wav_to_asterisk(
             raise PublishStepError("local_wav", "local_wav_missing", f"Local WAV not found: {local_wav_path.as_posix()}")
         if local_wav_path.stat().st_size <= 0:
             raise PublishStepError("local_wav", "local_wav_empty", f"Local WAV is empty: {local_wav_path.as_posix()}")
+
+        publish_mode = _publish_mode(settings)
+        remote_rel = PurePosixPath(remote_rel_path.replace("\\", "/").lstrip("/"))
+        _log_publish_event(
+            "publish_mode_selected",
+            {
+                "mode": publish_mode,
+                "remote_rel_path": remote_rel.as_posix(),
+                "sounds_subdir": settings.asterisk_sounds_subdir,
+            },
+        )
+        if publish_mode not in {"ssh", "remote", "local"}:
+            raise PublishStepError("config", "unsupported_publish_mode", f"Unsupported ASTERISK_PUBLISH_MODE: {publish_mode}")
+
+        if publish_mode == "local":
+            converted_wav = _run_publish_step("convert", _ensure_wav_8k_mono, local_wav_path)
+            return _publish_wav_local(
+                converted_wav=converted_wav,
+                remote_rel=remote_rel,
+                settings=settings,
+                timings_ms=timings_ms,
+                total_start=total_start,
+            )
 
         if not settings.asterisk_ssh_key:
             return {
@@ -415,7 +526,6 @@ def publish_wav_to_asterisk(
                 "details": {"reason": "missing_ssh_target", "failed_step": "config"},
             }
 
-        remote_rel = PurePosixPath(remote_rel_path.replace("\\", "/").lstrip("/"))
         remote_dir = PurePosixPath(settings.asterisk_sounds_dir.as_posix()) / remote_rel.parent
         remote_wav = (PurePosixPath(settings.asterisk_sounds_dir.as_posix()) / remote_rel).as_posix()
 
@@ -517,6 +627,16 @@ def publish_wav_to_asterisk(
         error_message = str(exc)
         failed_step = exc.step if isinstance(exc, PublishStepError) else "unknown"
         reason = exc.reason if isinstance(exc, PublishStepError) else _classify_error(error_message)
+        if publish_mode == "local":
+            _log_publish_event(
+                "publish_local_failed",
+                {
+                    "mode": "local",
+                    "reason": reason,
+                    "failed_step": failed_step,
+                    "error": error_message,
+                },
+            )
         return {
             "ok": False,
             "sound_id": "",
