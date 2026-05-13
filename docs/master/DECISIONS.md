@@ -419,3 +419,28 @@ Next implementation node:
 ```text
 NODE-022 / deploy-supported-region-gateway-and-run-live-measurement
 ```
+
+## Supported-Region Gateway Live Smoke Blocked
+
+NODE-022 records the deployment path and one-off run commands, but the live smoke remained blocked.
+
+Accepted decision:
+
+- Do not fake gateway success when no supported-region gateway host is available.
+- Keep the gateway deployment path at `/opt/ai-secretary-realtime-gateway` and gateway runtime secrets outside git, for example `/etc/ai-secretary/openai-realtime-gateway.env`.
+- Keep `OPENAI_API_KEY` on the supported-region gateway only.
+- Let the Asterisk-side one-off measurement use only `REALTIME_GATEWAY_URL` and `REALTIME_GATEWAY_TOKEN`.
+- Leave `ai-secretary-ari.service` in the existing `rtp_diagnostics_only` profile.
+- Do not enable gateway STT in business dialog until a real supported-region smoke passes and a separate adoption node accepts transcript quality and fallback behavior.
+
+Recorded NODE-022 result:
+
+```text
+gateway_reachable=false
+gateway_auth=not_run
+openai_realtime_from_gateway=not_run
+asterisk_server_openai_key_present=no
+transcript_text_logged=false
+business_dialog_changed=false
+systemd_profile_changed=false
+```

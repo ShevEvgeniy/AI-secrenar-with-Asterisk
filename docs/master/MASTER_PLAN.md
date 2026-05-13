@@ -4,8 +4,8 @@
 
 - Repository root: `C:\Projects\AI-secrenar-with-Asterisk`
 - Source-of-truth branch: `master`
-- Source-of-truth commit: `df69f3222cec78a5f7afe2ef09b413f7ab5f3d83`
-- Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
+- Source-of-truth commit: `f91e713`
+- Source-of-truth commit message: `NODE-021 prepare supported-region gateway measurement`
 - Workflow model: master-driven coordination with focused node branches for implementation.
 
 ## Confirmed Capabilities
@@ -138,6 +138,12 @@ NODE-021 implements the minimal prepared gateway measurement path:
 Asterisk one-off client without OPENAI_API_KEY -> authenticated raw WAV upload -> gateway-owned OPENAI_API_KEY -> OpenAI Realtime -> redacted structured JSON
 ```
 
+NODE-022 records the supported-region gateway deployment/runbook and blocked live-smoke result:
+
+```text
+No supported-region host available -> no gateway request made -> no fabricated success -> exact deployment and one-off run commands ready
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -150,7 +156,7 @@ Asterisk one-off client without OPENAI_API_KEY -> authenticated raw WAV upload -
 
 ## Current Action Plan
 
-1. Treat NODE-001 through NODE-020 as complete and recorded in `master`.
+1. Treat NODE-001 through NODE-022 as complete and recorded in `master`.
 2. Preserve the validated sales transfer target:
 
 ```text
@@ -202,14 +208,16 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 38. Preserve NODE-020 first-proof scope: one-shot short WAV/PCM measurement with redacted metrics, no transcript text by default, and no business dialog integration.
 39. Preserve NODE-021 gateway/client boundary: the Asterisk-side measurement mode uses gateway URL/token only and does not require or read `OPENAI_API_KEY`.
 40. Preserve NODE-021 prepared-only result until a supported-region host runs the live measurement.
+41. Preserve NODE-022 blocked-smoke result: no supported-region host, gateway URL, or gateway token was available, so gateway reachability, gateway auth, and OpenAI Realtime from gateway remain `not_run`.
+42. Preserve NODE-022 runtime boundary: no OpenAI key on the Asterisk server, no business dialog integration, and no `ai-secretary-ari.service` diagnostic profile change.
 
 ## Next Recommended Step
 
 ```text
-NODE-022 / deploy-supported-region-gateway-and-run-live-measurement
+Provision supported-region gateway host and rerun the NODE-022 one-off gateway smoke
 ```
 
-Deploy the minimal NODE-021 gateway on a supported-region host and run the one-off Asterisk-side measurement. Keep `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false` by default, keep the Asterisk server in the NODE-016/NODE-018 diagnostic profile, and preserve business dialog isolation until transcript quality and fallback behavior are explicitly accepted.
+Deploy the minimal NODE-021 gateway on a supported-region host and run the one-off Asterisk-side measurement from the recorded NODE-022 runbook. Keep `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false` by default, keep the Asterisk server in the NODE-016/NODE-018 diagnostic profile, and preserve business dialog isolation until transcript quality and fallback behavior are explicitly accepted.
 
 ## Node Completion Report Format
 

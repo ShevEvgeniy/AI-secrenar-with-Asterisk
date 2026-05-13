@@ -482,6 +482,64 @@ REALTIME_GATEWAY_TOKEN
 - Transcript text is not returned by default and should not be logged by default.
 - No supported-region host was available during NODE-021; live deployment and result capture move to NODE-022.
 
+## NODE-022 Runtime Notes
+
+- NODE-022 did not reach a supported-region gateway because no gateway host, gateway URL, or gateway token was available.
+- The prepared supported-region gateway deployment path is:
+
+```text
+/opt/ai-secretary-realtime-gateway
+```
+
+- Gateway-only secret env path:
+
+```text
+/etc/ai-secretary/openai-realtime-gateway.env
+```
+
+- Gateway-only secrets remain:
+
+```text
+OPENAI_API_KEY
+GATEWAY_TOKEN
+```
+
+- Asterisk-side one-off measurement remains limited to:
+
+```text
+REALTIME_GATEWAY_URL
+REALTIME_GATEWAY_TOKEN
+```
+
+- Before the one-off measurement, the Asterisk server shell should show:
+
+```text
+asterisk_server_openai_key_present=no
+```
+
+- Recorded blocked live-smoke result:
+
+```text
+gateway_reachable=false
+gateway_auth=not_run
+openai_realtime_from_gateway=not_run
+chunks_sent=not_available
+transcript_present=unknown
+transcript_text_logged=false
+error_type=supported_region_gateway_unavailable
+error_redacted=true
+business_dialog_changed=false
+systemd_profile_changed=false
+```
+
+- The existing `ai-secretary-ari.service` profile remains unchanged:
+
+```text
+STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+STT_LIVE_OPENAI_DISABLED=true
+STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
+```
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

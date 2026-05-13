@@ -3,11 +3,11 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `df69f3222cec78a5f7afe2ef09b413f7ab5f3d83`
-- Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
+- Source-of-truth commit: `f91e713`
+- Source-of-truth commit message: `NODE-021 prepare supported-region gateway measurement`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-021-supported-region-gateway-minimal-realtime-measurement`
+- Latest completed node branch: `feat/node-022-deploy-supported-region-gateway-and-run-live-measurement`
 - Latest completed node commit: pending closeout commit
 
 ## Confirmed Working
@@ -227,6 +227,7 @@ OpenAI Realtime transcription over approved server egress -> batch fallback/base
 - NODE-019 validates that direct OpenAI Realtime egress from the current Asterisk server is blocked with `403 Forbidden`, OpenAI code `unsupported_country_region_territory`, before audio upload.
 - NODE-020 defines the supported-region gateway/proxy measurement path, with the OpenAI key stored only on the gateway and no business dialog integration by default.
 - NODE-021 implements the prepared minimal supported-region gateway measurement path and Asterisk-side gateway client mode without requiring `OPENAI_API_KEY` on the Asterisk server.
+- NODE-022 records the supported-region gateway deployment path and one-off runbook, but live smoke remains blocked because no supported-region gateway host, gateway URL, or gateway token was available.
 
 ## NODE-004 Live Smoke
 
@@ -815,4 +816,55 @@ Next implementation:
 
 ```text
 NODE-022 / deploy-supported-region-gateway-and-run-live-measurement
+```
+
+## NODE-022 Validation
+
+Result:
+
+```text
+BLOCKED as live supported-region gateway smoke; PASS as exact deployment/runbook and honest redacted result capture.
+```
+
+Reason:
+
+```text
+No supported-region host, gateway URL, or gateway token was available during this node.
+```
+
+Recorded structured result:
+
+```text
+gateway_reachable=false
+gateway_auth=not_run
+openai_realtime_from_gateway=not_run
+asterisk_server_openai_key_present=no
+chunks_sent=not_available
+transcript_present=unknown
+transcript_text_logged=false
+error_type=supported_region_gateway_unavailable
+error_status=not_available
+error_redacted=true
+business_dialog_changed=false
+systemd_profile_changed=false
+```
+
+Delivered:
+
+- `docs/nodes/NODE-022-deploy-supported-region-gateway-and-run-live-measurement.md`
+- Exact supported-region gateway deployment path: `/opt/ai-secretary-realtime-gateway`
+- Exact gateway secret env path: `/etc/ai-secretary/openai-realtime-gateway.env`
+- Exact Asterisk-side one-off measurement command using `REALTIME_GATEWAY_URL` and `REALTIME_GATEWAY_TOKEN` only.
+
+Preserved:
+
+- `OPENAI_API_KEY` was not placed on the Asterisk server by this node.
+- `ai-secretary-ari.service` remains in the safe `rtp_diagnostics_only` profile.
+- Business dialog is unchanged.
+- Gateway STT is not enabled for production calls.
+
+Next implementation:
+
+```text
+Provision supported-region gateway host and rerun the NODE-022 one-off gateway smoke.
 ```
