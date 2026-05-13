@@ -303,7 +303,7 @@ Accepted decision:
 - Colocated/server-side `ari_app` near Asterisk is the proven launch shape for RTP diagnostics.
 - Local sound publish is valid for server-side launch and avoids SSH back into the same server.
 - `snoop_external_media_rtp` is the validated topology for receiving Asterisk RTP/PCM without moving the original caller channel into the diagnostic bridge.
-- Production server-side STT strategy should move to NODE-015 or an even smaller dialog-isolated RTP diagnostics node.
+- Production server-side STT strategy moved to NODE-015; implementation should move to NODE-016 as dialog-isolated diagnostics plus server-side STT measurement.
 
 Proof evidence:
 
@@ -317,3 +317,23 @@ Proof evidence:
 Boundary:
 
 - The later dialog failure is excluded from the media-path decision because batch STT was intentionally pointed to dummy `OPENAI_BASE_URL=http://127.0.0.1:9/v1` for RTP-only diagnostics.
+
+## Production Server-Side STT Strategy
+
+NODE-015 completed as a docs-only planning closeout.
+
+Accepted decision:
+
+- Use colocated/server-side `ari_app` plus the NODE-014 `snoop_external_media_rtp` topology as the production media shape.
+- Use OpenAI Realtime transcription over approved server egress as the first production STT candidate.
+- Use direct server egress when operationally allowed; otherwise put a controlled outbound proxy/gateway between the server and OpenAI.
+- Keep batch Audio API STT as fallback/baseline during rollout.
+- Defer local/offline STT as primary until the current server hardware is benchmarked.
+- Make RTP diagnostics fully dialog-isolated before live STT is allowed to drive business dialog.
+- Do not include PHONE in live STT adoption by default; preserve PHONE_CONFIRM fast path.
+
+Next implementation node:
+
+```text
+NODE-016 / dialog-isolated-rtp-diagnostics-and-server-stt-measurement
+```

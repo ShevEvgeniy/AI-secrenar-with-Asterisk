@@ -334,7 +334,18 @@ advertised_host=172.18.0.1
   - `stt_live_pcm_chunks_created_count > 0`;
   - `stt_live_rtp_diagnostics_result=rtp_packets_received`.
 - The later `NAME -> SAFE_FINISH` path in the RTP-only smoke is not a media failure. Batch STT was intentionally pointed to dummy `OPENAI_BASE_URL=http://127.0.0.1:9/v1`.
-- Production STT adoption remains outside NODE-014 and should be handled by NODE-015 or a smaller dialog-isolated RTP diagnostics node.
+- Production STT adoption remains outside NODE-014. NODE-015 closed the strategy; NODE-016 should implement dialog-isolated diagnostics plus server-side STT measurement.
+
+## NODE-015 Runtime Notes
+
+- NODE-015 is a docs-only planning closeout, not a production STT implementation.
+- Recommended first production STT candidate is server-side OpenAI Realtime transcription reached from the colocated `ari_app` through approved egress.
+- If direct server egress is not operationally acceptable, use a controlled outbound proxy/gateway rather than routing through Windows/VPN.
+- Keep batch Audio API STT as fallback/baseline while live STT is measured.
+- Defer local/offline STT until actual server hardware and real telephony latency are benchmarked.
+- RTP diagnostics should become fully dialog-isolated before live STT drives business dialog, so RTP-only tests do not call dummy batch STT or create misleading SAFE_FINISH outcomes.
+- PHONE remains excluded from live STT adoption by default.
+- PHONE_CONFIRM fast path remains unchanged.
 
 ## NODE-010 Runtime Notes
 

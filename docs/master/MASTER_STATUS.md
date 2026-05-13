@@ -162,6 +162,12 @@ NODE-014 proves the server-side true-live ARI media path:
 colocated ari_app -> Stasis(ai_secretary) -> snoop_external_media_rtp -> RTP/PCM received
 ```
 
+NODE-015 closes the production server-side STT strategy:
+
+```text
+OpenAI Realtime transcription over approved server egress -> batch fallback/baseline -> local STT benchmark later -> dialog-isolated RTP diagnostics first
+```
+
 ## Validation Notes
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
@@ -180,6 +186,7 @@ colocated ari_app -> Stasis(ai_secretary) -> snoop_external_media_rtp -> RTP/PCM
 - NODE-012 is merged into `master` and closed.
 - NODE-013 is merged into `master` and closed as adapter/metrics spike only.
 - NODE-014 is complete as a successful media-path proof; production STT adoption remains out of scope.
+- NODE-015 is complete as a planning closeout; no production STT implementation was made.
 - During NODE-002 validation, SSH to `92.118.85.117:22` timed out while publishing `prompt_3` and transfer system sounds.
 - Despite the partial publish failure, the listener reached `READY_WAITING_FOR_CALLS`.
 - Fallback media was used during the live call for missing `prompt_3` and transfer phrase.
@@ -214,6 +221,7 @@ colocated ari_app -> Stasis(ai_secretary) -> snoop_external_media_rtp -> RTP/PCM
 - NODE-012 validates compound CITY/address acceptance while preserving PHONE digit safety and sales transfer semantics.
 - NODE-013 validates adapter, metrics, feature flag, and fallback behavior, but does not prove caller-perceived pause reduction in live calls.
 - NODE-014 validates colocated/server-side `ari_app`, local sound publish, ARI `Stasis(ai_secretary)`, and `snoop_external_media_rtp` delivery of RTP/PCM chunks to server host `172.18.0.1`.
+- NODE-015 recommends approved server egress to OpenAI Realtime transcription as the first production STT candidate, with batch fallback/baseline, local STT deferred until hardware benchmark, and dialog-isolated RTP diagnostics before dialog-driving live STT.
 
 ## NODE-004 Live Smoke
 
@@ -512,7 +520,7 @@ Known remaining UX debt:
 ## Next Recommended Step
 
 ```text
-Open NODE-015 / production-server-side-stt-strategy.
+Open NODE-016 / dialog-isolated-rtp-diagnostics-and-server-stt-measurement.
 ```
 
 ## NODE-014 Validation
@@ -554,5 +562,28 @@ node014-server.tar
 ## Next Recommended Step
 
 ```text
-Open NODE-015 / production-server-side-stt-strategy.
+Open NODE-016 / dialog-isolated-rtp-diagnostics-and-server-stt-measurement.
+```
+
+## NODE-015 Validation
+
+Result:
+
+```text
+PASS as docs-only planning closeout.
+```
+
+Decision:
+
+- Best first production STT candidate is colocated `ari_app` using the proven `snoop_external_media_rtp` media path and OpenAI Realtime transcription over approved server egress.
+- Direct server egress is acceptable if operations approves network policy and secret handling; otherwise use a controlled outbound proxy/gateway.
+- Batch Audio API STT remains fallback/baseline during rollout.
+- Local STT is deferred until actual server CPU/RAM/GPU and real telephony latency are benchmarked.
+- RTP diagnostics should be fully dialog-isolated before production STT drives dialog, so dummy or blocked STT endpoints do not poison business validation or force misleading SAFE_FINISH.
+- Production STT adoption remains a separate explicit implementation decision.
+
+Next implementation:
+
+```text
+NODE-016 / dialog-isolated-rtp-diagnostics-and-server-stt-measurement
 ```

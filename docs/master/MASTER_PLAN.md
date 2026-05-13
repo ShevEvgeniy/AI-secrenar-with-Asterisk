@@ -102,6 +102,12 @@ NODE-014 completed and validated the true-live ARI media-path proof:
 server-side ari_app -> ARI Stasis(ai_secretary) -> snoop_external_media_rtp -> RTP/PCM received on 172.18.0.1
 ```
 
+NODE-015 completed the production server-side STT strategy:
+
+```text
+colocated ari_app -> approved server egress to OpenAI Realtime transcription -> batch fallback/baseline -> local STT deferred until benchmark
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -154,14 +160,16 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 26. Preserve NODE-014 local sound publish mode for colocated/server-side launch.
 27. Preserve NODE-014 `snoop_external_media_rtp` diagnostics path and RTP/PCM metrics.
 28. Treat NODE-014 as media-path proof only, not production STT adoption.
+29. Treat NODE-015 as planning closeout only, not production STT implementation.
+30. Preserve NODE-015 decision that RTP diagnostics should be dialog-isolated before live STT drives the business dialog.
 
 ## Next Recommended Step
 
 ```text
-Open NODE-015 / production-server-side-stt-strategy.
+Open NODE-016 / dialog-isolated-rtp-diagnostics-and-server-stt-measurement.
 ```
 
-NODE-015 should decide and validate the production server-side STT strategy now that NODE-014 has proven colocated ARI RTP delivery.
+NODE-016 should implement dialog-isolated RTP diagnostics, server-side service/env guidance, and production-safe OpenAI Realtime measurement mode without enabling dialog-driving live STT by default.
 
 ## Node Completion Report Format
 
