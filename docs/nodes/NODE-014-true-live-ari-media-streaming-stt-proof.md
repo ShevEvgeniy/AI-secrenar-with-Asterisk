@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented as an isolated proof path behind feature flags. This is not a production adoption decision.
+Media-path proof successful. Implemented as an isolated proof path behind feature flags. This is not a production adoption decision.
 
 ## Goal
 
@@ -357,8 +357,35 @@ If system sound prepublish still fails in local mode, inspect `publish_local_fai
 Status:
 
 ```text
-NODE-014 remains open.
+NODE-014 media-path proof successful.
 ```
+
+## Follow-up 11 Server-Side RTP Diagnostics Smoke
+
+The colocated/server-side `ari_app` path is proven. Server-side local sound publish works after follow-up 10, and Asterisk externalMedia/snoop RTP reaches the server listener.
+
+Evidence:
+
+- Local publish mode was used and system sounds published successfully before the call.
+- ARI app connected to local ARI as `Stasis(ai_secretary)`.
+- Live topology: `snoop_external_media_rtp`.
+- RTP target: bind `0.0.0.0`, advertised host `172.18.0.1`.
+- Runtime events showed `stt_live_rtp_packets_received_count=370`.
+- Runtime events showed `stt_live_pcm_chunks_created_count=370`.
+- Runtime event `stt_live_rtp_diagnostics_result=rtp_packets_received`.
+- Bridge cleanup completed ok.
+
+Expected non-blocking failure:
+
+- The dialog later moved `NAME -> SAFE_FINISH` because batch STT was intentionally pointed to dummy `OPENAI_BASE_URL=http://127.0.0.1:9/v1` for server-side RTP-only testing.
+- `user_transcribed` became unavailable with `ConnectError('[Errno 111] Connection refused')`.
+- The NAME retry limit then triggered `SAFE_FINISH`.
+- This was not an RTP/media failure.
+
+Conclusion:
+
+- NODE-014 media-path proof is successful.
+- Remaining work should be split into a separate node/follow-up for production server-side STT strategy or fully dialog-isolated RTP diagnostics mode.
 
 ## Metrics
 
@@ -419,7 +446,7 @@ Implemented comparison semantics:
 - Batch baseline: recording download artifact -> existing batch STT text ready.
 - Live vs batch delta: `recording_finish_to_live_final_ms - stt_batch_baseline_latency_ms`.
 
-No controlled remote call has been run in this workspace, so measured real-call values are not yet available. Unit tests prove the metric plumbing and fallback behavior; the next node or manual proof run must capture real Asterisk timestamps.
+Server-side RTP diagnostics proved the Asterisk externalMedia/snoop media path reaches the colocated listener. OpenAI-enabled live STT timing remains a production strategy follow-up, not a NODE-014 adoption decision.
 
 ## Fallback Behavior
 
@@ -429,6 +456,6 @@ When live proof succeeds but `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false`, the
 
 ## Recommendation
 
-Continue, not adopt yet.
+Close NODE-014 as a successful media-path proof, not as production STT adoption.
 
-Next smoke should run RTP diagnostics-only colocated with Asterisk, using the preflight UDP test above to choose `STT_LIVE_EXTERNAL_MEDIA_HOST`. If RTP remains zero colocated, fix Asterisk/Docker/externalMedia topology before spending more time on OpenAI. If RTP is positive, run OpenAI-enabled GA mode and inspect whether chunks are sent and whether delta/final events arrive before `record_done`.
+Next bounded work should be a separate node for production server-side STT strategy or fully dialog-isolated RTP diagnostics mode.
