@@ -7,8 +7,8 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-013-gpt-realtime-whisper-streaming-stt-spike`
-- Latest completed node commit: `ed65f8b`
+- Latest completed node branch: `feat/node-014-true-live-ari-media-streaming-stt-proof`
+- Latest completed node commit: `8879372`
 
 ## Confirmed Working
 
@@ -156,6 +156,12 @@ NODE-013 adds a feature-flagged streaming STT adapter and metrics spike:
 stored WAV artifact -> chunked realtime adapter -> metrics/fallback -> batch path preserved
 ```
 
+NODE-014 proves the server-side true-live ARI media path:
+
+```text
+colocated ari_app -> Stasis(ai_secretary) -> snoop_external_media_rtp -> RTP/PCM received
+```
+
 ## Validation Notes
 
 - A false negative occurred during live validation because MicroSIP was using the wrong Windows input device.
@@ -173,6 +179,7 @@ stored WAV artifact -> chunked realtime adapter -> metrics/fallback -> batch pat
 - NODE-011 is merged into `master` and closed as MVP-acceptable.
 - NODE-012 is merged into `master` and closed.
 - NODE-013 is merged into `master` and closed as adapter/metrics spike only.
+- NODE-014 is complete as a successful media-path proof; production STT adoption remains out of scope.
 - During NODE-002 validation, SSH to `92.118.85.117:22` timed out while publishing `prompt_3` and transfer system sounds.
 - Despite the partial publish failure, the listener reached `READY_WAITING_FOR_CALLS`.
 - Fallback media was used during the live call for missing `prompt_3` and transfer phrase.
@@ -206,6 +213,7 @@ stored WAV artifact -> chunked realtime adapter -> metrics/fallback -> batch pat
 - NODE-011 validates normal-call latency instrumentation, static PHONE_CONFIRM, ISSUE capture reliability, TALK_DETECT diagnostics, and preserved sales transfer semantics.
 - NODE-012 validates compound CITY/address acceptance while preserving PHONE digit safety and sales transfer semantics.
 - NODE-013 validates adapter, metrics, feature flag, and fallback behavior, but does not prove caller-perceived pause reduction in live calls.
+- NODE-014 validates colocated/server-side `ari_app`, local sound publish, ARI `Stasis(ai_secretary)`, and `snoop_external_media_rtp` delivery of RTP/PCM chunks to server host `172.18.0.1`.
 
 ## NODE-004 Live Smoke
 
@@ -504,5 +512,47 @@ Known remaining UX debt:
 ## Next Recommended Step
 
 ```text
-Open NODE-014 / true-live-ari-media-streaming-stt-proof.
+Open NODE-015 / production-server-side-stt-strategy.
+```
+
+## NODE-014 Validation
+
+Result:
+
+```text
+PASS as successful media-path proof.
+```
+
+Final proof commit:
+
+```text
+8879372 Record NODE-014 server-side RTP proof
+```
+
+Validated:
+
+- Colocated/server-side `ari_app` near Asterisk works.
+- Local sound publish works without SSH.
+- Asterisk ARI listens on `Stasis(ai_secretary)`.
+- `snoop_external_media_rtp` successfully sends RTP from the Asterisk container to server host `172.18.0.1`.
+- Runtime logs confirmed `stt_live_rtp_packets_received_count > 0`.
+- Runtime logs confirmed `stt_live_pcm_chunks_created_count > 0`.
+- Runtime logs confirmed `stt_live_rtp_diagnostics_result=rtp_packets_received`.
+
+Boundary:
+
+- Production STT adoption is explicitly out of scope for NODE-014.
+- The later dialog failure was expected because batch STT was intentionally pointed to dummy `OPENAI_BASE_URL=http://127.0.0.1:9/v1` for RTP-only diagnostics.
+
+Uncommitted artifacts intentionally left out:
+
+```text
+data/storage/
+node014-server.tar
+```
+
+## Next Recommended Step
+
+```text
+Open NODE-015 / production-server-side-stt-strategy.
 ```

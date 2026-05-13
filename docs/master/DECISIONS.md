@@ -291,3 +291,29 @@ Next proof node:
 ```text
 NODE-014 / true-live-ari-media-streaming-stt-proof
 ```
+
+## True-Live ARI Media-Path Proof
+
+NODE-014 completed as a successful media-path proof.
+
+Accepted decision:
+
+- Close NODE-014 as media-path proof only.
+- This is not a production STT adoption decision.
+- Colocated/server-side `ari_app` near Asterisk is the proven launch shape for RTP diagnostics.
+- Local sound publish is valid for server-side launch and avoids SSH back into the same server.
+- `snoop_external_media_rtp` is the validated topology for receiving Asterisk RTP/PCM without moving the original caller channel into the diagnostic bridge.
+- Production server-side STT strategy should move to NODE-015 or an even smaller dialog-isolated RTP diagnostics node.
+
+Proof evidence:
+
+- `SYSTEM_SOUNDS_DONE ok`.
+- `ARI_LISTENING http://127.0.0.1:8088/ari ai_secretary`.
+- `ARI_WS_CONNECTED`.
+- `stt_live_rtp_packets_received_count > 0`.
+- `stt_live_pcm_chunks_created_count > 0`.
+- `stt_live_rtp_diagnostics_result=rtp_packets_received`.
+
+Boundary:
+
+- The later dialog failure is excluded from the media-path decision because batch STT was intentionally pointed to dummy `OPENAI_BASE_URL=http://127.0.0.1:9/v1` for RTP-only diagnostics.

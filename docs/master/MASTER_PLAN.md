@@ -96,6 +96,12 @@ NODE-013 completed and validated a feature-flagged Realtime Whisper adapter/metr
 stored WAV artifact -> realtime STT adapter metrics -> fallback to batch whisper path
 ```
 
+NODE-014 completed and validated the true-live ARI media-path proof:
+
+```text
+server-side ari_app -> ARI Stasis(ai_secretary) -> snoop_external_media_rtp -> RTP/PCM received on 172.18.0.1
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -108,7 +114,7 @@ stored WAV artifact -> realtime STT adapter metrics -> fallback to batch whisper
 
 ## Current Action Plan
 
-1. Treat NODE-001 through NODE-013 as complete and recorded in `master`.
+1. Treat NODE-001 through NODE-014 as complete and recorded in `master`.
 2. Preserve the validated sales transfer target:
 
 ```text
@@ -145,14 +151,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 23. Preserve NODE-012 SAFE_FINISH playback barrier before hangup.
 24. Preserve NODE-013 feature flag, fallback behavior, and STT stream latency/event metrics.
 25. Treat NODE-013 as adapter/metrics spike only, not production adoption.
+26. Preserve NODE-014 local sound publish mode for colocated/server-side launch.
+27. Preserve NODE-014 `snoop_external_media_rtp` diagnostics path and RTP/PCM metrics.
+28. Treat NODE-014 as media-path proof only, not production STT adoption.
 
 ## Next Recommended Step
 
 ```text
-Open NODE-014 / true-live-ari-media-streaming-stt-proof.
+Open NODE-015 / production-server-side-stt-strategy.
 ```
 
-NODE-014 should test live ARI media into streaming STT while the caller is still speaking.
+NODE-015 should decide and validate the production server-side STT strategy now that NODE-014 has proven colocated ARI RTP delivery.
 
 ## Node Completion Report Format
 

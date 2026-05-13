@@ -307,6 +307,35 @@ STT_STREAMING_FALLBACK_TO_BATCH=true
   - `stt_batch_baseline_latency_ms`.
 - Important caveat: current spike streams stored WAV artifacts after recording download. It validates adapter, metrics, feature flag, and fallback behavior, but does not prove caller-perceived pause reduction in live calls.
 
+## NODE-014 Runtime Notes
+
+- NODE-014 completed as a server-side ARI media-path proof.
+- Colocated/server-side `ari_app` near Asterisk is proven for RTP diagnostics.
+- Local sound publish works without SSH when launched server-side.
+- Asterisk ARI connected as `Stasis(ai_secretary)` over local ARI.
+- Validated topology:
+
+```text
+snoop_external_media_rtp
+```
+
+- Validated RTP target:
+
+```text
+bind=0.0.0.0
+advertised_host=172.18.0.1
+```
+
+- Runtime evidence:
+  - `SYSTEM_SOUNDS_DONE ok`;
+  - `ARI_LISTENING http://127.0.0.1:8088/ari ai_secretary`;
+  - `ARI_WS_CONNECTED`;
+  - `stt_live_rtp_packets_received_count > 0`;
+  - `stt_live_pcm_chunks_created_count > 0`;
+  - `stt_live_rtp_diagnostics_result=rtp_packets_received`.
+- The later `NAME -> SAFE_FINISH` path in the RTP-only smoke is not a media failure. Batch STT was intentionally pointed to dummy `OPENAI_BASE_URL=http://127.0.0.1:9/v1`.
+- Production STT adoption remains outside NODE-014 and should be handled by NODE-015 or a smaller dialog-isolated RTP diagnostics node.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.
