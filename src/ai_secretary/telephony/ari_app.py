@@ -3232,6 +3232,7 @@ def _streaming_stt_config(settings: Settings) -> RealtimeTranscriptionConfig:
         chunk_ms=_env_int("STT_STREAMING_CHUNK_MS", 200),
         base_url=os.getenv("STT_STREAMING_BASE_URL", default_base_url).strip() or default_base_url,
         timeout_seconds=float(os.getenv("STT_STREAMING_TIMEOUT_SECONDS", "30") or "30"),
+        api_mode=os.getenv("STT_STREAMING_OPENAI_API_MODE", "ga").strip().lower() or "ga",
     )
 
 

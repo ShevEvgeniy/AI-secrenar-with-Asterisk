@@ -35,6 +35,8 @@ Defaults preserve the current production flow.
 ```text
 STT_LIVE_STREAMING_ENABLED=false
 STT_LIVE_STREAMING_PROVIDER=openai_realtime_whisper
+STT_LIVE_OPENAI_DISABLED=false
+STT_LIVE_OPENAI_API_MODE=ga
 STT_LIVE_STREAMING_MODEL=gpt-realtime-whisper
 STT_LIVE_STREAMING_FALLBACK_TO_BATCH=true
 STT_LIVE_STREAMING_STAGE_ALLOWLIST=ISSUE,NAME,CITY
@@ -155,7 +157,7 @@ If follow-up 4 smoke fails:
 
 Smoke `CALL_ID=1778565454.11` showed that the snoop topology preserves batch fallback, but OpenAI Realtime rejected the adapter's session config with `Unknown parameter: 'session.type'`.
 
-The adapter now uses the transcription WebSocket intent and sends `transcription_session.update` instead of attempting to set `session.type` through a normal Realtime conversation session. It logs session config sent/ok/failed before audio streaming starts. PCM live proof defaults now use 24 kHz because OpenAI Realtime transcription PCM input requires 24 kHz mono 16-bit PCM; externalMedia format follows the sample rate (`slin24` by default).
+At this checkpoint the adapter moved to the transcription WebSocket intent and stopped attempting to set `session.type` through a normal Realtime conversation session. It logs session config sent/ok/failed before audio streaming starts. PCM live proof defaults now use 24 kHz because OpenAI Realtime transcription PCM input requires 24 kHz mono 16-bit PCM; externalMedia format follows the sample rate (`slin24` by default).
 
 Added diagnostics distinguish the live pipeline stages:
 
@@ -174,7 +176,7 @@ Smoke `CALL_ID=1778571204.0` showed two separate blockers:
 - The server emits `transcription_session.created` when a transcription WebSocket is established. The adapter treated that as an unexpected config response.
 - externalMedia was advertised as `127.0.0.1:<port>`, which is only valid when Asterisk and the Python process are colocated. In the remote/container deployment, RTP was sent to Asterisk's own loopback instead of the Python listener.
 
-The adapter now accepts `transcription_session.created` as the initial session creation event, logs `stt_live_openai_session_created`, sends `transcription_session.update`, and then waits for `transcription_session.updated` / config OK.
+The adapter now accepts `transcription_session.created` or `session.created` as the initial session creation event and logs `stt_live_openai_session_created`.
 
 RTP binding and advertising are now separate:
 
@@ -186,9 +188,39 @@ For remote Asterisk, live setup fails cleanly with `live_rtp_advertised_host_req
 
 ## Follow-up 7 Config Wrapper And PHONE_CONFIRM Safety
 
-Smoke `CALL_ID=1778572758.20` showed OpenAI accepting the transcription session connection but rejecting the update event with `Missing required parameter: 'session'`. The adapter now sends `transcription_session.update` with a required top-level `session` object containing `input_audio_format`, `input_audio_transcription`, `turn_detection`, and `input_audio_noise_reduction`.
+Smoke `CALL_ID=1778572758.20` showed OpenAI accepting the transcription session connection but rejecting the update event with `Missing required parameter: 'session'`. Follow-up 7 added the required top-level `session` object; follow-up 8 replaced that beta-shaped update with the GA `session.update` payload.
 
 The default live proof stage allowlist is now `ISSUE,NAME,CITY`. `PHONE_CONFIRM` logs `stt_live_stream_probe_failed` with reason `phone_confirm_not_in_default_live_allowlist` unless explicitly added through `STT_LIVE_STREAMING_STAGE_ALLOWLIST` for diagnostics. `PHONE` remains excluded even if configured.
+
+## Follow-up 8 GA API And RTP Isolation
+
+Smoke `CALL_ID=1778573897.50` split the remaining failure into two independent blockers:
+
+- OpenAI accepted the transcription WebSocket session but rejected `gpt-realtime-whisper` with `invalid_model` because the adapter still used the beta Realtime header path.
+- RTP packet counts stayed at zero even after advertising a non-loopback externalMedia target.
+
+The adapter now defaults to GA Realtime mode for transcription sessions:
+
+- `STT_LIVE_OPENAI_API_MODE=ga` omits the legacy `OpenAI-Beta: realtime=v1` header.
+- `STT_STREAMING_OPENAI_API_MODE=ga` does the same for the NODE-013/NODE-014 shared streaming config path.
+- GA mode sends `session.update` with nested `audio.input.format`, `audio.input.transcription`, `audio.input.turn_detection`, and `audio.input.noise_reduction`.
+- The selected OpenAI mode, WebSocket path, and model are logged as `stt_live_openai_api_mode`, `stt_live_openai_ws_path`, and `stt_live_openai_model_selected` without logging API keys.
+
+RTP reachability can now be tested without opening an OpenAI session:
+
+```text
+STT_LIVE_STREAMING_ENABLED=true
+STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+# or
+STT_LIVE_OPENAI_DISABLED=true
+```
+
+Diagnostics-only mode uses the same `snoop_external_media_rtp` topology, starts the same UDP listener, counts RTP packets and PCM chunks, cleans up the snoop/externalMedia bridge, and leaves batch STT as the dialog transcript. It logs `stt_live_rtp_diagnostics_only_started`, `stt_live_rtp_diagnostics_only_finished`, and `stt_live_rtp_diagnostics_result`.
+
+Interpretation:
+
+- `stt_live_rtp_packets_received_count > 0`: Asterisk externalMedia can reach the Python UDP listener; continue with OpenAI/audio-format debugging.
+- `stt_live_rtp_packets_received_count = 0`: Remaining blocker is network/VPN/firewall/Asterisk externalMedia routing, independent of OpenAI.
 
 Status:
 
@@ -228,6 +260,12 @@ NODE-014 emits:
 - `stt_live_openai_final_received`
 - `stt_live_openai_no_audio_received`
 - `stt_live_openai_no_delta_received`
+- `stt_live_openai_api_mode`
+- `stt_live_openai_ws_path`
+- `stt_live_openai_model_selected`
+- `stt_live_rtp_diagnostics_only_started`
+- `stt_live_rtp_diagnostics_only_finished`
+- `stt_live_rtp_diagnostics_result`
 - `stt_batch_baseline_latency_ms`
 - `stt_live_vs_batch_delta_ms`
 
@@ -261,4 +299,4 @@ When live proof succeeds but `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false`, the
 
 Continue, not adopt yet.
 
-Next node should run a controlled ARI call with `STT_LIVE_STREAMING_ENABLED=true` on `ISSUE`, `NAME`, or `CITY`, then inspect whether `stt_live_stream_first_delta_received` and `stt_live_stream_final_received` occur before `record_done`. If the externalMedia bridge disrupts normal playback/recording, reject this bridge approach and test an AudioSocket or dialplan-level RTP fork instead.
+Next smoke should first run `STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only` or `STT_LIVE_OPENAI_DISABLED=true` to prove whether RTP reaches Windows. If RTP remains zero, fix network/externalMedia routing before spending more time on OpenAI. If RTP is positive, run OpenAI-enabled GA mode and inspect whether chunks are sent and whether delta/final events arrive before `record_done`.

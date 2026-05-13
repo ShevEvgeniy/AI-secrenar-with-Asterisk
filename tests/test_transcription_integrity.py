@@ -270,10 +270,11 @@ def test_realtime_adapter_streams_wav_and_reports_delta_metrics(tmp_path: Path) 
         async def recv(self) -> str:
             return self.responses.pop(0)
 
-    connected: dict[str, str] = {}
+    connected: dict[str, object] = {}
 
-    async def _connector(url: str, _headers: dict[str, str]) -> _FakeWebSocket:
+    async def _connector(url: str, headers: dict[str, str]) -> _FakeWebSocket:
         connected["url"] = url
+        connected["headers"] = headers
         return _FakeWebSocket()
 
     adapter = RealtimeWhisperAdapter(
@@ -289,14 +290,25 @@ def test_realtime_adapter_streams_wav_and_reports_delta_metrics(tmp_path: Path) 
     assert result.first_delta_ms is not None
     assert result.final_ms is not None
     assert connected["url"].endswith("/realtime?intent=transcription")
+    assert "OpenAI-Beta" not in connected["headers"]
     config_message = sent_messages[0]
-    assert config_message["type"] == "transcription_session.update"
+    assert config_message["type"] == "session.update"
     assert "session" in config_message
-    assert config_message["session"]["input_audio_format"] == "pcm16"
     assert "type" not in config_message["session"]
-    assert "type" not in config_message["session"].get("input_audio_transcription", {})
+    audio_input = config_message["session"]["audio"]["input"]
+    assert audio_input["format"] == {"type": "audio/pcm", "rate": 24000}
+    assert audio_input["transcription"]["model"] == "gpt-realtime-whisper"
+    assert audio_input["transcription"]["language"] == "ru"
+    assert "type" not in audio_input["transcription"]
+    assert audio_input["turn_detection"] is None
+    assert audio_input["noise_reduction"] is None
     assert any(message["type"] == "input_audio_buffer.append" for message in sent_messages)
     assert any(name == "stt_stream_openai_session_config_sent" for name, _details in metrics)
+    api_selected = next(details for name, details in metrics if name == "stt_stream_openai_api_selected")
+    assert api_selected["stt_stream_openai_api_mode"] == "ga"
+    assert api_selected["stt_stream_openai_ws_path"] == "/v1/realtime?intent=transcription"
+    assert api_selected["stt_stream_openai_model_selected"] == "gpt-realtime-whisper"
+    assert not any("key" in json.dumps(details).lower() for _name, details in metrics)
     assert any(name == "stt_stream_openai_session_created" for name, _details in metrics)
     assert any(name == "stt_stream_openai_session_config_ok" for name, _details in metrics)
     assert any(name == "stt_stream_openai_audio_chunk_sent" for name, _details in metrics)
@@ -352,7 +364,7 @@ def test_realtime_adapter_logs_session_config_rejection(tmp_path: Path) -> None:
     else:
         raise AssertionError("session config rejection should raise")
 
-    assert sent_messages[0]["type"] == "transcription_session.update"
+    assert sent_messages[0]["type"] == "session.update"
     assert "session" in sent_messages[0]
     failed = next(details for name, details in metrics if name == "stt_stream_openai_session_config_failed")
     assert failed["error"]["code"] == "unknown_parameter"
@@ -1454,6 +1466,138 @@ def test_live_no_rtp_packets_logs_no_audio() -> None:
     assert no_audio["status"] == "handled"
     assert no_audio["reason"] == "rtp_packets_zero"
     assert no_audio["details"]["stt_live_rtp_packets_received_count"] == 0
+
+
+def test_live_openai_disabled_env_selects_rtp_diagnostics_only(monkeypatch) -> None:
+    monkeypatch.setenv("STT_LIVE_OPENAI_DISABLED", "true")
+    monkeypatch.setenv("STT_LIVE_STREAMING_PROVIDER", "openai_realtime_whisper")
+
+    config = live_streaming.live_streaming_config()
+
+    assert config.provider == "rtp_diagnostics_only"
+    assert config.topology == "snoop_external_media_rtp"
+    assert config.stage_allowlist == {"ISSUE", "NAME", "CITY"}
+
+
+def test_rtp_diagnostics_only_starts_topology_without_openai_session(monkeypatch, tmp_path: Path) -> None:
+    settings = replace(_settings(tmp_path), openai_api_key="")
+    events: list[dict] = []
+    config = replace(_live_test_config(), provider="rtp_diagnostics_only", timeout_seconds=0.05)
+    finished_at = time.perf_counter() - 1.0
+
+    class _ExplodingAdapter:
+        def __init__(self, *_args, **_kwargs) -> None:
+            raise AssertionError("RTP diagnostics-only mode must not open an OpenAI session")
+
+    def _log_metric(action: str, details: dict, status: str, reason: str | None) -> None:
+        events.append({"action": action, "details": details, "status": status, "reason": reason})
+
+    async def _run_probe() -> live_streaming.LiveStreamingProofResult:
+        handle = await live_streaming.start_live_streaming_proof(
+            settings=settings,
+            client=_SourceSetupClient(),
+            app_name="app",
+            call_id="call-rtp-diag",
+            channel_id="ch-rtp-diag",
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            record_name="rec",
+            record_started_at=None,
+            recording_finished_at=lambda: finished_at,
+            log_metric=_log_metric,
+            config=config,
+        )
+        return await asyncio.wait_for(handle.task, timeout=1)
+
+    monkeypatch.setattr(live_streaming, "RealtimeWhisperAdapter", _ExplodingAdapter)
+
+    result = asyncio.run(_run_probe())
+
+    actions = [event["action"] for event in events]
+    assert result.text == ""
+    assert "stt_live_rtp_listener_started" in actions
+    assert "live_media_topology_selected" in actions
+    assert "stt_live_rtp_diagnostics_only_started" in actions
+    assert "stt_live_rtp_diagnostics_only_finished" in actions
+    diagnostic = next(event for event in events if event["action"] == "stt_live_rtp_diagnostics_result")
+    assert diagnostic["status"] == "handled"
+    assert diagnostic["reason"] == "rtp_packets_zero"
+    assert diagnostic["details"]["stt_live_rtp_packets_received_count"] == 0
+    assert diagnostic["details"]["stt_live_pcm_chunks_created_count"] == 0
+    assert not any(event["action"].startswith("stt_live_openai_session") for event in events)
+
+
+def test_live_adapter_logs_ga_api_mode_path_and_model(monkeypatch, tmp_path: Path) -> None:
+    settings = replace(_settings(tmp_path), openai_api_key="sk-valid-for-ga-log-test")
+    queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+    events: list[dict] = []
+    finished_at = time.perf_counter() - 1.0
+    config = _live_test_config()
+
+    class _ApiSelectedAdapter:
+        def __init__(self, _config) -> None:
+            pass
+
+        async def transcribe_pcm_chunks(self, chunks, *, total_audio_ms: int, on_metric):
+            on_metric(
+                "stt_stream_openai_api_selected",
+                {
+                    "stt_stream_openai_api_mode": "ga",
+                    "stt_stream_openai_ws_path": "/v1/realtime?intent=transcription",
+                    "stt_stream_openai_model_selected": "gpt-realtime-whisper",
+                },
+            )
+            async for _chunk in chunks:
+                pass
+            return RealtimeTranscriptionResult(
+                text="",
+                first_delta_ms=None,
+                final_ms=None,
+                total_audio_ms=0,
+                chunks_sent=0,
+                model="gpt-realtime-whisper",
+                language="ru",
+            )
+
+    class _StartedSource:
+        reader_task: asyncio.Task | None
+
+        def __init__(self) -> None:
+            self.closed = False
+            self.reader_task = None
+
+        async def close(self) -> None:
+            self.closed = True
+
+    def _log_metric(action: str, details: dict, status: str, reason: str | None) -> None:
+        events.append({"action": action, "details": details, "status": status, "reason": reason})
+
+    async def _run_adapter() -> None:
+        source = _StartedSource()
+        await queue.put(None)
+        await live_streaming._run_live_streaming_adapter(
+            settings=settings,
+            source=source,
+            queue=queue,
+            stage=DialogStage.ISSUE,
+            turn_idx=1,
+            record_name="rec",
+            recording_finished_at=lambda: finished_at,
+            log_metric=_log_metric,
+            config=config,
+        )
+
+    monkeypatch.setattr(live_streaming, "RealtimeWhisperAdapter", _ApiSelectedAdapter)
+
+    asyncio.run(_run_adapter())
+
+    api_mode = next(event for event in events if event["action"] == "stt_live_openai_api_mode")
+    ws_path = next(event for event in events if event["action"] == "stt_live_openai_ws_path")
+    model = next(event for event in events if event["action"] == "stt_live_openai_model_selected")
+    assert api_mode["details"]["stt_stream_openai_api_mode"] == "ga"
+    assert ws_path["details"]["stt_stream_openai_ws_path"] == "/v1/realtime?intent=transcription"
+    assert model["details"]["stt_stream_openai_model_selected"] == "gpt-realtime-whisper"
+    assert not any("key" in json.dumps(event["details"]).lower() for event in events)
 
 
 def test_live_setup_failure_still_allows_batch_fallback(monkeypatch, tmp_path: Path) -> None:

@@ -85,9 +85,12 @@ class LiveStreamingProofHandle:
 
 
 def live_streaming_config() -> LiveStreamingProofConfig:
+    provider = os.getenv("STT_LIVE_STREAMING_PROVIDER", "openai_realtime_whisper").strip().lower()
+    if _env_bool("STT_LIVE_OPENAI_DISABLED", False):
+        provider = "rtp_diagnostics_only"
     return LiveStreamingProofConfig(
         enabled=_env_bool("STT_LIVE_STREAMING_ENABLED", False),
-        provider=os.getenv("STT_LIVE_STREAMING_PROVIDER", "openai_realtime_whisper").strip().lower(),
+        provider=provider,
         model=os.getenv("STT_LIVE_STREAMING_MODEL", "gpt-realtime-whisper").strip() or "gpt-realtime-whisper",
         fallback_to_batch=_env_bool("STT_LIVE_STREAMING_FALLBACK_TO_BATCH", True),
         stage_allowlist=_stage_allowlist(),
@@ -183,13 +186,13 @@ async def start_live_streaming_proof(
     config = config or live_streaming_config()
     if not config.enabled:
         raise RuntimeError("live streaming proof is disabled")
-    if config.provider != "openai_realtime_whisper":
+    if config.provider not in {"openai_realtime_whisper", "rtp_diagnostics_only"}:
         raise RuntimeError(f"unsupported live streaming provider: {config.provider}")
     if not live_streaming_stage_allowed(stage, config):
         raise RuntimeError(f"stage is not allowlisted for live streaming proof: {stage.value}")
     if is_live_external_media_channel(channel_id):
         raise LiveStreamingProofError("external_media_channel_excluded")
-    if not _openai_api_key_usable(settings.openai_api_key):
+    if config.provider == "openai_realtime_whisper" and not _openai_api_key_usable(settings.openai_api_key):
         raise LiveStreamingProofError("openai_api_key_missing_or_invalid")
     config = _resolve_rtp_advertised_host(config, settings.ari_url, log_metric, stage, turn_idx, record_name)
 
@@ -211,21 +214,81 @@ async def start_live_streaming_proof(
     await source.start()
     log_metric("stt_live_stream_session_started", _base_details(config, stage, turn_idx, record_name), "ok", None)
 
-    task = asyncio.create_task(
-        _run_live_streaming_adapter(
-            settings=settings,
-            source=source,
-            queue=queue,
-            stage=stage,
-            turn_idx=turn_idx,
-            record_name=record_name,
-            recording_finished_at=recording_finished_at,
-            log_metric=log_metric,
-            config=config,
-        ),
-        name=f"live-stt-proof-{call_id}-{turn_idx}",
-    )
+    if config.provider == "rtp_diagnostics_only":
+        task = asyncio.create_task(
+            _run_rtp_diagnostics_only(
+                source=source,
+                stage=stage,
+                turn_idx=turn_idx,
+                record_name=record_name,
+                recording_finished_at=recording_finished_at,
+                log_metric=log_metric,
+                config=config,
+            ),
+            name=f"live-rtp-diagnostics-{call_id}-{turn_idx}",
+        )
+    else:
+        task = asyncio.create_task(
+            _run_live_streaming_adapter(
+                settings=settings,
+                source=source,
+                queue=queue,
+                stage=stage,
+                turn_idx=turn_idx,
+                record_name=record_name,
+                recording_finished_at=recording_finished_at,
+                log_metric=log_metric,
+                config=config,
+            ),
+            name=f"live-stt-proof-{call_id}-{turn_idx}",
+        )
     return LiveStreamingProofHandle(task=task)
+
+
+async def _run_rtp_diagnostics_only(
+    *,
+    source: "_AriExternalMediaRtpSource",
+    stage: DialogStage,
+    turn_idx: int,
+    record_name: str,
+    recording_finished_at: Callable[[], float | None],
+    log_metric: Callable[[str, dict[str, Any], str, str | None], None],
+    config: LiveStreamingProofConfig,
+) -> LiveStreamingProofResult:
+    details = _base_details(config, stage, turn_idx, record_name)
+    log_metric("stt_live_rtp_diagnostics_only_started", details, "ok", None)
+    try:
+        if source.reader_task is not None:
+            await asyncio.wait_for(source.reader_task, timeout=config.timeout_seconds + 1.0)
+    except asyncio.TimeoutError:
+        log_metric("stt_live_stream_error", details, "handled", "rtp_diagnostics_timeout")
+    finally:
+        await source.close()
+
+    finished_at = recording_finished_at()
+    packet_count = source.rtp_packets_received
+    chunk_count = source.pcm_chunks_created
+    result_details = {
+        **details,
+        "stt_live_rtp_packets_received_count": packet_count,
+        "stt_live_pcm_chunks_created_count": chunk_count,
+        "stt_live_rtp_diagnostics_result": "rtp_packets_received" if packet_count > 0 else "rtp_packets_zero",
+    }
+    log_metric("stt_live_rtp_diagnostics_only_finished", result_details, "ok", None)
+    log_metric(
+        "stt_live_rtp_diagnostics_result",
+        result_details,
+        "ok" if packet_count > 0 else "handled",
+        None if packet_count > 0 else "rtp_packets_zero",
+    )
+    return LiveStreamingProofResult(
+        text="",
+        first_delta_ms=None,
+        final_ms=None,
+        chunks_sent=0,
+        audio_started_before_recording_finished=None,
+        recording_finish_to_final_ms=None if finished_at is None else int((time.perf_counter() - finished_at) * 1000),
+    )
 
 
 async def _run_live_streaming_adapter(
@@ -257,6 +320,7 @@ async def _run_live_streaming_adapter(
     def _on_adapter_metric(action: str, details: dict[str, Any]) -> None:
         mapping = {
             "stt_stream_audio_chunk_sent": "stt_live_stream_audio_chunk_sent",
+            "stt_stream_openai_api_selected": "stt_live_openai_api_mode",
             "stt_stream_openai_session_created": "stt_live_openai_session_created",
             "stt_stream_openai_session_config_sent": "stt_live_openai_session_config_sent",
             "stt_stream_openai_session_config_ok": "stt_live_openai_session_config_ok",
@@ -274,6 +338,9 @@ async def _run_live_streaming_adapter(
             if live_action in {"stt_live_openai_session_config_failed", "stt_live_openai_no_audio_received", "stt_live_openai_no_delta_received"}:
                 status = "handled"
             log_metric(live_action, {**_base_details(config, stage, turn_idx, record_name), **details}, status, None)
+            if live_action == "stt_live_openai_api_mode":
+                log_metric("stt_live_openai_ws_path", {**_base_details(config, stage, turn_idx, record_name), **details}, "ok", None)
+                log_metric("stt_live_openai_model_selected", {**_base_details(config, stage, turn_idx, record_name), **details}, "ok", None)
             if live_action == "stt_live_openai_audio_chunk_sent":
                 log_metric("stt_live_stream_audio_chunk_sent", {**_base_details(config, stage, turn_idx, record_name), **details}, "sent", None)
             if live_action == "stt_live_stream_first_delta_received":
@@ -388,6 +455,14 @@ class _AriExternalMediaRtpSource:
         self._snoop_channel_created = False
         self._rtp_packets_received = 0
         self._pcm_chunks_created = 0
+
+    @property
+    def rtp_packets_received(self) -> int:
+        return self._rtp_packets_received
+
+    @property
+    def pcm_chunks_created(self) -> int:
+        return self._pcm_chunks_created
 
     async def start(self) -> None:
         if self.config.media_source != "ari_external_media_rtp":
@@ -843,6 +918,7 @@ def _realtime_config(settings: Settings, config: LiveStreamingProofConfig) -> Re
         sample_rate=config.sample_rate,
         chunk_ms=config.chunk_ms,
         timeout_seconds=config.timeout_seconds,
+        api_mode=os.getenv("STT_LIVE_OPENAI_API_MODE", "ga").strip().lower() or "ga",
     )
 
 

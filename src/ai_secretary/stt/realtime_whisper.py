@@ -38,6 +38,7 @@ class RealtimeTranscriptionConfig:
     chunk_ms: int = 200
     timeout_seconds: float = 30.0
     prompt: str | None = None
+    api_mode: str = "ga"
 
     @property
     def websocket_url(self) -> str:
@@ -131,10 +132,9 @@ class RealtimeWhisperAdapter:
         if not self.config.api_key:
             raise ValueError("OpenAI API key is required for realtime transcription")
 
-        headers = {
-            "Authorization": f"Bearer {self.config.api_key}",
-            "OpenAI-Beta": "realtime=v1",
-        }
+        headers = {"Authorization": f"Bearer {self.config.api_key}"}
+        if self.config.api_mode != "ga":
+            headers["OpenAI-Beta"] = "realtime=v1"
         started = self._clock()
         first_delta_ms: int | None = None
         final_ms: int | None = None
@@ -151,6 +151,14 @@ class RealtimeWhisperAdapter:
                 "stt_stream_language": self.config.language,
                 "stt_stream_sample_rate": self.config.sample_rate,
                 "stt_stream_total_audio_ms": total_audio_ms,
+            },
+        )
+        on_metric(
+            "stt_stream_openai_api_selected",
+            {
+                "stt_stream_openai_api_mode": self.config.api_mode,
+                "stt_stream_openai_ws_path": self.config.websocket_url.split("api.openai.com", 1)[-1],
+                "stt_stream_openai_model_selected": self.config.transcription_model,
             },
         )
 
@@ -287,6 +295,23 @@ def _session_update(config: RealtimeTranscriptionConfig) -> dict[str, Any]:
     }
     if config.prompt:
         transcription["prompt"] = config.prompt
+    if config.api_mode == "ga":
+        return {
+            "type": "session.update",
+            "session": {
+                "audio": {
+                    "input": {
+                        "format": {
+                            "type": "audio/pcm",
+                            "rate": config.sample_rate,
+                        },
+                        "transcription": transcription,
+                        "turn_detection": None,
+                        "noise_reduction": None,
+                    }
+                },
+            },
+        }
     return {
         "type": "transcription_session.update",
         "session": {
