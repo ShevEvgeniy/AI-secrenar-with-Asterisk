@@ -132,6 +132,12 @@ NODE-020 defines the supported-region gateway/proxy measurement path:
 Asterisk server -> short WAV/PCM measurement upload -> supported-region gateway -> OpenAI Realtime -> redacted metrics/result flags
 ```
 
+NODE-021 implements the minimal prepared gateway measurement path:
+
+```text
+Asterisk one-off client without OPENAI_API_KEY -> authenticated raw WAV upload -> gateway-owned OPENAI_API_KEY -> OpenAI Realtime -> redacted structured JSON
+```
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -194,14 +200,16 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 36. Preserve NODE-019 direct OpenAI Realtime result: direct server egress reached OpenAI but failed with `403 Forbidden`, `unsupported_country_region_territory`, before audio upload.
 37. Preserve NODE-020 gateway boundary: `OPENAI_API_KEY` lives on the supported-region gateway, not on the Asterisk server.
 38. Preserve NODE-020 first-proof scope: one-shot short WAV/PCM measurement with redacted metrics, no transcript text by default, and no business dialog integration.
+39. Preserve NODE-021 gateway/client boundary: the Asterisk-side measurement mode uses gateway URL/token only and does not require or read `OPENAI_API_KEY`.
+40. Preserve NODE-021 prepared-only result until a supported-region host runs the live measurement.
 
 ## Next Recommended Step
 
 ```text
-NODE-021 / supported-region-gateway-minimal-realtime-measurement
+NODE-022 / deploy-supported-region-gateway-and-run-live-measurement
 ```
 
-Implement and run the minimal supported-region gateway measurement. Keep `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false` by default, keep the Asterisk server in the NODE-016/NODE-018 diagnostic profile, and preserve business dialog isolation until transcript quality and fallback behavior are explicitly accepted.
+Deploy the minimal NODE-021 gateway on a supported-region host and run the one-off Asterisk-side measurement. Keep `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false` by default, keep the Asterisk server in the NODE-016/NODE-018 diagnostic profile, and preserve business dialog isolation until transcript quality and fallback behavior are explicitly accepted.
 
 ## Node Completion Report Format
 

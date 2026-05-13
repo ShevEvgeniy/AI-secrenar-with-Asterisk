@@ -19,19 +19,19 @@ The gateway keeps OpenAI secrets and OpenAI network egress off the Asterisk serv
 ```text
 POST /v1/stt/realtime-measurement
 Authorization: Bearer <gateway token>
-Content-Type: multipart/form-data
+Content-Type: audio/wav
 ```
 
-Fields:
+NODE-021 minimal skeleton sends the WAV as the raw request body with optional query parameters:
 
 | Field | Required | Description |
 | --- | --- | --- |
-| `audio` | yes | Short WAV file. Required first-proof format: PCM signed 16-bit, 24 kHz, mono. |
-| `call_id` | no | Existing call identifier for trace correlation. |
-| `stage` | no | Dialog stage label, for diagnostics only. |
-| `language` | no | Language hint. Use `ru` for current Russian telephony measurement. |
-| `request_id` | no | Client-generated idempotency/trace id. Gateway may generate one if absent. |
-| `return_transcript` | no | Default `false`. Must require explicit gateway policy to allow `true`. |
+| raw body | yes | Short WAV file. Required first-proof format: PCM signed 16-bit, 24 kHz, mono. |
+| `language` | no | Query parameter. Use `ru` for current Russian telephony measurement. |
+| `return_transcript` | no | Query parameter. Default `false`. Must require explicit gateway policy to allow `true`. |
+| `X-Request-ID` | no | Client-generated trace id. Gateway generates one if absent. |
+
+Future multipart form fields may add `call_id`, `stage`, and `audio` without changing the response contract.
 
 Default limits:
 
@@ -45,6 +45,32 @@ openai_realtime_timeout_seconds=30
 The gateway should reject audio that exceeds the configured limit before contacting OpenAI.
 
 ## One-Shot Success Response
+
+NODE-021 implementation response is intentionally flat so the Asterisk-side
+measurement client can log one compact JSON object:
+
+```json
+{
+  "ok": true,
+  "gateway_request_id": "gw_20260513_abcdef",
+  "gateway_connection_attempt": true,
+  "gateway_region": "eu",
+  "model": "gpt-realtime-whisper",
+  "openai_realtime_connection_ok": true,
+  "openai_session_created": true,
+  "audio_send_started": true,
+  "chunks_sent": 28,
+  "first_delta_ms": 820,
+  "final_ms": 1420,
+  "transcript_text_present": true,
+  "error_type": null,
+  "error_code": null,
+  "error_message_redacted": null,
+  "cleanup_done": true
+}
+```
+
+Legacy/expanded protocol shape retained for later gateway versions:
 
 ```json
 {
@@ -84,6 +110,31 @@ The gateway should reject audio that exceeds the configured limit before contact
 If `return_transcript=true` is explicitly enabled by gateway policy, the gateway may add `transcript.text`. This must remain disabled for default measurement and default logging.
 
 ## One-Shot Error Response
+
+NODE-021 implementation error response:
+
+```json
+{
+  "ok": false,
+  "gateway_request_id": "gw_20260513_abcdef",
+  "gateway_connection_attempt": true,
+  "gateway_region": "eu",
+  "model": "gpt-realtime-whisper",
+  "openai_realtime_connection_ok": false,
+  "openai_session_created": false,
+  "audio_send_started": false,
+  "chunks_sent": 0,
+  "first_delta_ms": null,
+  "final_ms": null,
+  "transcript_text_present": false,
+  "error_type": "RuntimeError",
+  "error_code": "openai_region_rejected",
+  "error_message_redacted": "OpenAI rejected the gateway region",
+  "cleanup_done": true
+}
+```
+
+Legacy/expanded protocol shape retained for later gateway versions:
 
 ```json
 {
@@ -171,6 +222,7 @@ Gateway environment:
 
 ```text
 OPENAI_API_KEY=replace-with-real-openai-key-on-gateway-only
+GATEWAY_TOKEN=replace-with-random-gateway-token
 STT_GATEWAY_SERVER_TOKEN=replace-with-random-gateway-token
 ```
 
@@ -179,6 +231,8 @@ Asterisk server environment:
 ```text
 STT_GATEWAY_URL=https://gateway.example.com
 STT_GATEWAY_TOKEN=replace-with-random-gateway-token
+REALTIME_GATEWAY_URL=https://gateway.example.com/v1/stt/realtime-measurement
+REALTIME_GATEWAY_TOKEN=replace-with-random-gateway-token
 ```
 
 Rules:

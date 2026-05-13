@@ -7,7 +7,7 @@
 - Source-of-truth commit message: `Use stage-specific prompts and transfer after data collection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-020-openai-realtime-supported-region-gateway-proxy`
+- Latest completed node branch: `feat/node-021-supported-region-gateway-minimal-realtime-measurement`
 - Latest completed node commit: pending closeout commit
 
 ## Confirmed Working
@@ -226,6 +226,7 @@ OpenAI Realtime transcription over approved server egress -> batch fallback/base
 - NODE-017 documents restart-safe systemd/autostart for the server-side `ari_app` using secret-free templates, an `/etc/ai-secretary/ari-app.env` environment file, and runtime ARI password loading from `/home/tulauser/asterisk-config/ari.conf`.
 - NODE-019 validates that direct OpenAI Realtime egress from the current Asterisk server is blocked with `403 Forbidden`, OpenAI code `unsupported_country_region_territory`, before audio upload.
 - NODE-020 defines the supported-region gateway/proxy measurement path, with the OpenAI key stored only on the gateway and no business dialog integration by default.
+- NODE-021 implements the prepared minimal supported-region gateway measurement path and Asterisk-side gateway client mode without requiring `OPENAI_API_KEY` on the Asterisk server.
 
 ## NODE-004 Live Smoke
 
@@ -773,4 +774,45 @@ Next implementation:
 
 ```text
 NODE-021 / supported-region-gateway-minimal-realtime-measurement
+```
+
+## NODE-021 Validation
+
+Result:
+
+```text
+PASS as prepared gateway measurement path. Live supported-region measurement not run because no gateway host was available during this node.
+```
+
+Implemented:
+
+- `src/ai_secretary/stt/realtime_gateway.py` minimal FastAPI gateway skeleton.
+- `src/ai_secretary/stt/realtime_measurement.py` gateway client mode using gateway URL/token only.
+- Raw `audio/wav` one-shot upload to `/v1/stt/realtime-measurement`.
+- Gateway-owned `OPENAI_API_KEY` boundary.
+- Redacted structured success/error JSON with transcript presence flags but no transcript text by default.
+- Secret-free gateway and Asterisk-side env examples updated.
+
+Focused validation:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests\test_realtime_measurement.py tests\test_realtime_gateway.py
+```
+
+Result:
+
+```text
+16 passed
+```
+
+Syntax validation:
+
+```text
+AST parse passed for realtime_measurement.py and realtime_gateway.py.
+```
+
+Next implementation:
+
+```text
+NODE-022 / deploy-supported-region-gateway-and-run-live-measurement
 ```

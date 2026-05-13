@@ -400,3 +400,22 @@ Next implementation node:
 ```text
 NODE-021 / supported-region-gateway-minimal-realtime-measurement
 ```
+
+## Minimal Gateway Measurement Path
+
+NODE-021 implements the prepared one-shot gateway measurement path.
+
+Accepted decision:
+
+- Use the minimal gateway endpoint only for measurement until a live supported-region run passes.
+- Keep `OPENAI_API_KEY` on the gateway host only.
+- Let the Asterisk-side one-off client use only gateway URL/token and a short WAV.
+- Return structured redacted JSON with transcript presence and timing flags.
+- Do not return raw transcript text by default.
+- Do not integrate the gateway path into business dialog or `ai-secretary-ari.service` by default.
+
+Next implementation node:
+
+```text
+NODE-022 / deploy-supported-region-gateway-and-run-live-measurement
+```

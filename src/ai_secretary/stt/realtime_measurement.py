@@ -21,6 +21,7 @@ import time
 from typing import Any
 import wave
 
+import httpx
 import websockets
 
 
@@ -61,6 +62,28 @@ class RealtimeMeasurementResult:
     first_delta_ms: int | None
     final_ms: int | None
     chunks_sent: int
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class GatewayMeasurementClientConfig:
+    """Safe Asterisk-side config for a one-off gateway measurement."""
+
+    gateway_url: str
+    gateway_token: str
+    audio_path: Path
+    language: str = DEFAULT_LANGUAGE
+    timeout_seconds: float = 45.0
+    return_transcript: bool = False
+
+
+@dataclass(frozen=True)
+class GatewayMeasurementClientResult:
+    """Summary of a gateway measurement client run."""
+
+    status_code: int
+    ok: bool
+    response: dict[str, Any]
     error: str | None = None
 
 
@@ -105,6 +128,79 @@ def redact_secrets(value: Any) -> Any:
     if isinstance(value, str):
         return BEARER_PATTERN.sub(f"Bearer {SECRET_VALUE_REPLACEMENT}", OPENAI_KEY_PATTERN.sub(SECRET_VALUE_REPLACEMENT, value))
     return value
+
+
+async def run_gateway_measurement(
+    config: GatewayMeasurementClientConfig,
+    *,
+    post: Callable[[GatewayMeasurementClientConfig, bytes], Awaitable[tuple[int, dict[str, Any]]]] | None = None,
+    writer: Callable[[str], None] | None = None,
+) -> GatewayMeasurementClientResult:
+    """Run the Asterisk-side one-off measurement against a gateway.
+
+    This path intentionally does not read or require ``OPENAI_API_KEY``.
+    """
+    if not config.gateway_url:
+        payload = _gateway_client_error("missing_gateway_url", "REALTIME_GATEWAY_URL or --gateway-url is required")
+        emit_event("gateway_measurement_error", payload, status="fail", reason="missing_gateway_url", writer=writer)
+        return GatewayMeasurementClientResult(0, False, payload, "missing_gateway_url")
+    if not config.gateway_token:
+        payload = _gateway_client_error("missing_gateway_token", "REALTIME_GATEWAY_TOKEN or --gateway-token is required")
+        emit_event("gateway_measurement_error", payload, status="fail", reason="missing_gateway_token", writer=writer)
+        return GatewayMeasurementClientResult(0, False, payload, "missing_gateway_token")
+
+    audio = config.audio_path.read_bytes()
+    post = post or _post_gateway_measurement
+    emit_event(
+        "gateway_measurement_request",
+        {"gateway_url": _safe_http_target(config.gateway_url), "audio_bytes": len(audio), "language": config.language},
+        status="start",
+        writer=writer,
+    )
+    try:
+        status_code, response = await post(config, audio)
+    except Exception as exc:
+        payload = _gateway_client_error(type(exc).__name__, repr(exc))
+        emit_event("gateway_measurement_error", payload, status="fail", reason="gateway_request_failed", writer=writer)
+        return GatewayMeasurementClientResult(0, False, payload, "gateway_request_failed")
+
+    safe_response = redact_secrets(response)
+    emit_event(
+        "gateway_measurement_response",
+        {"status_code": status_code, "response": safe_response},
+        status="ok" if 200 <= status_code < 300 else "fail",
+        reason=None if 200 <= status_code < 300 else "gateway_returned_error",
+        writer=writer,
+    )
+    ok = 200 <= status_code < 300 and bool(safe_response.get("ok"))
+    return GatewayMeasurementClientResult(status_code, ok, safe_response, None if ok else "gateway_returned_error")
+
+
+async def _post_gateway_measurement(config: GatewayMeasurementClientConfig, audio: bytes) -> tuple[int, dict[str, Any]]:
+    headers = {
+        "Authorization": f"Bearer {config.gateway_token}",
+        "Content-Type": "audio/wav",
+    }
+    params = {
+        "language": config.language,
+        "return_transcript": "true" if config.return_transcript else "false",
+    }
+    async with httpx.AsyncClient(timeout=config.timeout_seconds) as client:
+        response = await client.post(config.gateway_url, content=audio, headers=headers, params=params)
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {"ok": False, "error_type": "gateway_non_json_response", "error_message_redacted": response.text[:200]}
+    return response.status_code, payload
+
+
+def _gateway_client_error(error_type: str, message: str) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "error_type": error_type,
+        "error_code": error_type,
+        "error_message_redacted": str(redact_secrets(message)),
+    }
 
 
 def emit_event(
@@ -334,8 +430,33 @@ def config_from_args_and_env(argv: list[str] | None = None, environ: dict[str, s
     )
 
 
+def gateway_config_from_args_and_env(argv: list[str] | None = None, environ: dict[str, str] | None = None) -> GatewayMeasurementClientConfig:
+    """Build Asterisk-side gateway client config without reading OPENAI_API_KEY."""
+    parser = argparse.ArgumentParser(description="Measure Realtime transcription through a supported-region gateway.")
+    parser.add_argument("--audio", required=True, type=Path, help="Server-local mono 16-bit PCM WAV at 24000 Hz.")
+    parser.add_argument("--gateway-url", default=None, help="Gateway measurement endpoint URL.")
+    parser.add_argument("--gateway-token", default=None, help="Asterisk-to-gateway bearer token.")
+    parser.add_argument("--language", default=DEFAULT_LANGUAGE)
+    parser.add_argument("--timeout-seconds", type=float, default=45.0)
+    parser.add_argument("--return-transcript", action="store_true", help="Request transcript text only if the gateway explicitly permits it.")
+    args = parser.parse_args(argv)
+    env = environ if environ is not None else os.environ
+    return GatewayMeasurementClientConfig(
+        gateway_url=args.gateway_url or env.get("REALTIME_GATEWAY_URL") or env.get("STT_GATEWAY_URL", ""),
+        gateway_token=args.gateway_token or env.get("REALTIME_GATEWAY_TOKEN") or env.get("STT_GATEWAY_TOKEN", ""),
+        audio_path=args.audio,
+        language=args.language,
+        timeout_seconds=args.timeout_seconds,
+        return_transcript=args.return_transcript,
+    )
+
+
 def _safe_ws_target(url: str) -> str:
     return url.replace("wss://", "").split("?", 1)[0]
+
+
+def _safe_http_target(url: str) -> str:
+    return url.replace("https://", "").replace("http://", "").split("?", 1)[0]
 
 
 def _error_reason(exc: Exception) -> str:
@@ -350,6 +471,16 @@ def _error_reason(exc: Exception) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = list(argv or [])
+    if (
+        "--gateway-url" in argv
+        or "--gateway-token" in argv
+        or os.environ.get("REALTIME_GATEWAY_URL")
+        or os.environ.get("STT_GATEWAY_URL")
+    ):
+        config = gateway_config_from_args_and_env(argv)
+        result = asyncio.run(run_gateway_measurement(config))
+        return 0 if result.error is None else 2
     config = config_from_args_and_env(argv)
     result = asyncio.run(run_realtime_measurement(config))
     return 0 if result.error is None else 2

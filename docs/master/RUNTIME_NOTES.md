@@ -446,6 +446,42 @@ docker exec asterisk /usr/sbin/asterisk -rx 'channel originate Local/501@from-in
   - `turns_done=0`;
   - no business `safe_finish`, `transfer`, or `callback` action.
 
+## NODE-021 Runtime Notes
+
+- NODE-021 adds a measurement-only supported-region gateway skeleton. It is not part of normal `ai-secretary-ari.service` startup.
+- Gateway process entrypoint:
+
+```text
+python -m ai_secretary.stt.realtime_gateway --host 0.0.0.0 --port 8443
+```
+
+- Gateway endpoint:
+
+```text
+POST /v1/stt/realtime-measurement
+Authorization: Bearer <gateway token>
+Content-Type: audio/wav
+```
+
+- Gateway-only runtime secrets:
+
+```text
+OPENAI_API_KEY
+GATEWAY_TOKEN
+```
+
+- Asterisk-side one-off measurement uses only:
+
+```text
+REALTIME_GATEWAY_URL
+REALTIME_GATEWAY_TOKEN
+```
+
+- Do not add `OPENAI_API_KEY` to the Asterisk server for this gateway plan.
+- The gateway returns structured flags and timings, including `chunks_sent`, `first_delta_ms`, `final_ms`, and `transcript_text_present`.
+- Transcript text is not returned by default and should not be logged by default.
+- No supported-region host was available during NODE-021; live deployment and result capture move to NODE-022.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.
