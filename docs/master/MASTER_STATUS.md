@@ -1051,3 +1051,70 @@ Next implementation:
 ```text
 NODE-027 / controlled gateway adapter live smoke with explicit temporary flags
 ```
+
+## NODE-027 Validation
+
+Result:
+
+```text
+BLOCKED as controlled live smoke; safe one-off adapter smoke helper added.
+```
+
+Implemented:
+
+- `src/ai_secretary/stt/gateway_adapter_smoke.py` manual CLI helper for the NODE-025 adapter path.
+- Redacted JSON smoke report fields for gateway reachability, auth, OpenAI Realtime status, `chunks_sent`, transcript presence, transcript logging, fallback reason, and default-disabled verification.
+- Focused fake-gateway tests proving helper redaction, explicit flag requirements, empty-transcript fallback reporting, and default-disabled behavior.
+
+Live attempt:
+
+```text
+kamatera_gateway_ssh=false
+kamatera_gateway_ssh_blocker=connection_refused_on_45.61.48.199_port_22
+gateway_started=false
+gateway_reachable_from_asterisk=false
+adapter_enabled_temporarily=false
+adapter_smoke_exercised_node025_path=false
+openai_realtime_from_gateway=not_run
+gateway_auth=not_run
+chunks_sent=not_available
+transcript_present=unknown
+transcript_used_for_dialog=false
+transcript_text_logged=false
+fallback_reason=gateway_not_started
+asterisk_openai_key_present_after_smoke=no
+business_dialog_changed=false
+systemd_profile_changed=false
+gateway_process_after_smoke=not_verified_by_ssh_port_8080_unreachable
+live_call_run=false
+real_secrets_committed=false
+```
+
+Asterisk runtime remained in the diagnostic-safe profile:
+
+```text
+STT_LIVE_OPENAI_DISABLED=true
+STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
+OPENAI_API_KEY=<absent>
+```
+
+Focused helper validation:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests/test_gateway_stt_adapter.py
+12 passed
+```
+
+Required focused suite:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests/test_gateway_stt_adapter.py tests/test_realtime_measurement.py tests/test_realtime_gateway.py tests/test_dialog_flow.py tests/test_transcription_integrity.py
+111 passed
+```
+
+Next implementation:
+
+```text
+NODE-028 / rerun controlled gateway adapter live smoke after gateway SSH recovery
+```

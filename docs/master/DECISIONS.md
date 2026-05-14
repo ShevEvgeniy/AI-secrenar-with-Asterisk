@@ -536,3 +536,22 @@ Next implementation node:
 ```text
 NODE-027 / controlled gateway adapter live smoke with explicit temporary flags
 ```
+
+## Controlled Gateway Adapter Live Smoke Helper And Blocker
+
+NODE-027 does not enable production gateway STT and does not record a successful live adapter smoke.
+
+Accepted decision:
+
+- A one-off CLI helper may exercise the NODE-025 adapter path with explicit temporary flags, outside the running ARI service and outside live business calls.
+- The helper must require explicit smoke flags when requested, avoid `OPENAI_API_KEY` on Asterisk, redact gateway token and transcript text, and preserve the adapter defaults.
+- A live adapter smoke must not be claimed unless the Kamatera gateway is started, reachable from Asterisk, and the adapter request actually runs through the gateway.
+- If gateway SSH or gateway startup is unavailable, the correct result is a blocked closeout with cleanup preserved.
+- NODE-027 is blocked because SSH to `45.61.48.199:22` refused connections and the gateway listener on `8080` was not reachable from Asterisk.
+- No service restart, env-file edit, live call, business dialog change, or production default enablement is allowed as a workaround.
+
+Next implementation node:
+
+```text
+NODE-028 / rerun controlled gateway adapter live smoke after gateway SSH recovery
+```

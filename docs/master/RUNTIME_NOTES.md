@@ -690,6 +690,63 @@ pytest fake/mocked gateway plus localhost-only fake HTTP gateway
 - No real gateway token is required for local dry-run validation.
 - NODE-026 did not modify live servers, did not SSH into Kamatera or Asterisk, did not start the Kamatera gateway, did not run live calls, did not change `ai-secretary-ari.service`, and did not change the Asterisk runtime environment.
 
+## NODE-027 Runtime Notes
+
+- NODE-027 adds a manual one-off smoke helper:
+
+```text
+python -m ai_secretary.stt.gateway_adapter_smoke --audio <wav> --require-explicit-flags
+```
+
+- Controlled helper flags must be temporary process env only:
+
+```text
+STT_GATEWAY_STT_ENABLED=true
+STT_GATEWAY_ADAPTER_ENABLED=true
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true
+STT_GATEWAY_URL=http://45.61.48.199:8080/v1/stt/realtime-measurement
+STT_GATEWAY_TOKEN=<redacted runtime secret>
+STT_GATEWAY_TIMEOUT_MS=10000
+STT_GATEWAY_MAX_RETRIES=0
+STT_GATEWAY_LOG_TRANSCRIPT=false
+STT_GATEWAY_LANGUAGE=ru
+OPENAI_API_KEY=<absent on Asterisk>
+```
+
+- `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true` is required only because the current adapter does not make a gateway request unless dialog-use is explicitly enabled. For NODE-027 it is intended for a one-off CLI process only, not for `ai-secretary-ari.service`.
+- The helper emits redacted JSON metadata and must not print transcript text or secrets by default.
+- NODE-027 live smoke was blocked before adapter execution:
+
+```text
+kamatera_gateway_ssh=false
+gateway_ssh_blocker=connection_refused_on_45.61.48.199_port_22
+gateway_started=false
+gateway_reachable_from_asterisk=false
+adapter_smoke_exercised_node025_path=false
+openai_realtime_from_gateway=not_run
+gateway_auth=not_run
+```
+
+- Asterisk verification during the blocked attempt:
+
+```text
+ai-secretary-ari.service=active
+STT_LIVE_OPENAI_DISABLED=true
+STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
+OPENAI_API_KEY=<absent>
+```
+
+- No gateway process was started, no gateway port was left listening by this node, no live call ran, no service restart occurred, no env file was edited, and no Asterisk runtime env change was persisted.
+- Production gateway STT remains disabled by default:
+
+```text
+STT_GATEWAY_STT_ENABLED=false
+STT_GATEWAY_ADAPTER_ENABLED=false
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
+STT_GATEWAY_LOG_TRANSCRIPT=false
+```
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

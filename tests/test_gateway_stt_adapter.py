@@ -10,6 +10,8 @@ from pathlib import Path
 import threading
 
 from ai_secretary.stt.gateway_adapter import GatewaySttAdapterConfig, config_from_env, transcribe_via_gateway
+from ai_secretary.stt.gateway_adapter_smoke import main as gateway_adapter_smoke_main
+from ai_secretary.stt.gateway_adapter_smoke import run_smoke
 from ai_secretary.stt.realtime_gateway import GATEWAY_ENDPOINT
 from ai_secretary.telephony import ari_app
 from ai_secretary.telephony.call_session import CallSession, DialogStage
@@ -391,3 +393,90 @@ def test_business_transcription_path_keeps_gateway_disabled_by_default(monkeypat
     assert text == "batch text"
     assert details["stt_streaming_enabled"] is False
     assert not any(event["action"].startswith("gateway_stt_") for event in _events(session))
+
+
+def test_gateway_adapter_smoke_reports_redacted_metadata(tmp_path: Path, monkeypatch, capsys) -> None:
+    audio_path = _write_audio(tmp_path / "audio.wav")
+    transcript = "secret smoke transcript"
+
+    with _FakeGatewayServer(
+        {
+            "ok": True,
+            "openai_realtime_connection_ok": True,
+            "chunks_sent": 6,
+            "transcript_text_present": True,
+            "transcript_text": transcript,
+        }
+    ) as gateway:
+        monkeypatch.setenv("STT_GATEWAY_STT_ENABLED", "true")
+        monkeypatch.setenv("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG", "true")
+        monkeypatch.setenv("STT_GATEWAY_URL", gateway.url)
+        monkeypatch.setenv("STT_GATEWAY_TOKEN", "fake-token")
+        monkeypatch.setenv("STT_GATEWAY_TIMEOUT_MS", "1000")
+        monkeypatch.setenv("STT_GATEWAY_LOG_TRANSCRIPT", "false")
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        code = gateway_adapter_smoke_main(["--audio", str(audio_path), "--require-explicit-flags"])
+
+    assert code == 0
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+    serialized = json.dumps(payload, ensure_ascii=False)
+    assert payload["adapter_enabled_temporarily"] is True
+    assert payload["adapter_default_enabled_after_smoke"] is False
+    assert payload["adapter_smoke_exercised_node025_path"] is True
+    assert payload["gateway_reachable_from_asterisk"] is True
+    assert payload["gateway_auth"] == "ok"
+    assert payload["openai_realtime_from_gateway"] == "ok"
+    assert payload["chunks_sent"] == 6
+    assert payload["transcript_present"] is True
+    assert payload["transcript_text_logged"] is False
+    assert transcript not in serialized
+    assert "fake-token" not in serialized
+
+
+def test_gateway_adapter_smoke_requires_explicit_safe_flags(tmp_path: Path, monkeypatch, capsys) -> None:
+    audio_path = _write_audio(tmp_path / "audio.wav")
+    monkeypatch.delenv("STT_GATEWAY_STT_ENABLED", raising=False)
+    monkeypatch.delenv("STT_GATEWAY_ADAPTER_ENABLED", raising=False)
+    monkeypatch.delenv("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG", raising=False)
+    monkeypatch.delenv("STT_GATEWAY_URL", raising=False)
+    monkeypatch.delenv("STT_GATEWAY_TOKEN", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    code = gateway_adapter_smoke_main(["--audio", str(audio_path), "--require-explicit-flags"])
+
+    assert code == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert "STT_GATEWAY_URL" in payload["missing_required_flags"]
+
+
+def test_gateway_adapter_smoke_direct_run_can_record_empty_transcript_fallback(tmp_path: Path, monkeypatch) -> None:
+    audio_path = _write_audio(tmp_path / "audio.wav")
+
+    with _FakeGatewayServer(
+        {
+            "ok": True,
+            "openai_realtime_connection_ok": True,
+            "chunks_sent": 6,
+            "transcript_text_present": False,
+        }
+    ) as gateway:
+        monkeypatch.setenv("STT_GATEWAY_STT_ENABLED", "true")
+        monkeypatch.setenv("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG", "true")
+        monkeypatch.setenv("STT_GATEWAY_URL", gateway.url)
+        monkeypatch.setenv("STT_GATEWAY_TOKEN", "fake-token")
+        monkeypatch.setenv("STT_GATEWAY_TIMEOUT_MS", "1000")
+        monkeypatch.setenv("STT_GATEWAY_LOG_TRANSCRIPT", "false")
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        report = asyncio.run(run_smoke(audio_path))
+
+    assert report["adapter_smoke_exercised_node025_path"] is True
+    assert report["gateway_auth"] == "ok"
+    assert report["openai_realtime_from_gateway"] == "ok"
+    assert report["chunks_sent"] == 6
+    assert report["transcript_present"] is False
+    assert report["transcript_used_for_dialog"] is False
+    assert report["fallback_reason"] == "empty_transcript"

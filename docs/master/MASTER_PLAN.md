@@ -174,6 +174,14 @@ downloaded WAV artifact -> local fake/mocked gateway dry-run -> redacted transcr
 
 The dry-run uses pytest mocks and a localhost fake HTTP gateway with fake secrets only. Production gateway STT remains disabled by default and production behavior remains unchanged.
 
+NODE-027 adds a manual one-off smoke helper for the controlled adapter path, but the live Kamatera adapter smoke is blocked:
+
+```text
+one-off WAV artifact -> NODE-025 gateway adapter smoke helper -> Kamatera gateway URL/token -> redacted result
+```
+
+The live run did not occur because SSH to the Kamatera gateway host refused connections and the gateway listener was not reachable on port 8080 from Asterisk. No service, persistent env, live call, business dialog, or default config change was made.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -251,14 +259,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 51. Preserve NODE-026 local dry-run evidence: adapter validation may use mocks or a localhost-only fake HTTP gateway with fake tokens/transcripts, but must not require live Kamatera, OpenAI, Asterisk, live calls, real gateway tokens, or `OPENAI_API_KEY`.
 52. Preserve NODE-026 dialog boundary: `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false` keeps gateway transcripts from affecting `apply_turn(...)`; explicit transcript use remains non-default and must be validated only under local/test config until a later live-smoke node.
 53. Preserve NODE-026 redaction evidence: transcript text is not logged by default in adapter or ARI events.
+54. Preserve NODE-027 blocked-smoke truth: the Kamatera gateway adapter live smoke was not completed because SSH to `45.61.48.199:22` refused connections and port `8080` was unreachable from Asterisk.
+55. Preserve NODE-027 helper boundary: `ai_secretary.stt.gateway_adapter_smoke` is a manual one-off CLI helper only, requires explicit flags for controlled smoke mode, redacts secrets/transcript text, refuses Asterisk-side `OPENAI_API_KEY`, and does not change production runtime behavior.
+56. Preserve NODE-027 runtime result: no Kamatera gateway process was started, no live call ran, no `ai-secretary-ari.service` or Asterisk runtime env change was made, and production gateway STT remains disabled by default.
 
 ## Next Recommended Step
 
 ```text
-NODE-027 / controlled gateway adapter live smoke with explicit temporary flags
+NODE-028 / rerun controlled gateway adapter live smoke after gateway SSH recovery
 ```
 
-Run only a controlled live smoke if explicitly scoped with temporary flags and a prepared supported-region gateway. Keep production gateway STT disabled by default, keep `OPENAI_API_KEY` off the Asterisk server, and preserve business dialog isolation until live evidence accepts transcript quality and fallback behavior.
+Restore or document the Kamatera gateway SSH access path, start the gateway temporarily with gateway-only secrets, then run the NODE-027 one-off helper from Asterisk with explicit temporary flags. Keep production gateway STT disabled by default, keep `OPENAI_API_KEY` off the Asterisk server, and stop the gateway listener after the smoke.
 
 ## Node Completion Report Format
 
