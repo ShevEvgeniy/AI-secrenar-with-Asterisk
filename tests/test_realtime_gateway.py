@@ -6,6 +6,8 @@ import asyncio
 import json
 from pathlib import Path
 import wave
+import math
+import struct
 
 from fastapi.testclient import TestClient
 
@@ -24,6 +26,19 @@ def _pcm_wav_bytes(path: Path, *, sample_rate: int = 24000, frames: int = 4800) 
         handle.setsampwidth(2)
         handle.setframerate(sample_rate)
         handle.writeframes(b"\x00\x00" * frames)
+    return path.read_bytes()
+
+
+def _tone_wav_bytes(path: Path, *, sample_rate: int = 24000, frames: int = 4800) -> bytes:
+    samples = []
+    for index in range(frames):
+        value = int(8000 * math.sin(2 * math.pi * 440 * index / sample_rate))
+        samples.append(struct.pack("<h", value))
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sample_rate)
+        handle.writeframes(b"".join(samples))
     return path.read_bytes()
 
 
@@ -126,6 +141,76 @@ def test_gateway_does_not_return_transcript_by_default(tmp_path: Path) -> None:
     assert "transcript_text" not in payload
     assert "секретный текст" not in json.dumps(payload, ensure_ascii=False)
     assert any(message["type"] == "input_audio_buffer.append" for message in fake_ws.sent)
+
+
+def test_gateway_response_includes_audio_and_event_diagnostics(tmp_path: Path) -> None:
+    audio = _tone_wav_bytes(tmp_path / "tone.wav")
+    fake_ws = _FakeWebSocket(
+        [
+            {"type": "session.created"},
+            {"type": "session.updated"},
+            {"type": "conversation.item.input_audio_transcription.delta", "delta": "pri"},
+            {"type": "conversation.item.input_audio_transcription.completed", "transcript": "privet"},
+        ]
+    )
+
+    async def _connector(_url: str, _headers: dict[str, str]) -> _FakeWebSocket:
+        return fake_ws
+
+    status, payload = asyncio.run(
+        run_gateway_realtime_measurement(
+            audio,
+            settings=_settings(),
+            request_id="req_diag",
+            connector=_connector,
+        )
+    )
+
+    assert status == 200
+    assert payload["audio_payload_valid"] is True
+    assert payload["audio_duration_ms"] == 200
+    assert payload["audio_sample_rate_hz"] == 24000
+    assert payload["audio_channels"] == 1
+    assert payload["audio_sample_width"] == 2
+    assert payload["audio_total_bytes"] == len(audio)
+    assert payload["audio_chunk_count"] == 1
+    assert payload["audio_rms"] > 100
+    assert payload["audio_peak"] > 500
+    assert payload["audio_non_silent_ratio"] > 0.02
+    assert payload["audio_quality_classification"] == "too_short"
+    assert payload["openai_event_type_counts"]["session.created"] == 1
+    assert payload["openai_event_type_counts"]["session.updated"] == 1
+    assert payload["openai_event_type_counts"]["conversation.item.input_audio_transcription.completed"] == 1
+    assert payload["transcript_event_seen"] is True
+    assert payload["input_audio_buffer_commit_sent"] is True
+    assert payload["timeout_observed"] is False
+
+
+def test_gateway_audio_diagnostics_classify_silence(tmp_path: Path) -> None:
+    audio = _pcm_wav_bytes(tmp_path / "silence.wav", frames=24000)
+    fake_ws = _FakeWebSocket(
+        [
+            {"type": "session.created"},
+            {"type": "session.updated"},
+            {"type": "conversation.item.input_audio_transcription.completed", "transcript": ""},
+        ]
+    )
+
+    async def _connector(_url: str, _headers: dict[str, str]) -> _FakeWebSocket:
+        return fake_ws
+
+    status, payload = asyncio.run(
+        run_gateway_realtime_measurement(audio, settings=_settings(), request_id="req_silent", connector=_connector)
+    )
+
+    assert status == 200
+    assert payload["audio_duration_ms"] == 1000
+    assert payload["audio_rms"] == 0
+    assert payload["audio_peak"] == 0
+    assert payload["audio_non_silent_ratio"] == 0
+    assert payload["audio_quality_classification"] == "near_silent"
+    assert payload["transcript_event_seen"] is True
+    assert payload["transcript_text_present"] is False
 
 
 def test_gateway_request_schema_rejects_invalid_wav() -> None:

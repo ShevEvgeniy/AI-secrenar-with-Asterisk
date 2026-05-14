@@ -190,6 +190,14 @@ Asterisk server -> NODE-025 adapter via NODE-027 helper -> Kamatera gateway -> O
 
 The gateway was started temporarily, reached from Asterisk, authenticated successfully, and stopped after the smoke. The synthetic silent WAV produced `empty_transcript`, so no transcript drove dialog. Asterisk service/env stayed unchanged and gateway STT remains disabled by default.
 
+NODE-029 diagnoses the NODE-028 empty-transcript result and adds payload/event diagnostics:
+
+```text
+silent synthetic WAV -> audio_quality_classification=near_silent -> empty_transcript likely caused by unsuitable audio content
+```
+
+The diagnostic was local-only. Gateway responses now expose redacted audio quality metrics and Realtime event-type counts for future runs. No live diagnostic was run and production gateway STT remains disabled by default.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -272,11 +280,13 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 56. Preserve NODE-027 runtime result: no Kamatera gateway process was started, no live call ran, no `ai-secretary-ari.service` or Asterisk runtime env change was made, and production gateway STT remains disabled by default.
 57. Preserve NODE-028 live-smoke result: Kamatera gateway reachable from Asterisk, gateway auth ok, OpenAI Realtime from gateway ok, `chunks_sent=15`, `transcript_present=false`, `fallback_reason=empty_transcript`, and transcript text not logged.
 58. Preserve NODE-028 cleanup result: the temporary gateway listener was stopped, `ai-secretary-ari.service` remained active in the diagnostic-safe profile, Asterisk runtime env was unchanged, `OPENAI_API_KEY` remained absent on Asterisk, and production gateway STT remains disabled by default.
+59. Preserve NODE-029 diagnostic result: NODE-028 used a silent synthetic WAV, so `empty_transcript` is most likely caused by near-silent/non-speech audio content.
+60. Preserve NODE-029 instrumentation: gateway/measurement diagnostics include audio duration, format, chunk stats, RMS, peak, non-silent ratio, quality classification, Realtime event-type counts, transcript-event flags, commit-sent flag, timeout flag, and transcript text redaction by default.
 
 ## Next Recommended Step
 
 ```text
-Productionize the gateway only in a separate scoped node, or run a separate non-silent speech-quality adapter smoke.
+Run a controlled non-sensitive speech WAV diagnostic through the same gateway path, or productionize the gateway only in a separate scoped node.
 ```
 
 The next node should not enable gateway STT by default. A productionization node should add TLS, systemd, firewall/runbook hardening, token rotation handling, and normal deployment of the adapter/helper source before any persistent gateway use.

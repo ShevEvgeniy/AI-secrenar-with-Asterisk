@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+from collections import Counter
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from io import BytesIO
@@ -33,6 +34,7 @@ from .realtime_measurement import (
     RealtimeMeasurementConfig,
     _ws_connect,
     build_session_update,
+    diagnose_pcm_wav_audio_bytes,
     redact_secrets,
 )
 
@@ -103,6 +105,8 @@ def build_gateway_response(
     error_message_redacted: str | None = None,
     cleanup_done: bool = True,
     transcript_text: str | None = None,
+    audio_diagnostics: dict[str, Any] | None = None,
+    response_diagnostics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     ok = 200 <= status < 300
     payload: dict[str, Any] = {
@@ -123,6 +127,10 @@ def build_gateway_response(
         "error_message_redacted": str(redact_secrets(error_message_redacted)) if error_message_redacted else None,
         "cleanup_done": cleanup_done,
     }
+    if audio_diagnostics is not None:
+        payload.update(redact_secrets(audio_diagnostics))
+    if response_diagnostics is not None:
+        payload.update(redact_secrets(response_diagnostics))
     if transcript_text is not None:
         payload["transcript_text"] = transcript_text
     return redact_secrets(payload)
@@ -157,6 +165,11 @@ async def run_gateway_realtime_measurement(
             error_type="gateway_audio_invalid",
             error_code="audio_too_large",
             error_message_redacted=f"audio bytes exceed limit {settings.max_audio_bytes}",
+            audio_diagnostics=diagnose_pcm_wav_audio_bytes(
+                audio,
+                expected_sample_rate=settings.sample_rate,
+                chunk_ms=settings.chunk_ms,
+            ),
         )
 
     chunks_sent = 0
@@ -169,6 +182,19 @@ async def run_gateway_realtime_measurement(
     transcript_text: str | None = None
     connector = connector or _ws_connect
     started = clock()
+    audio_diagnostics = diagnose_pcm_wav_audio_bytes(
+        audio,
+        expected_sample_rate=settings.sample_rate,
+        chunk_ms=settings.chunk_ms,
+    )
+    event_type_counts: Counter[str] = Counter()
+    input_audio_buffer_commit_sent = False
+    timeout_observed = False
+    response_diagnostics = _build_response_diagnostics(
+        event_type_counts,
+        input_audio_buffer_commit_sent=input_audio_buffer_commit_sent,
+        timeout_observed=timeout_observed,
+    )
 
     try:
         chunks, total_audio_ms = read_pcm_wav_chunks_from_bytes(audio, settings.sample_rate, settings.chunk_ms)
@@ -180,6 +206,8 @@ async def run_gateway_realtime_measurement(
                 error_type="gateway_audio_invalid",
                 error_code="audio_too_long",
                 error_message_redacted=f"audio duration exceeds limit {settings.max_audio_seconds}s",
+                audio_diagnostics=audio_diagnostics,
+                response_diagnostics=response_diagnostics,
             )
 
         config = RealtimeMeasurementConfig(
@@ -195,10 +223,10 @@ async def run_gateway_realtime_measurement(
         headers = {"Authorization": f"Bearer {settings.openai_api_key}"}
         async with await connector(settings.websocket_url, headers) as ws:
             openai_realtime_connection_ok = True
-            await _wait_for_session_created(ws)
+            await _wait_for_session_created(ws, event_type_counts=event_type_counts)
             openai_session_created = True
             await ws.send(json.dumps(build_session_update(config)))
-            await _wait_for_session_updated(ws)
+            await _wait_for_session_updated(ws, event_type_counts=event_type_counts)
 
             audio_send_started = True
             for chunk in chunks:
@@ -213,15 +241,18 @@ async def run_gateway_realtime_measurement(
                 chunks_sent += 1
                 await asyncio.sleep(0)
             await ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+            input_audio_buffer_commit_sent = True
 
             deadline = clock() + settings.openai_timeout_seconds
             while clock() < deadline:
                 try:
                     message = await asyncio.wait_for(ws.recv(), timeout=max(0.1, deadline - clock()))
                 except asyncio.TimeoutError:
+                    timeout_observed = True
                     break
                 payload = json.loads(message)
                 event_type = payload.get("type")
+                _record_event_type(event_type_counts, event_type)
                 if event_type == "conversation.item.input_audio_transcription.delta":
                     delta = str(payload.get("delta") or "")
                     if delta:
@@ -237,6 +268,11 @@ async def run_gateway_realtime_measurement(
                     break
                 elif event_type == "error":
                     raise RuntimeError(json.dumps(redact_secrets(payload), ensure_ascii=False))
+            response_diagnostics = _build_response_diagnostics(
+                event_type_counts,
+                input_audio_buffer_commit_sent=input_audio_buffer_commit_sent,
+                timeout_observed=timeout_observed,
+            )
             if final_ms is None:
                 raise TimeoutError("realtime transcription final event was not received")
             return 200, build_gateway_response(
@@ -251,6 +287,8 @@ async def run_gateway_realtime_measurement(
                 final_ms=final_ms,
                 transcript_text_present=transcript_text_present,
                 transcript_text=transcript_text,
+                audio_diagnostics=audio_diagnostics,
+                response_diagnostics=response_diagnostics,
             )
     except (ValueError, wave.Error) as exc:
         return 400, build_gateway_response(
@@ -261,9 +299,16 @@ async def run_gateway_realtime_measurement(
             error_type="gateway_audio_invalid",
             error_code="invalid_wav",
             error_message_redacted=str(exc),
+            audio_diagnostics=audio_diagnostics,
+            response_diagnostics=response_diagnostics,
         )
     except Exception as exc:
         error_code = map_openai_error(exc)
+        response_diagnostics = _build_response_diagnostics(
+            event_type_counts,
+            input_audio_buffer_commit_sent=input_audio_buffer_commit_sent,
+            timeout_observed=timeout_observed or error_code == "gateway_timeout",
+        )
         return 502, build_gateway_response(
             request_id=gateway_request_id,
             settings=settings,
@@ -278,6 +323,8 @@ async def run_gateway_realtime_measurement(
             error_type=type(exc).__name__,
             error_code=error_code,
             error_message_redacted=repr(exc),
+            audio_diagnostics=audio_diagnostics,
+            response_diagnostics=response_diagnostics,
         )
 
 
@@ -316,9 +363,39 @@ def map_openai_error(exc: Exception) -> str:
     return "openai_transient"
 
 
-async def _wait_for_session_created(ws: Any) -> None:
+def _record_event_type(event_type_counts: Counter[str], event_type: Any) -> None:
+    if isinstance(event_type, str) and event_type:
+        event_type_counts[event_type] += 1
+
+
+def _build_response_diagnostics(
+    event_type_counts: Counter[str],
+    *,
+    input_audio_buffer_commit_sent: bool,
+    timeout_observed: bool,
+) -> dict[str, Any]:
+    transcript_event_seen = any(
+        event_type.startswith("conversation.item.input_audio_transcription.")
+        for event_type in event_type_counts
+    )
+    return {
+        "openai_event_type_counts": dict(sorted(event_type_counts.items())),
+        "transcript_event_seen": transcript_event_seen,
+        "transcript_bearing_event_seen": bool(
+            event_type_counts.get("conversation.item.input_audio_transcription.delta")
+            or event_type_counts.get("conversation.item.input_audio_transcription.completed")
+        ),
+        "error_event_seen": bool(event_type_counts.get("error")),
+        "input_audio_buffer_commit_sent": input_audio_buffer_commit_sent,
+        "timeout_observed": timeout_observed,
+        "close_status": "not_observed",
+    }
+
+
+async def _wait_for_session_created(ws: Any, *, event_type_counts: Counter[str]) -> None:
     payload = json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
     event_type = payload.get("type")
+    _record_event_type(event_type_counts, event_type)
     if event_type in {"session.created", "transcription_session.created"}:
         return
     if event_type == "error":
@@ -326,9 +403,10 @@ async def _wait_for_session_created(ws: Any) -> None:
     raise RuntimeError(f"unexpected realtime session create response: {event_type}")
 
 
-async def _wait_for_session_updated(ws: Any) -> None:
+async def _wait_for_session_updated(ws: Any, *, event_type_counts: Counter[str]) -> None:
     payload = json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
     event_type = payload.get("type")
+    _record_event_type(event_type_counts, event_type)
     if event_type in {"session.updated", "transcription_session.updated"}:
         return
     if event_type == "error":

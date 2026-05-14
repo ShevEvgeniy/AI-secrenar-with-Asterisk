@@ -12,6 +12,7 @@ from ai_secretary.stt.realtime_measurement import (
     RealtimeMeasurementConfig,
     build_session_update,
     config_from_args_and_env,
+    diagnose_pcm_wav_audio,
     redact_secrets,
     run_realtime_measurement,
 )
@@ -101,6 +102,27 @@ def test_session_payload_matches_realtime_transcription_shape(tmp_path: Path) ->
     assert audio_input["transcription"] == {"model": "gpt-realtime-whisper", "language": "ru"}
     assert audio_input["turn_detection"] is None
     assert audio_input["noise_reduction"] is None
+
+
+def test_audio_payload_diagnostics_detect_unsupported_and_malformed_wav(tmp_path: Path) -> None:
+    unsupported = tmp_path / "unsupported.wav"
+    with wave.open(str(unsupported), "wb") as handle:
+        handle.setnchannels(2)
+        handle.setsampwidth(2)
+        handle.setframerate(8000)
+        handle.writeframes(b"\x00\x00\x00\x00" * 8000)
+
+    unsupported_diag = diagnose_pcm_wav_audio(unsupported)
+    assert unsupported_diag["audio_payload_valid"] is False
+    assert unsupported_diag["audio_unsupported"] is True
+    assert unsupported_diag["audio_quality_classification"] == "unsupported_format"
+
+    malformed = tmp_path / "malformed.wav"
+    malformed.write_bytes(b"not-a-wav")
+    malformed_diag = diagnose_pcm_wav_audio(malformed)
+    assert malformed_diag["audio_payload_valid"] is False
+    assert malformed_diag["audio_malformed"] is True
+    assert malformed_diag["audio_quality_classification"] == "malformed"
 
 
 def test_measurement_success_logs_required_events_and_no_secret(tmp_path: Path) -> None:

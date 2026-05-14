@@ -1180,3 +1180,42 @@ Next recommendation:
 ```text
 Productionize the gateway only in a separate scoped node, or run a separate non-silent speech-quality adapter smoke.
 ```
+
+## NODE-029 Validation
+
+Result:
+
+```text
+PASS as local diagnostic closeout; no live diagnostic was run.
+```
+
+Implemented:
+
+- Audio payload diagnostics for duration, sample rate, channels, sample width, codec, byte/chunk stats, RMS, peak, non-silent ratio, and quality classification.
+- Realtime response diagnostics for event-type counts, transcript-event visibility, error-event visibility, commit-sent status, timeout status, and close status.
+- Adapter smoke report propagation of the new redacted diagnostic fields.
+
+Diagnosis:
+
+```text
+NODE-028 used a synthetic silent 24 kHz mono WAV.
+audio_quality_classification=near_silent
+likely_root_cause=silent synthetic audio artifact unsuitable for transcription
+gateway_auth=ok from NODE-028
+openai_realtime_from_gateway=ok from NODE-028
+transcript_present=false
+transcript_text_logged=false
+```
+
+Focused validation:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests/test_realtime_measurement.py tests/test_realtime_gateway.py tests/test_gateway_stt_adapter.py
+31 passed
+```
+
+Next recommendation:
+
+```text
+Run one controlled non-sensitive speech WAV diagnostic through the same gateway path before investigating deeper Realtime protocol changes.
+```

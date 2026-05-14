@@ -575,3 +575,22 @@ Next recommendation:
 ```text
 Productionize the gateway only in a separate scoped node, or run a separate non-silent speech-quality adapter smoke.
 ```
+
+## Empty Transcript Diagnostic
+
+NODE-029 closes the NODE-028 empty-transcript diagnosis as local diagnostic work.
+
+Accepted decision:
+
+- Do not treat the NODE-028 empty transcript as proof of a gateway/OpenAI transport failure.
+- NODE-028 used a synthetic silent WAV, so the leading root cause is near-silent/non-speech audio content.
+- Gateway and adapter diagnostics must report audio quality and Realtime event visibility before future live speech-quality conclusions are made.
+- Transcript text must remain redacted by default in gateway, adapter, helper, and docs output.
+- Production gateway STT remains disabled by default.
+- The next useful experiment is one controlled non-sensitive speech WAV diagnostic through the same gateway path, not a production enablement.
+
+Next recommendation:
+
+```text
+Run a controlled non-sensitive speech WAV diagnostic with STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false and STT_GATEWAY_LOG_TRANSCRIPT=false.
+```

@@ -12,10 +12,13 @@ import asyncio
 import base64
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from io import BytesIO
 import json
+import math
 import os
 from pathlib import Path
 import re
+import struct
 import sys
 import time
 from typing import Any
@@ -31,6 +34,11 @@ DEFAULT_LANGUAGE = "ru"
 DEFAULT_SAMPLE_RATE = 24000
 DEFAULT_CHUNK_MS = 200
 DEFAULT_TIMEOUT_SECONDS = 30.0
+MIN_SPEECH_CANDIDATE_MS = 300
+NEAR_SILENT_RMS_THRESHOLD = 100.0
+NEAR_SILENT_PEAK_THRESHOLD = 500
+NON_SILENT_SAMPLE_THRESHOLD = 500
+MIN_NON_SILENT_RATIO = 0.02
 
 SECRET_VALUE_REPLACEMENT = "[REDACTED]"
 SECRET_KEY_PATTERN = re.compile(r"(api[_-]?key|authorization|bearer|token|secret|password)", re.IGNORECASE)
@@ -224,6 +232,137 @@ def emit_event(
         print(line, flush=True)
     else:
         writer(line)
+
+
+def diagnose_pcm_wav_audio(
+    path: Path,
+    *,
+    expected_sample_rate: int = DEFAULT_SAMPLE_RATE,
+    chunk_ms: int = DEFAULT_CHUNK_MS,
+) -> dict[str, Any]:
+    """Return secret-safe WAV payload diagnostics without transcript text."""
+    return diagnose_pcm_wav_audio_bytes(
+        path.read_bytes(),
+        expected_sample_rate=expected_sample_rate,
+        chunk_ms=chunk_ms,
+    )
+
+
+def diagnose_pcm_wav_audio_bytes(
+    audio: bytes,
+    *,
+    expected_sample_rate: int = DEFAULT_SAMPLE_RATE,
+    chunk_ms: int = DEFAULT_CHUNK_MS,
+) -> dict[str, Any]:
+    diagnostics: dict[str, Any] = {
+        "audio_payload_valid": "unknown",
+        "audio_duration_ms": 0,
+        "audio_sample_rate_hz": None,
+        "audio_channels": None,
+        "audio_sample_width": None,
+        "audio_codec": None,
+        "audio_total_bytes": len(audio),
+        "audio_chunk_count": 0,
+        "audio_chunk_bytes_min": None,
+        "audio_chunk_bytes_max": None,
+        "audio_chunk_bytes_avg": None,
+        "audio_first_chunk_bytes": None,
+        "audio_last_chunk_bytes": None,
+        "audio_rms": None,
+        "audio_peak": None,
+        "audio_non_silent_ratio": None,
+        "audio_empty": len(audio) == 0,
+        "audio_too_short": False,
+        "audio_near_silent": False,
+        "audio_malformed": False,
+        "audio_unsupported": False,
+        "audio_quality_classification": "unknown",
+    }
+    try:
+        with wave.open(BytesIO(audio), "rb") as handle:
+            channels = handle.getnchannels()
+            sample_width = handle.getsampwidth()
+            frame_rate = handle.getframerate()
+            frame_count = handle.getnframes()
+            codec = handle.getcomptype()
+            raw_frames = handle.readframes(frame_count)
+    except (EOFError, ValueError, wave.Error) as exc:
+        diagnostics.update(
+            {
+                "audio_payload_valid": False,
+                "audio_malformed": True,
+                "audio_quality_classification": "malformed",
+                "audio_error_type": type(exc).__name__,
+                "audio_error_redacted": str(redact_secrets(str(exc))),
+            }
+        )
+        return diagnostics
+
+    duration_ms = int(frame_count / frame_rate * 1000) if frame_rate else 0
+    frames_per_chunk = max(1, int(frame_rate * chunk_ms / 1000)) if frame_rate else 1
+    bytes_per_frame = max(1, channels * sample_width)
+    chunk_frame_counts = list(range(0, frame_count, frames_per_chunk))
+    chunk_sizes = [
+        min(frames_per_chunk, frame_count - start_frame) * bytes_per_frame
+        for start_frame in chunk_frame_counts
+    ]
+    unsupported = channels != 1 or sample_width != 2 or frame_rate != expected_sample_rate or codec != "NONE"
+    rms, peak, non_silent_ratio = _pcm16_amplitude_stats(raw_frames, sample_width=sample_width)
+    too_short = duration_ms < MIN_SPEECH_CANDIDATE_MS
+    near_silent = (
+        rms is not None
+        and peak is not None
+        and non_silent_ratio is not None
+        and (rms < NEAR_SILENT_RMS_THRESHOLD or peak < NEAR_SILENT_PEAK_THRESHOLD or non_silent_ratio < MIN_NON_SILENT_RATIO)
+    )
+    if len(audio) == 0 or frame_count == 0:
+        classification = "too_short"
+    elif unsupported:
+        classification = "unsupported_format"
+    elif too_short:
+        classification = "too_short"
+    elif near_silent:
+        classification = "near_silent"
+    else:
+        classification = "valid_speech_candidate"
+
+    diagnostics.update(
+        {
+            "audio_payload_valid": not unsupported and not diagnostics["audio_empty"] and frame_count > 0,
+            "audio_duration_ms": duration_ms,
+            "audio_sample_rate_hz": frame_rate,
+            "audio_channels": channels,
+            "audio_sample_width": sample_width,
+            "audio_codec": "pcm" if codec == "NONE" else codec,
+            "audio_chunk_count": len(chunk_sizes),
+            "audio_chunk_bytes_min": min(chunk_sizes) if chunk_sizes else None,
+            "audio_chunk_bytes_max": max(chunk_sizes) if chunk_sizes else None,
+            "audio_chunk_bytes_avg": int(sum(chunk_sizes) / len(chunk_sizes)) if chunk_sizes else None,
+            "audio_first_chunk_bytes": chunk_sizes[0] if chunk_sizes else None,
+            "audio_last_chunk_bytes": chunk_sizes[-1] if chunk_sizes else None,
+            "audio_rms": rms,
+            "audio_peak": peak,
+            "audio_non_silent_ratio": non_silent_ratio,
+            "audio_too_short": too_short,
+            "audio_near_silent": near_silent,
+            "audio_unsupported": unsupported,
+            "audio_quality_classification": classification,
+        }
+    )
+    return diagnostics
+
+
+def _pcm16_amplitude_stats(raw_frames: bytes, *, sample_width: int) -> tuple[float | None, int | None, float | None]:
+    if sample_width != 2 or not raw_frames:
+        return None, None, None
+    sample_count = len(raw_frames) // 2
+    if sample_count == 0:
+        return None, None, None
+    samples = struct.unpack(f"<{sample_count}h", raw_frames[: sample_count * 2])
+    square_sum = sum(sample * sample for sample in samples)
+    peak = max(abs(sample) for sample in samples)
+    non_silent = sum(1 for sample in samples if abs(sample) >= NON_SILENT_SAMPLE_THRESHOLD)
+    return round(math.sqrt(square_sum / sample_count), 2), peak, round(non_silent / sample_count, 4)
 
 
 async def _ws_connect(url: str, headers: dict[str, str]) -> Any:

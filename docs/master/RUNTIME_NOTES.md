@@ -779,6 +779,61 @@ STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
 STT_GATEWAY_LOG_TRANSCRIPT=false
 ```
 
+## NODE-029 Runtime Notes
+
+- NODE-029 was local-only and did not start the Kamatera gateway.
+- NODE-029 did not modify `ai-secretary-ari.service`, `/etc/ai-secretary/ari-app.env`, Asterisk runtime env, or business dialog behavior.
+- The likely root cause of the NODE-028 `empty_transcript` result is the documented synthetic silent WAV, not gateway auth or transport:
+
+```text
+NODE-028 audio=24 kHz mono 16-bit PCM, 3 seconds, silent
+chunks_sent=15
+transcript_present=false
+fallback_reason=empty_transcript
+audio_quality_classification=near_silent inferred by NODE-029 classifier
+```
+
+- Future gateway responses include audio payload diagnostics:
+
+```text
+audio_duration_ms
+audio_sample_rate_hz
+audio_channels
+audio_sample_width
+audio_codec
+audio_total_bytes
+audio_chunk_count
+audio_chunk_bytes_min/max/avg
+audio_first_chunk_bytes
+audio_last_chunk_bytes
+audio_rms
+audio_peak
+audio_non_silent_ratio
+audio_quality_classification
+```
+
+- Future gateway responses include redacted Realtime response diagnostics:
+
+```text
+openai_event_type_counts
+transcript_event_seen
+transcript_bearing_event_seen
+error_event_seen
+input_audio_buffer_commit_sent
+timeout_observed
+close_status
+```
+
+- Transcript text remains suppressed by default.
+- Production gateway STT remains disabled by default:
+
+```text
+STT_GATEWAY_STT_ENABLED=false
+STT_GATEWAY_ADAPTER_ENABLED=false
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
+STT_GATEWAY_LOG_TRANSCRIPT=false
+```
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.
