@@ -556,21 +556,22 @@ Next implementation node:
 NODE-028 / rerun controlled gateway adapter live smoke after gateway SSH recovery
 ```
 
-## Controlled Gateway Adapter Live Smoke Retry Blocked
+## Controlled Gateway Adapter Live Smoke Retry Passed
 
-NODE-028 closes blocked and does not record a successful live adapter smoke.
+NODE-028 closes with a successful controlled live adapter smoke, using an empty-transcript fallback result.
 
 Accepted decision:
 
-- Do not claim a live adapter smoke unless the NODE-027 helper actually exercises the NODE-025 adapter path.
-- If Kamatera control or gateway listener state is unreliable, close truthfully as blocked and preserve cleanup.
-- An interrupted temporary gateway process must be stopped before closeout if it partially starts.
-- Gateway auth and OpenAI Realtime from the gateway remain `not_run` unless the helper completes a real request.
-- No service restart, env-file edit, live call, business dialog change, or production default enablement is allowed as a workaround.
+- The NODE-027 helper may be used as a one-off live smoke tool when it exercises the NODE-025 adapter path from the Asterisk server.
+- `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true` may be used only inside the one-off helper process to force the adapter request; this does not enable production gateway STT or change the running ARI service.
+- A silent synthetic WAV can prove live adapter/gateway/OpenAI transport and empty-transcript fallback, but it does not prove useful speech transcription quality.
+- Gateway auth and OpenAI Realtime from the gateway are accepted as passed for NODE-028: `gateway_auth=ok`, `openai_realtime_from_gateway=ok`, `chunks_sent=15`.
+- The temporary gateway process must be stopped after the smoke.
+- No service restart, env-file edit, live call, business dialog change, or production default enablement is allowed as part of this smoke.
 - Gateway STT remains disabled by default.
 
 Next recommendation:
 
 ```text
-Restore reliable Kamatera console/SSH control, then open a fresh controlled live-smoke retry.
+Productionize the gateway only in a separate scoped node, or run a separate non-silent speech-quality adapter smoke.
 ```

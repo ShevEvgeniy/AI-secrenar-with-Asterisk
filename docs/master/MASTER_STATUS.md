@@ -1124,24 +1124,24 @@ NODE-028 / rerun controlled gateway adapter live smoke after gateway SSH recover
 Result:
 
 ```text
-BLOCKED as controlled live smoke retry; cleanup preserved.
+PASS as controlled live adapter smoke with empty-transcript fallback and cleanup preserved.
 ```
 
-Live attempt:
+Live adapter smoke:
 
 ```text
-kamatera_ssh_restored=false
-gateway_started=false
-gateway_reachable_from_asterisk=false
-adapter_enabled_temporarily=false
-adapter_smoke_exercised_node025_path=false
-openai_realtime_from_gateway=not_run
-gateway_auth=not_run
-chunks_sent=not_available
-transcript_present=unknown
+kamatera_ssh_restored=true
+gateway_started=true
+gateway_reachable_from_asterisk=true
+adapter_enabled_temporarily=true
+adapter_smoke_exercised_node025_path=true
+openai_realtime_from_gateway=ok
+gateway_auth=ok
+chunks_sent=15
+transcript_present=false
 transcript_used_for_dialog=false
 transcript_text_logged=false
-fallback_reason=kamatera_ssh_unavailable_or_gateway_not_listening
+fallback_reason=empty_transcript
 asterisk_openai_key_present_after_smoke=no
 business_dialog_changed=false
 systemd_profile_changed=false
@@ -1153,9 +1153,9 @@ real_secrets_committed=false
 Cleanup note:
 
 ```text
-An interrupted temporary gateway-start command partially executed during NODE-028.
-The process was stopped before closeout and port 8080 was no longer listening.
-The NODE-027 helper was not run.
+Gateway process pid=1170 was stopped after the helper smoke.
+Port 8080 was no longer listening after cleanup.
+Temporary Asterisk source/audio/token files were removed.
 ```
 
 Asterisk runtime remained in the diagnostic-safe profile:
@@ -1178,5 +1178,5 @@ Required focused suite:
 Next recommendation:
 
 ```text
-Restore reliable Kamatera console/SSH control before another controlled live adapter smoke retry.
+Productionize the gateway only in a separate scoped node, or run a separate non-silent speech-quality adapter smoke.
 ```

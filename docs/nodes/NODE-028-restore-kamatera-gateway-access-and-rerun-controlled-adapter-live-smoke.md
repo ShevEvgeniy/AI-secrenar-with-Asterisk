@@ -2,11 +2,11 @@
 
 ## Status
 
-CLOSED as blocked live smoke with cleanup preserved.
+CLOSED as controlled live adapter smoke passed with empty-transcript fallback and cleanup verified.
 
-NODE-028 was opened to restore or document Kamatera gateway SSH access, start the gateway temporarily if access was restored, and rerun one controlled NODE-027 helper smoke of the NODE-025 gateway STT adapter.
+NODE-028 restored Kamatera gateway access, started the gateway temporarily, verified Asterisk-to-gateway reachability, ran exactly one one-off NODE-027 helper smoke through the NODE-025 gateway adapter path, then stopped the gateway listener.
 
-The controlled adapter smoke was not completed. No production gateway STT rollout was performed, no live caller-facing call was run, `ai-secretary-ari.service` was not modified, Asterisk runtime env was not modified, and `OPENAI_API_KEY` remained absent from the Asterisk process environment.
+This was not a production rollout. Gateway STT remains disabled by default, `ai-secretary-ari.service` was not modified, Asterisk runtime env was not modified, no live caller-facing call was run, and `OPENAI_API_KEY` remained absent from the Asterisk process environment.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Required safety boundaries:
 - Do not log transcript text by default.
 - Do not change business dialog behavior, NODE-016 diagnostic isolation, NODE-014 RTP topology, or PHONE / PHONE_CONFIRM / CITY / transfer / callback / after-hours / SAFE_FINISH contracts.
 
-## Intended Smoke Method
+## Gateway Startup
 
 Gateway host:
 
@@ -37,8 +37,11 @@ host=ai-secretary-gateway-node023
 public_ip=45.61.48.199
 deploy_path=/opt/ai-secretary-gateway
 gateway_env=/etc/ai-secretary/openai-realtime-gateway.env
+gateway_env_permissions=-rw-------
 gateway_port=8080
 gateway_endpoint=http://45.61.48.199:8080/v1/stt/realtime-measurement
+ufw=active
+ufw_8080_allow_from=92.118.85.117
 ```
 
 Temporary gateway start command shape, with secrets staying in the gateway-only env file:
@@ -52,17 +55,78 @@ export GATEWAY_PORT=8080
 nohup env PYTHONPATH=src .venv/bin/python -m ai_secretary.stt.realtime_gateway \
   --host 0.0.0.0 \
   --port 8080 \
-  </dev/null >/tmp/ai-secretary-gateway-node028.log 2>&1 &
-echo "$!" >/tmp/ai-secretary-gateway-node028.pid
+  </dev/null >/var/log/ai-secretary-gateway-node028.log 2>&1 &
+echo gateway_pid=$!
 ```
 
-Intended Asterisk-side one-off helper command shape:
+Gateway verification:
+
+```text
+gateway_pid=1170
+port_8080_listening=true
+listen_addr=0.0.0.0:8080
+uvicorn_startup_complete=true
+```
+
+The initial SSH launch wrapper remained attached. The wrapper process was killed by the operator while preserving the gateway process `1170`.
+
+## Asterisk Verification
+
+Asterisk server:
+
+```text
+host=tula
+ip=92.118.85.117
+deploy_path=/home/tulauser/AI-secrenar-with-Asterisk-node014
+ai-secretary-ari.service=active
+service_main_pid=7775
+```
+
+Asterisk safe runtime profile before smoke:
+
+```text
+STT_LIVE_OPENAI_DISABLED=true
+STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
+OPENAI_API_KEY=<absent>
+```
+
+Asterisk-to-gateway reachability before smoke:
+
+```text
+nc -vz -w 3 45.61.48.199 8080 -> succeeded
+GET http://45.61.48.199:8080/v1/stt/realtime-measurement -> 405 Method Not Allowed
+```
+
+The `405` result was expected for a GET to the POST-only measurement endpoint and proved the listener was reachable from Asterisk.
+
+## Smoke Method
+
+The Asterisk deployment tree did not contain the NODE-025 adapter or NODE-027 helper files. To avoid modifying the protected deployment source or systemd service, NODE-028 used a temporary secret-free source overlay under `/tmp` on the Asterisk server and removed it after the smoke:
+
+```text
+temporary_source_overlay=/tmp/ai-secretary-node028-src
+temporary_audio_dir=/tmp/ai-secretary-node028-smoke
+temporary_audio=node028_silence_24k.wav
+temporary_audio_format=mono 16-bit PCM 24000 Hz, 3 seconds
+```
+
+The gateway token was read from the gateway-only env file and placed briefly in a `0600` temporary file on Asterisk for the one-off process, then removed immediately after the helper exited:
+
+```text
+temporary_token_file=/tmp/ai-secretary-node028-smoke/gateway_token
+temporary_token_file_permissions=-rw-------
+temporary_token_file_after_smoke=absent
+```
+
+One-off helper command shape:
 
 ```bash
-cd /home/tulauser/AI-secrenar-with-Asterisk-node014
+cd /tmp/ai-secretary-node028-smoke
+export PYTHONPATH=/tmp/ai-secretary-node028-src
 export STT_GATEWAY_STT_ENABLED=true
 export STT_GATEWAY_ADAPTER_ENABLED=true
-export STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
+export STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true
 export STT_GATEWAY_URL=http://45.61.48.199:8080/v1/stt/realtime-measurement
 export STT_GATEWAY_TOKEN=<redacted gateway token from safe secret source>
 export STT_GATEWAY_TIMEOUT_MS=10000
@@ -70,72 +134,32 @@ export STT_GATEWAY_MAX_RETRIES=0
 export STT_GATEWAY_LOG_TRANSCRIPT=false
 export STT_GATEWAY_LANGUAGE=ru
 unset OPENAI_API_KEY
-PYTHONPATH=src .venv/bin/python -m ai_secretary.stt.gateway_adapter_smoke \
-  --audio <redacted one-off WAV artifact> \
+/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python \
+  -m ai_secretary.stt.gateway_adapter_smoke \
+  --audio /tmp/ai-secretary-node028-smoke/node028_silence_24k.wav \
   --require-explicit-flags
 ```
 
-The helper was not run in NODE-028.
-
-## Live Work And Blocker
-
-User-provided external evidence during the node:
-
-```text
-ssh root@45.61.48.199:22 -> connection refused before authentication
-local ping/ICMP -> timeout
-from Asterisk 92.118.85.117:
-  nc -vz -w 3 45.61.48.199 8080 -> connection refused
-  curl -m 3 http://45.61.48.199:8080/ -> failed to connect
-```
-
-Codex also observed that one interrupted gateway-start command partially executed after the turn was aborted. That left a temporary gateway process listening on `0.0.0.0:8080` before any adapter smoke was run. Cleanup was performed immediately:
-
-```text
-temporary_gateway_process=stopped
-port_8080_after_cleanup=not_listening
-adapter_helper_run=false
-gateway_auth=not_run
-openai_realtime_from_gateway=not_run
-```
-
-Asterisk service and safe runtime profile after cleanup:
-
-```text
-host=tula
-ai-secretary-ari.service=active
-service_main_pid=7775
-STT_LIVE_OPENAI_DISABLED=true
-STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
-STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
-OPENAI_API_KEY=<absent>
-```
-
-Asterisk-to-gateway reachability after cleanup:
-
-```text
-nc -vz -w 3 45.61.48.199 8080 -> connection refused
-curl -m 3 http://45.61.48.199:8080/ -> http_status=000, failed to connect
-```
+`STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true` was used only in the one-off helper process because the current NODE-025 adapter does not perform a gateway request unless dialog-use is explicitly enabled. No business dialog or service process used the transcript. The returned transcript was empty and `dialog_transcript_used=false`.
 
 ## Smoke Result
 
 ```text
-kamatera_ssh_restored=false
-gateway_started=false
-gateway_reachable_from_asterisk=false
-adapter_enabled_temporarily=false
+kamatera_ssh_restored=true
+gateway_started=true
+gateway_reachable_from_asterisk=true
+adapter_enabled_temporarily=true
 adapter_default_enabled_after_smoke=false
-adapter_smoke_exercised_node025_path=false
-openai_realtime_from_gateway=not_run
-gateway_auth=not_run
-chunks_sent=not_available
-transcript_present=unknown
+adapter_smoke_exercised_node025_path=true
+openai_realtime_from_gateway=ok
+gateway_auth=ok
+chunks_sent=15
+transcript_present=false
 transcript_used_for_dialog=false
 transcript_text_logged=false
-fallback_reason=kamatera_ssh_unavailable_or_gateway_not_listening
-error_type=kamatera_gateway_unavailable
-error_status=not_available
+fallback_reason=empty_transcript
+error_type=none
+error_status=200
 error_redacted=true
 asterisk_openai_key_present_after_smoke=no
 business_dialog_changed=false
@@ -145,15 +169,65 @@ live_call_run=false
 real_secrets_committed=false
 ```
 
+Redacted helper evidence:
+
+```text
+adapter_enabled_temporarily=true
+adapter_smoke_exercised_node025_path=true
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+chunks_sent=15
+gateway_http_status=200
+openai_realtime_connection_ok=true
+openai_session_created=true
+audio_send_started=true
+transcript_text_present=false
+transcript_text_logged=false
+dialog_transcript_used=false
+fallback_reason=empty_transcript
+```
+
 Interpretation:
 
-- NODE-028 does not claim a successful live adapter smoke.
-- The NODE-025 adapter path was not exercised live.
-- Gateway auth was not run.
-- OpenAI Realtime from the gateway was not run.
-- No transcript was returned or logged.
-- The interrupted temporary gateway process was stopped.
-- Gateway STT remains disabled by default.
+- The NODE-025 adapter path was exercised live from the Asterisk server.
+- Gateway auth worked.
+- OpenAI Realtime from the Kamatera gateway worked.
+- Audio was sent through the gateway (`chunks_sent=15`).
+- The silent WAV produced no transcript; the adapter rejected it with `empty_transcript`.
+- Transcript text was not logged.
+- No business dialog consumed a transcript.
+- Production gateway STT remains disabled by default.
+
+## Cleanup Verification
+
+Gateway cleanup:
+
+```text
+kill 1170 -> completed
+gateway_process_after_smoke=stopped
+port_8080_after_smoke=not_listening
+asterisk_to_gateway_after_cleanup=connection_refused
+```
+
+Asterisk cleanup:
+
+```text
+temporary_token_file_after_smoke=absent
+temporary_source_overlay_after_smoke=absent
+temporary_audio_after_smoke=absent
+ai-secretary-ari.service=active
+STT_LIVE_OPENAI_DISABLED=true
+STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
+OPENAI_API_KEY=<absent>
+```
+
+Local cleanup:
+
+```text
+temporary_local_wav_removed=true
+```
 
 ## Validation
 
@@ -175,7 +249,6 @@ Secret/artifact checks:
 
 ```text
 git status --short
-tracked_changes_only_safe_docs=true
 untracked_left_uncommitted=data/storage/, node014-server.tar
 git diff --cached
 no OPENAI_API_KEY, real GATEWAY_TOKEN, root password, SSH private key, or .env secret committed
@@ -184,41 +257,34 @@ no OPENAI_API_KEY, real GATEWAY_TOKEN, root password, SSH private key, or .env s
 ## NODE-028 Result
 
 ```text
-node_status=blocked live smoke closed
+node_status=closed live adapter smoke passed with empty-transcript fallback
 docs_only=true
 production_gateway_stt_enabled=false
 default_runtime_behavior_changed=false
 business_dialog_changed=false
 live_call_run=false
-kamatera_gateway_started=false
+kamatera_gateway_started=true
 kamatera_gateway_stopped_after_smoke=true
 asterisk_service_changed=false
 asterisk_runtime_env_changed=false
 openai_key_on_asterisk_after_smoke=false
-gateway_auth=not_run
-openai_realtime_from_gateway=not_run
-chunks_sent=not_available
-transcript_present=unknown
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+chunks_sent=15
+transcript_present=false
 transcript_used_for_dialog=false
 transcript_text_logged=false
+fallback_reason=empty_transcript
 real_secrets_committed=false
 ```
 
 ## Known Limitations
 
-- NODE-028 does not prove the live adapter path because the one-off helper was not run.
-- Gateway control remains operationally unreliable for this smoke path.
+- The smoke used a silent synthetic WAV, so it proves live adapter/gateway/OpenAI transport and fallback behavior, not useful transcript quality.
+- The Asterisk deployment tree still lacks the NODE-025/NODE-027 source files; NODE-028 used a temporary overlay rather than changing the protected deployment.
 - No production gateway service, TLS, token rotation, or persistent gateway process was installed or validated.
 - No live caller-facing call was run, by design.
 
 ## Next Recommendation
 
-Before opening another live adapter smoke node, restore reliable Kamatera console/SSH control and verify from both operator and Asterisk networks that:
-
-```text
-ssh root@45.61.48.199
-ss -ltnp | grep ':8080' # only when intentionally started
-nc -vz -w 3 45.61.48.199 8080 # from Asterisk only after start
-```
-
-Then rerun the NODE-027 helper exactly once with temporary process env only, stop the gateway immediately afterward, and keep production gateway STT disabled by default.
+Open a separate node only if the project is ready to test non-silent speech audio through the adapter or to productionize the gateway. A productionization node should add TLS, systemd, firewall/runbook hardening, secret rotation handling, and deployment of the adapter/helper source through the normal release path while keeping gateway STT disabled by default until an explicit adoption decision.

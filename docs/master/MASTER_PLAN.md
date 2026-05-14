@@ -182,13 +182,13 @@ one-off WAV artifact -> NODE-025 gateway adapter smoke helper -> Kamatera gatewa
 
 The live run did not occur because SSH to the Kamatera gateway host refused connections and the gateway listener was not reachable on port 8080 from Asterisk. No service, persistent env, live call, business dialog, or default config change was made.
 
-NODE-028 attempted the controlled live smoke retry after the NODE-027 blocker, but closes blocked:
+NODE-028 restored the Kamatera path and completed the controlled live adapter smoke retry:
 
 ```text
-Kamatera control/listener unavailable -> no NODE-027 helper smoke -> no gateway auth -> no OpenAI Realtime run
+Asterisk server -> NODE-025 adapter via NODE-027 helper -> Kamatera gateway -> OpenAI Realtime -> 200 OK, chunks_sent=15, transcript_text_logged=false
 ```
 
-An interrupted temporary gateway start partially executed during the node and was immediately cleaned up. Port `8080` was not listening after cleanup, the Asterisk service/env stayed unchanged, and gateway STT remains disabled by default.
+The gateway was started temporarily, reached from Asterisk, authenticated successfully, and stopped after the smoke. The synthetic silent WAV produced `empty_transcript`, so no transcript drove dialog. Asterisk service/env stayed unchanged and gateway STT remains disabled by default.
 
 ## Execution Model
 
@@ -270,16 +270,16 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 54. Preserve NODE-027 blocked-smoke truth: the Kamatera gateway adapter live smoke was not completed because SSH to `45.61.48.199:22` refused connections and port `8080` was unreachable from Asterisk.
 55. Preserve NODE-027 helper boundary: `ai_secretary.stt.gateway_adapter_smoke` is a manual one-off CLI helper only, requires explicit flags for controlled smoke mode, redacts secrets/transcript text, refuses Asterisk-side `OPENAI_API_KEY`, and does not change production runtime behavior.
 56. Preserve NODE-027 runtime result: no Kamatera gateway process was started, no live call ran, no `ai-secretary-ari.service` or Asterisk runtime env change was made, and production gateway STT remains disabled by default.
-57. Preserve NODE-028 blocked-smoke truth: no controlled adapter helper smoke was run, gateway auth was not run, OpenAI Realtime from the gateway was not run, and any interrupted temporary gateway listener was stopped before closeout.
-58. Preserve NODE-028 cleanup result: `ai-secretary-ari.service` remained active in the diagnostic-safe profile, Asterisk runtime env was unchanged, `OPENAI_API_KEY` remained absent on Asterisk, and production gateway STT remains disabled by default.
+57. Preserve NODE-028 live-smoke result: Kamatera gateway reachable from Asterisk, gateway auth ok, OpenAI Realtime from gateway ok, `chunks_sent=15`, `transcript_present=false`, `fallback_reason=empty_transcript`, and transcript text not logged.
+58. Preserve NODE-028 cleanup result: the temporary gateway listener was stopped, `ai-secretary-ari.service` remained active in the diagnostic-safe profile, Asterisk runtime env was unchanged, `OPENAI_API_KEY` remained absent on Asterisk, and production gateway STT remains disabled by default.
 
 ## Next Recommended Step
 
 ```text
-Restore reliable Kamatera gateway console/SSH control before another live adapter smoke node.
+Productionize the gateway only in a separate scoped node, or run a separate non-silent speech-quality adapter smoke.
 ```
 
-After reliable control is restored, start the gateway temporarily with gateway-only secrets, run the NODE-027 one-off helper from Asterisk exactly once with explicit temporary flags, and stop the gateway listener after the smoke. Keep production gateway STT disabled by default and keep `OPENAI_API_KEY` off the Asterisk server.
+The next node should not enable gateway STT by default. A productionization node should add TLS, systemd, firewall/runbook hardening, token rotation handling, and normal deployment of the adapter/helper source before any persistent gateway use.
 
 ## Node Completion Report Format
 

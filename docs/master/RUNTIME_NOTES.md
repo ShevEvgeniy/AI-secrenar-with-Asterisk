@@ -749,14 +749,17 @@ STT_GATEWAY_LOG_TRANSCRIPT=false
 
 ## NODE-028 Runtime Notes
 
-- NODE-028 did not complete the controlled live adapter smoke.
-- User-provided evidence during the node showed Kamatera SSH/gateway listener unavailable and Asterisk-to-gateway port `8080` refused.
-- One interrupted temporary gateway-start command partially executed and was cleaned up before closeout.
-- After cleanup, port `8080` was not listening on the gateway host.
-- The NODE-027 helper was not run, so the NODE-025 adapter path was not exercised live.
-- Gateway auth was not run.
-- OpenAI Realtime from the gateway was not run.
-- No transcript was returned or logged.
+- NODE-028 completed the controlled live adapter smoke through the NODE-025 adapter path.
+- The Kamatera gateway was started temporarily on `0.0.0.0:8080` and reached from the Asterisk server.
+- The NODE-027 helper was run from the Asterisk server using a temporary source overlay because the protected deployment source did not contain the adapter/helper files.
+- Gateway auth worked.
+- OpenAI Realtime from the gateway worked.
+- The helper sent a silent 24 kHz mono WAV and reported `chunks_sent=15`.
+- The gateway returned HTTP `200` with `openai_realtime_connection_ok=true` and `openai_session_created=true`.
+- The silent WAV produced no transcript, so the adapter fell back with `fallback_reason=empty_transcript`.
+- Transcript text was not logged and no transcript was used for dialog.
+- Temporary Asterisk token/source/audio files were removed after the smoke.
+- The gateway process was stopped after the smoke and port `8080` was no longer listening.
 - Asterisk remained on the safe diagnostic profile:
 
 ```text
