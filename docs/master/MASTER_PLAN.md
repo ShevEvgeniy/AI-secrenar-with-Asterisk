@@ -182,6 +182,14 @@ one-off WAV artifact -> NODE-025 gateway adapter smoke helper -> Kamatera gatewa
 
 The live run did not occur because SSH to the Kamatera gateway host refused connections and the gateway listener was not reachable on port 8080 from Asterisk. No service, persistent env, live call, business dialog, or default config change was made.
 
+NODE-028 attempted the controlled live smoke retry after the NODE-027 blocker, but closes blocked:
+
+```text
+Kamatera control/listener unavailable -> no NODE-027 helper smoke -> no gateway auth -> no OpenAI Realtime run
+```
+
+An interrupted temporary gateway start partially executed during the node and was immediately cleaned up. Port `8080` was not listening after cleanup, the Asterisk service/env stayed unchanged, and gateway STT remains disabled by default.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -262,14 +270,16 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 54. Preserve NODE-027 blocked-smoke truth: the Kamatera gateway adapter live smoke was not completed because SSH to `45.61.48.199:22` refused connections and port `8080` was unreachable from Asterisk.
 55. Preserve NODE-027 helper boundary: `ai_secretary.stt.gateway_adapter_smoke` is a manual one-off CLI helper only, requires explicit flags for controlled smoke mode, redacts secrets/transcript text, refuses Asterisk-side `OPENAI_API_KEY`, and does not change production runtime behavior.
 56. Preserve NODE-027 runtime result: no Kamatera gateway process was started, no live call ran, no `ai-secretary-ari.service` or Asterisk runtime env change was made, and production gateway STT remains disabled by default.
+57. Preserve NODE-028 blocked-smoke truth: no controlled adapter helper smoke was run, gateway auth was not run, OpenAI Realtime from the gateway was not run, and any interrupted temporary gateway listener was stopped before closeout.
+58. Preserve NODE-028 cleanup result: `ai-secretary-ari.service` remained active in the diagnostic-safe profile, Asterisk runtime env was unchanged, `OPENAI_API_KEY` remained absent on Asterisk, and production gateway STT remains disabled by default.
 
 ## Next Recommended Step
 
 ```text
-NODE-028 / rerun controlled gateway adapter live smoke after gateway SSH recovery
+Restore reliable Kamatera gateway console/SSH control before another live adapter smoke node.
 ```
 
-Restore or document the Kamatera gateway SSH access path, start the gateway temporarily with gateway-only secrets, then run the NODE-027 one-off helper from Asterisk with explicit temporary flags. Keep production gateway STT disabled by default, keep `OPENAI_API_KEY` off the Asterisk server, and stop the gateway listener after the smoke.
+After reliable control is restored, start the gateway temporarily with gateway-only secrets, run the NODE-027 one-off helper from Asterisk exactly once with explicit temporary flags, and stop the gateway listener after the smoke. Keep production gateway STT disabled by default and keep `OPENAI_API_KEY` off the Asterisk server.
 
 ## Node Completion Report Format
 

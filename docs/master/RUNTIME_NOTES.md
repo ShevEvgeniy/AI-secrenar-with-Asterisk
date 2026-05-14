@@ -747,6 +747,35 @@ STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
 STT_GATEWAY_LOG_TRANSCRIPT=false
 ```
 
+## NODE-028 Runtime Notes
+
+- NODE-028 did not complete the controlled live adapter smoke.
+- User-provided evidence during the node showed Kamatera SSH/gateway listener unavailable and Asterisk-to-gateway port `8080` refused.
+- One interrupted temporary gateway-start command partially executed and was cleaned up before closeout.
+- After cleanup, port `8080` was not listening on the gateway host.
+- The NODE-027 helper was not run, so the NODE-025 adapter path was not exercised live.
+- Gateway auth was not run.
+- OpenAI Realtime from the gateway was not run.
+- No transcript was returned or logged.
+- Asterisk remained on the safe diagnostic profile:
+
+```text
+ai-secretary-ari.service=active
+STT_LIVE_OPENAI_DISABLED=true
+STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
+OPENAI_API_KEY=<absent>
+```
+
+- Production gateway STT remains disabled by default:
+
+```text
+STT_GATEWAY_STT_ENABLED=false
+STT_GATEWAY_ADAPTER_ENABLED=false
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
+STT_GATEWAY_LOG_TRANSCRIPT=false
+```
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

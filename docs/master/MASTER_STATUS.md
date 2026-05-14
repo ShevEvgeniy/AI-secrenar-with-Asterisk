@@ -1118,3 +1118,65 @@ Next implementation:
 ```text
 NODE-028 / rerun controlled gateway adapter live smoke after gateway SSH recovery
 ```
+
+## NODE-028 Validation
+
+Result:
+
+```text
+BLOCKED as controlled live smoke retry; cleanup preserved.
+```
+
+Live attempt:
+
+```text
+kamatera_ssh_restored=false
+gateway_started=false
+gateway_reachable_from_asterisk=false
+adapter_enabled_temporarily=false
+adapter_smoke_exercised_node025_path=false
+openai_realtime_from_gateway=not_run
+gateway_auth=not_run
+chunks_sent=not_available
+transcript_present=unknown
+transcript_used_for_dialog=false
+transcript_text_logged=false
+fallback_reason=kamatera_ssh_unavailable_or_gateway_not_listening
+asterisk_openai_key_present_after_smoke=no
+business_dialog_changed=false
+systemd_profile_changed=false
+gateway_process_after_smoke=stopped
+live_call_run=false
+real_secrets_committed=false
+```
+
+Cleanup note:
+
+```text
+An interrupted temporary gateway-start command partially executed during NODE-028.
+The process was stopped before closeout and port 8080 was no longer listening.
+The NODE-027 helper was not run.
+```
+
+Asterisk runtime remained in the diagnostic-safe profile:
+
+```text
+ai-secretary-ari.service=active
+STT_LIVE_OPENAI_DISABLED=true
+STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
+OPENAI_API_KEY=<absent>
+```
+
+Required focused suite:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests/test_gateway_stt_adapter.py tests/test_realtime_measurement.py tests/test_realtime_gateway.py tests/test_dialog_flow.py tests/test_transcription_integrity.py
+111 passed
+```
+
+Next recommendation:
+
+```text
+Restore reliable Kamatera console/SSH control before another controlled live adapter smoke retry.
+```

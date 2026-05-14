@@ -555,3 +555,22 @@ Next implementation node:
 ```text
 NODE-028 / rerun controlled gateway adapter live smoke after gateway SSH recovery
 ```
+
+## Controlled Gateway Adapter Live Smoke Retry Blocked
+
+NODE-028 closes blocked and does not record a successful live adapter smoke.
+
+Accepted decision:
+
+- Do not claim a live adapter smoke unless the NODE-027 helper actually exercises the NODE-025 adapter path.
+- If Kamatera control or gateway listener state is unreliable, close truthfully as blocked and preserve cleanup.
+- An interrupted temporary gateway process must be stopped before closeout if it partially starts.
+- Gateway auth and OpenAI Realtime from the gateway remain `not_run` unless the helper completes a real request.
+- No service restart, env-file edit, live call, business dialog change, or production default enablement is allowed as a workaround.
+- Gateway STT remains disabled by default.
+
+Next recommendation:
+
+```text
+Restore reliable Kamatera console/SSH control, then open a fresh controlled live-smoke retry.
+```
