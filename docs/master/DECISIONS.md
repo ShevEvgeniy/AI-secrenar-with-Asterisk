@@ -495,3 +495,24 @@ Next implementation node:
 ```text
 NODE-025 / controlled-disabled-by-default-gateway-stt-adapter-implementation
 ```
+
+## Controlled Gateway STT Adapter
+
+NODE-025 implements the adapter but does not enable production gateway STT.
+
+Accepted decision:
+
+- The Asterisk-side gateway STT adapter is allowed only at the transcript-source boundary before `apply_turn(...)`.
+- The adapter is disabled by default with `STT_GATEWAY_STT_ENABLED=false` and `STT_GATEWAY_ADAPTER_ENABLED=false`.
+- Dialog-driving transcript use remains separately disabled by default with `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`.
+- Asterisk-side gateway auth uses only `STT_GATEWAY_URL`/`STT_GATEWAY_TOKEN` or the existing `REALTIME_GATEWAY_URL`/`REALTIME_GATEWAY_TOKEN` aliases.
+- The adapter does not require or read `OPENAI_API_KEY` on the Asterisk side.
+- Transcript text is not logged by default; `STT_GATEWAY_LOG_TRANSCRIPT=false`.
+- Missing config, gateway auth failure, timeout, unavailable gateway, malformed response, empty transcript, and low-quality transcript fall back to the existing batch/deterministic path without advancing dialog from the gateway result.
+- Production enablement, live gateway process management, TLS/systemd hardening, and live-call validation remain separate future nodes.
+
+Next implementation node:
+
+```text
+NODE-026 / controlled local adapter smoke / dry-run validation
+```

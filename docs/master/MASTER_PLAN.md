@@ -4,8 +4,8 @@
 
 - Repository root: `C:\Projects\AI-secrenar-with-Asterisk`
 - Source-of-truth branch: `master`
-- Source-of-truth commit: `aaf8433`
-- Source-of-truth commit message: `Record NODE-023 Kamatera gateway live measurement`
+- Source-of-truth commit: `17caca5`
+- Source-of-truth commit message: `Record NODE-024 gateway STT integration boundary`
 - Workflow model: master-driven coordination with focused node branches for implementation.
 
 ## Confirmed Capabilities
@@ -158,6 +158,14 @@ gateway STT adapter -> transcript candidate -> quality/redaction/fallback gates 
 
 The boundary is design-only. Gateway STT remains disabled by default and production dialog remains unchanged.
 
+NODE-025 implements the controlled disabled-by-default gateway STT adapter:
+
+```text
+downloaded WAV artifact -> Asterisk-side gateway adapter -> supported-region gateway URL/token -> redacted transcript candidate -> existing apply_turn(...)
+```
+
+The adapter remains disabled by default, dialog transcript use remains separately disabled by default, and production behavior remains unchanged.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -229,14 +237,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 45. Preserve NODE-024 production integration boundary: gateway-backed STT may connect to business dialog only at the transcript-source boundary before `apply_turn(...)`, only behind disabled-by-default flags, and only after transcript quality/redaction/fallback gates pass.
 46. Preserve NODE-024 secret boundary: `OPENAI_API_KEY` stays gateway-only; Asterisk may use only gateway URL/token from secret runtime config; transcript text is not logged by default.
 47. Preserve NODE-024 failure policy: gateway unavailable, auth failure, timeout, OpenAI success with absent transcript, or low-quality transcript falls back to current deterministic prompt/retry behavior without weakening business contracts.
+48. Preserve NODE-025 implementation boundary: the gateway adapter may run only when explicitly enabled and may drive dialog only when `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true`.
+49. Preserve NODE-025 default safety: `STT_GATEWAY_STT_ENABLED=false`, `STT_GATEWAY_ADAPTER_ENABLED=false`, `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`, and `STT_GATEWAY_LOG_TRANSCRIPT=false`.
+50. Preserve NODE-025 Asterisk secret boundary: no `OPENAI_API_KEY` is needed or read by the adapter; Asterisk uses only gateway URL/token runtime config.
 
 ## Next Recommended Step
 
 ```text
-NODE-025 / controlled-disabled-by-default-gateway-stt-adapter-implementation
+NODE-026 / controlled local adapter smoke / dry-run validation
 ```
 
-Implement only a disabled-by-default gateway STT adapter and focused tests. Keep `STT_GATEWAY_STT_ENABLED=false`, keep dialog transcript use disabled by default, keep `OPENAI_API_KEY` off the Asterisk server, and preserve business dialog isolation until a later explicit enablement node accepts transcript quality and fallback behavior.
+Run only a controlled local/mock gateway dry-run. Keep production gateway STT disabled, keep `OPENAI_API_KEY` off the Asterisk server, and preserve business dialog isolation until a later explicit enablement node accepts transcript quality and fallback behavior.
 
 ## Node Completion Report Format
 

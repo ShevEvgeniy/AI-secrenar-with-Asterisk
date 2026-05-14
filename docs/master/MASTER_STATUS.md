@@ -3,11 +3,11 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `aaf8433`
-- Source-of-truth commit message: `Record NODE-023 Kamatera gateway live measurement`
+- Source-of-truth commit: `17caca5`
+- Source-of-truth commit message: `Record NODE-024 gateway STT integration boundary`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-024-design-production-gateway-stt-integration-boundary`
+- Latest completed node branch: `feat/node-025-controlled-disabled-by-default-gateway-stt-adapter-implementation`
 - Latest completed node commit: pending closeout commit
 
 ## Confirmed Working
@@ -230,6 +230,7 @@ OpenAI Realtime transcription over approved server egress -> batch fallback/base
 - NODE-022 records the supported-region gateway deployment path and one-off runbook, but live smoke remains blocked because no supported-region gateway host, gateway URL, or gateway token was available.
 - NODE-023 deploys the gateway on Kamatera USA / New York 2 and validates a live one-off Asterisk-side gateway measurement: gateway reachable, gateway auth ok, OpenAI Realtime from gateway ok, `chunks_sent=6`, transcript text not logged, and business dialog/systemd profile unchanged.
 - NODE-024 defines the future production gateway STT integration boundary: gateway transcript use may connect only at the transcript-source boundary before `apply_turn(...)`, must be disabled by default, must keep the OpenAI key gateway-only, must not log transcript text by default, and must preserve NODE-016 diagnostic isolation plus all current business contracts.
+- NODE-025 implements the controlled gateway STT adapter at that boundary while keeping production gateway STT and dialog transcript use disabled by default.
 
 ## NODE-004 Live Smoke
 
@@ -956,4 +957,49 @@ Next implementation:
 
 ```text
 NODE-025 / controlled-disabled-by-default-gateway-stt-adapter-implementation
+```
+
+## NODE-025 Validation
+
+Result:
+
+```text
+PASS as disabled-by-default gateway STT adapter implementation.
+```
+
+Implemented:
+
+- `src/ai_secretary/stt/gateway_adapter.py` Asterisk-side gateway adapter using only gateway URL/token.
+- Integration in `ari_app.py` before `apply_turn(...)`, behind `STT_GATEWAY_STT_ENABLED` or `STT_GATEWAY_ADAPTER_ENABLED` plus `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG`.
+- Safe fallback for missing config, auth failure, timeout, unavailable gateway, malformed response, empty transcript, and low-quality transcript.
+- Transcript text redaction by default.
+
+Focused validation:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests/test_gateway_stt_adapter.py tests/test_realtime_measurement.py tests/test_realtime_gateway.py
+22 passed
+
+.\.venv\Scripts\python.exe -m pytest tests/test_dialog_flow.py
+45 passed
+
+.\.venv\Scripts\python.exe -m pytest tests/test_transcription_integrity.py
+38 passed
+```
+
+Preserved:
+
+- Production gateway STT remains disabled.
+- Business dialog is unchanged by default.
+- `ai-secretary-ari.service` was not changed.
+- No live server was modified.
+- Kamatera gateway was not started.
+- Asterisk runtime env was not changed.
+- `OPENAI_API_KEY` is not required on Asterisk.
+- No gateway secret was committed.
+
+Next implementation:
+
+```text
+NODE-026 / controlled local adapter smoke / dry-run validation
 ```

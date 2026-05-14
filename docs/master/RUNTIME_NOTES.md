@@ -628,6 +628,42 @@ STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
 - Transcript text must not be logged by default.
 - Gateway unavailable, auth failure, timeout, OpenAI success with absent transcript, and low-quality transcript must fall back to current deterministic prompt/retry behavior without weakening PHONE, PHONE_CONFIRM, CITY, transfer, callback, after-hours, SAFE_FINISH, or Russian-only caller-facing behavior.
 
+## NODE-025 Runtime Notes
+
+- NODE-025 implements the Asterisk-side gateway STT adapter but leaves it disabled by default.
+- Production gateway STT remains disabled:
+
+```text
+STT_GATEWAY_STT_ENABLED=false
+STT_GATEWAY_ADAPTER_ENABLED=false
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
+STT_GATEWAY_LOG_TRANSCRIPT=false
+```
+
+- Optional adapter config:
+
+```text
+STT_GATEWAY_URL=
+STT_GATEWAY_TOKEN=
+STT_GATEWAY_TIMEOUT_MS=10000
+STT_GATEWAY_MAX_RETRIES=0
+STT_GATEWAY_LANGUAGE=ru
+STT_GATEWAY_MIN_CONFIDENCE=
+```
+
+- Compatibility aliases remain available:
+
+```text
+REALTIME_GATEWAY_URL
+REALTIME_GATEWAY_TOKEN
+```
+
+- The adapter does not require or read `OPENAI_API_KEY` on the Asterisk side.
+- If the adapter is disabled, no gateway network call is attempted.
+- If enabled but config is missing, auth fails, the gateway times out, is unavailable, returns malformed JSON, returns empty transcript, or returns low-quality transcript, the call falls back to the current batch/deterministic path.
+- Transcript text is not logged by default in gateway adapter events or details.
+- NODE-025 did not modify live servers, did not start the Kamatera gateway, did not change `ai-secretary-ari.service`, and did not change the Asterisk runtime environment.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

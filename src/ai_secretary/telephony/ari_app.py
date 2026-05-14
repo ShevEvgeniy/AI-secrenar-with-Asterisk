@@ -25,6 +25,8 @@ from ..stt.live_streaming import (
     live_streaming_stage_allowed,
     start_live_streaming_proof,
 )
+from ..stt.gateway_adapter import config_from_env as gateway_stt_config_from_env
+from ..stt.gateway_adapter import transcribe_via_gateway
 from ..stt.realtime_whisper import RealtimeTranscriptionConfig, RealtimeWhisperAdapter
 from ..stt.whisper_api import WhisperAPIClient
 from ..storage.callbacks import (
@@ -3309,6 +3311,38 @@ async def _transcribe_audio_artifact_experimental(
         )
         return batch_text, live_details
 
+    gateway_config = gateway_stt_config_from_env()
+    if gateway_config.enabled:
+        gateway_start = time.perf_counter()
+
+        def log_gateway_metric(action: str, status: str, reason: str | None, details: dict[str, Any]) -> None:
+            session.log_event(action=action, status=status, reason=reason, details=details)
+
+        gateway_result = await transcribe_via_gateway(
+            artifact.path,
+            config=gateway_config,
+            context=artifact.details(),
+            log_event=log_gateway_metric,
+        )
+        gateway_latency_ms = int((time.perf_counter() - gateway_start) * 1000)
+        gateway_details = {
+            **artifact.details(),
+            **gateway_result.details,
+            "stt_backend": "gateway_stt",
+            "stt_gateway_latency_ms": gateway_latency_ms,
+            "stt_gateway_transcript_accepted": gateway_result.accepted,
+            "stt_gateway_fallback_reason": None if gateway_result.accepted else gateway_result.reason,
+        }
+        if gateway_result.accepted and gateway_result.text.strip():
+            return gateway_result.text, gateway_details
+        return await _fallback_to_batch_gateway_stt(
+            settings,
+            session,
+            artifact,
+            gateway_details,
+            gateway_result.reason,
+        )
+
     if not _streaming_stt_enabled():
         baseline_start = time.perf_counter()
         text, details = await asyncio.to_thread(_transcribe_audio_artifact, settings, artifact)
@@ -3376,6 +3410,26 @@ async def _fallback_to_batch_stt(
         "stt_streaming_enabled": True,
         "stt_stream_fallback_to_batch": True,
         "stt_stream_error_reason": reason,
+        "stt_batch_baseline_latency_ms": batch_latency_ms,
+    }
+
+
+async def _fallback_to_batch_gateway_stt(
+    settings: Settings,
+    session: CallSession,
+    artifact: TranscriptionArtifact,
+    details: dict[str, Any],
+    reason: str,
+) -> tuple[str, dict[str, Any]]:
+    session.log_event(action="gateway_stt_fallback_to_batch", status="handled", reason=reason, details=details)
+    baseline_start = time.perf_counter()
+    text, batch_details = await asyncio.to_thread(_transcribe_audio_artifact, settings, artifact)
+    batch_latency_ms = int((time.perf_counter() - baseline_start) * 1000)
+    return text, {
+        **batch_details,
+        **details,
+        "stt_gateway_fallback_to_batch": True,
+        "stt_gateway_fallback_reason": reason,
         "stt_batch_baseline_latency_ms": batch_latency_ms,
     }
 
