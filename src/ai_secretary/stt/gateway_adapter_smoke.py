@@ -76,8 +76,9 @@ async def run_smoke(audio_path: Path) -> dict[str, Any]:
     result = await transcribe_via_gateway(
         audio_path,
         config=config,
-        context={"smoke": "node027_gateway_adapter"},
+        context={"smoke": "gateway_adapter"},
         log_event=log_event,
+        allow_request_without_dialog_use=True,
     )
     report = build_report(
         result.details,
@@ -117,8 +118,8 @@ def _missing_required_flags(config: Any) -> list[str]:
     missing: list[str] = []
     if not config.enabled:
         missing.append("STT_GATEWAY_STT_ENABLED or STT_GATEWAY_ADAPTER_ENABLED")
-    if not config.use_transcript_for_dialog:
-        missing.append("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true")
+    if os.getenv("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG") is None:
+        missing.append("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG explicit true/false")
     if not config.gateway_url:
         missing.append("STT_GATEWAY_URL")
     if not config.gateway_token:

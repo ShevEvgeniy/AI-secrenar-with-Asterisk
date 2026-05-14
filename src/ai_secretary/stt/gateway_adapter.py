@@ -68,6 +68,7 @@ async def transcribe_via_gateway(
     post: GatewayPost | None = None,
     log_event: Callable[[str, str, str | None, dict[str, Any]], None] | None = None,
     clock: Callable[[], float] = time.perf_counter,
+    allow_request_without_dialog_use: bool = False,
 ) -> GatewaySttAdapterResult:
     config = config or config_from_env()
     base_details = {
@@ -83,7 +84,7 @@ async def transcribe_via_gateway(
     }
     if not config.enabled:
         return _result("", False, False, "gateway_stt_disabled", base_details)
-    if not config.use_transcript_for_dialog:
+    if not config.use_transcript_for_dialog and not allow_request_without_dialog_use:
         return _fallback("gateway_stt_dialog_use_disabled", base_details, log_event=log_event)
     if not config.gateway_url:
         return _fallback("missing_gateway_url", base_details, log_event=log_event)
@@ -157,6 +158,8 @@ async def transcribe_via_gateway(
         _log(log_event, "gateway_stt_transcript_candidate", "ok", None, candidate_details)
 
         reject_reason = _transcript_reject_reason(transcript, payload, config)
+        if not config.use_transcript_for_dialog:
+            reject_reason = "gateway_stt_dialog_use_disabled"
         if reject_reason:
             rejected_details = {**candidate_details, "fallback_reason": reject_reason}
             _log(log_event, "gateway_stt_transcript_rejected", "handled", reject_reason, rejected_details)

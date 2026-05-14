@@ -198,6 +198,14 @@ silent synthetic WAV -> audio_quality_classification=near_silent -> empty_transc
 
 The diagnostic was local-only. Gateway responses now expose redacted audio quality metrics and Realtime event-type counts for future runs. No live diagnostic was run and production gateway STT remains disabled by default.
 
+NODE-030 completes the controlled speech WAV gateway adapter smoke:
+
+```text
+existing safe Russian system prompt WAV -> temporary 24 kHz mono PCM -> NODE-025 adapter smoke helper -> Kamatera gateway -> OpenAI Realtime -> transcript-bearing events observed
+```
+
+The speech payload was classified as `valid_speech_candidate`, gateway auth and OpenAI Realtime worked, `chunks_sent=24`, transcript events were observed, and `transcript_present=true`. Transcript text was not logged, transcript use for dialog stayed disabled, the business dialog was unchanged, the gateway was stopped after the smoke, and Asterisk still had no `OPENAI_API_KEY`.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -282,11 +290,14 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 58. Preserve NODE-028 cleanup result: the temporary gateway listener was stopped, `ai-secretary-ari.service` remained active in the diagnostic-safe profile, Asterisk runtime env was unchanged, `OPENAI_API_KEY` remained absent on Asterisk, and production gateway STT remains disabled by default.
 59. Preserve NODE-029 diagnostic result: NODE-028 used a silent synthetic WAV, so `empty_transcript` is most likely caused by near-silent/non-speech audio content.
 60. Preserve NODE-029 instrumentation: gateway/measurement diagnostics include audio duration, format, chunk stats, RMS, peak, non-silent ratio, quality classification, Realtime event-type counts, transcript-event flags, commit-sent flag, timeout flag, and transcript text redaction by default.
+61. Preserve NODE-030 live-smoke result: valid non-sensitive Russian speech produced transcript-bearing Realtime events and `transcript_present=true`; the prior NODE-028 empty transcript is closed as a silent/non-speech audio artifact.
+62. Preserve NODE-030 helper boundary: only the manual smoke helper may request a gateway measurement while `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`; normal business dialog still makes no gateway request and no transcript may drive dialog unless dialog use is explicitly enabled.
+63. Preserve NODE-030 cleanup result: the temporary Kamatera gateway was stopped, port `8080` was no longer listening, Asterisk runtime env and `ai-secretary-ari.service` were unchanged, and `OPENAI_API_KEY` remained absent on Asterisk.
 
 ## Next Recommended Step
 
 ```text
-Run a controlled non-sensitive speech WAV diagnostic through the same gateway path, or productionize the gateway only in a separate scoped node.
+Productionize the gateway only in a separate scoped node if the project is ready.
 ```
 
 The next node should not enable gateway STT by default. A productionization node should add TLS, systemd, firewall/runbook hardening, token rotation handling, and normal deployment of the adapter/helper source before any persistent gateway use.

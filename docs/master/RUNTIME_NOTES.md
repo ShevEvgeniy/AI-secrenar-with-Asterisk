@@ -834,6 +834,86 @@ STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
 STT_GATEWAY_LOG_TRANSCRIPT=false
 ```
 
+## NODE-030 Runtime Notes
+
+- NODE-030 completed exactly one controlled live adapter smoke with non-sensitive Russian speech audio.
+- The speech source was an existing generated system prompt WAV, converted only as a temporary 24 kHz mono 16-bit PCM file for the smoke:
+
+```text
+speech_wav_source=existing_safe_fixture
+real_caller_audio_used=false
+audio_payload_valid=true
+audio_duration_ms=4662
+audio_sample_rate_hz=24000
+audio_channels=1
+audio_sample_width_or_codec=2 / pcm
+audio_total_bytes=223878
+audio_chunk_count=24
+audio_rms=2666.07
+audio_peak=29521
+audio_non_silent_ratio=0.5535
+audio_quality_classification=valid_speech_candidate
+```
+
+- The one-off helper used explicit temporary env only:
+
+```text
+STT_GATEWAY_STT_ENABLED=true
+STT_GATEWAY_ADAPTER_ENABLED=true
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
+STT_GATEWAY_URL=http://45.61.48.199:8080/v1/stt/realtime-measurement
+STT_GATEWAY_TOKEN=<redacted runtime secret>
+STT_GATEWAY_TIMEOUT_MS=10000
+STT_GATEWAY_MAX_RETRIES=0
+STT_GATEWAY_LOG_TRANSCRIPT=false
+STT_GATEWAY_LANGUAGE=ru
+OPENAI_API_KEY=<absent on Asterisk>
+```
+
+- Live smoke result:
+
+```text
+gateway_started=true
+gateway_reachable_from_asterisk=true
+adapter_smoke_exercised_node025_path=true
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+chunks_sent=24
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_present=true
+transcript_text_logged=false
+transcript_used_for_dialog=false
+fallback_reason=gateway_stt_dialog_use_disabled
+error_status=200
+```
+
+- OpenAI event diagnostics:
+
+```text
+session.created=1
+session.updated=1
+input_audio_buffer.committed=1
+conversation.item.input_audio_transcription.delta=22
+conversation.item.input_audio_transcription.completed=1
+conversation.item.added=1
+conversation.item.done=1
+```
+
+- NODE-030 confirms the NODE-028 empty transcript was caused by silent/non-speech audio, not gateway auth, OpenAI transport, or response parsing.
+- The temporary gateway process was stopped after the smoke and port `8080` was no longer listening.
+- Temporary Asterisk token/source/audio files were removed after the smoke.
+- `ai-secretary-ari.service` remained active in the safe diagnostic profile.
+- Asterisk process env still had no `OPENAI_API_KEY`.
+- Production gateway STT remains disabled by default:
+
+```text
+STT_GATEWAY_STT_ENABLED=false
+STT_GATEWAY_ADAPTER_ENABLED=false
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
+STT_GATEWAY_LOG_TRANSCRIPT=false
+```
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

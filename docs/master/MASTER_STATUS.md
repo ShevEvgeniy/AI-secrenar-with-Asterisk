@@ -1219,3 +1219,94 @@ Next recommendation:
 ```text
 Run one controlled non-sensitive speech WAV diagnostic through the same gateway path before investigating deeper Realtime protocol changes.
 ```
+
+## NODE-030 Validation
+
+Result:
+
+```text
+PASS as controlled live Russian speech WAV gateway adapter smoke.
+```
+
+Implemented:
+
+- Manual smoke helper can perform a measurement request while `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`.
+- Normal ARI business behavior remains unchanged: dialog-use disabled still prevents gateway network use in the business path.
+- Added focused fake-gateway coverage proving transcript presence can be measured without logging text or using it for dialog.
+
+Live adapter smoke:
+
+```text
+speech_wav_source=existing_safe_fixture
+real_caller_audio_used=false
+audio_payload_valid=true
+audio_duration_ms=4662
+audio_sample_rate_hz=24000
+audio_channels=1
+audio_sample_width_or_codec=2 / pcm
+audio_total_bytes=223878
+audio_chunk_count=24
+audio_rms=2666.07
+audio_peak=29521
+audio_non_silent_ratio=0.5535
+audio_quality_classification=valid_speech_candidate
+gateway_started=true
+gateway_reachable_from_asterisk=true
+adapter_smoke_exercised_node025_path=true
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+chunks_sent=24
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_present=true
+transcript_text_logged=false
+transcript_used_for_dialog=false
+fallback_reason=gateway_stt_dialog_use_disabled
+error_status=200
+```
+
+OpenAI event diagnostics:
+
+```text
+session.created=1
+session.updated=1
+input_audio_buffer.committed=1
+conversation.item.input_audio_transcription.delta=22
+conversation.item.input_audio_transcription.completed=1
+conversation.item.added=1
+conversation.item.done=1
+```
+
+Cleanup:
+
+```text
+gateway_process_after_smoke=stopped
+port_8080_after_smoke=not_listening
+asterisk_to_gateway_after_cleanup=connection_refused
+temporary_token_file_after_smoke=absent
+ai-secretary-ari.service=active
+asterisk_openai_key_present_after_smoke=no
+business_dialog_changed=false
+systemd_profile_changed=false
+live_call_run=false
+```
+
+Interpretation:
+
+```text
+NODE-028 empty_transcript was caused by silent/non-speech audio.
+Valid speech-bearing Russian WAVs produce transcript-bearing Realtime events through the Kamatera gateway.
+```
+
+Focused helper validation:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests/test_gateway_stt_adapter.py
+13 passed
+```
+
+Next recommendation:
+
+```text
+Productionize the gateway only in a separate scoped node if the project is ready.
+```

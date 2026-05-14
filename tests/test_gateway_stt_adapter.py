@@ -329,6 +329,43 @@ def test_business_path_gateway_flag_enabled_but_dialog_use_disabled_falls_back_t
     assert not any(event["action"] == "gateway_stt_request_started" for event in events)
 
 
+def test_smoke_can_request_gateway_without_using_transcript_for_dialog(tmp_path: Path, monkeypatch, capsys) -> None:
+    audio_path = _write_audio(tmp_path / "audio.wav")
+    transcript = "secret smoke transcript"
+
+    with _FakeGatewayServer(
+        {
+            "ok": True,
+            "openai_realtime_connection_ok": True,
+            "chunks_sent": 6,
+            "transcript_text_present": True,
+            "transcript_text": transcript,
+        }
+    ) as gateway:
+        monkeypatch.setenv("STT_GATEWAY_STT_ENABLED", "true")
+        monkeypatch.setenv("STT_GATEWAY_ADAPTER_ENABLED", "true")
+        monkeypatch.setenv("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG", "false")
+        monkeypatch.setenv("STT_GATEWAY_URL", gateway.url)
+        monkeypatch.setenv("STT_GATEWAY_TOKEN", "fake-token")
+        monkeypatch.setenv("STT_GATEWAY_TIMEOUT_MS", "1000")
+        monkeypatch.setenv("STT_GATEWAY_LOG_TRANSCRIPT", "false")
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        code = gateway_adapter_smoke_main(["--audio", str(audio_path), "--require-explicit-flags"])
+
+    assert code == 0
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+    serialized = json.dumps(payload, ensure_ascii=False)
+    assert payload["adapter_smoke_exercised_node025_path"] is True
+    assert payload["transcript_present"] is True
+    assert payload["transcript_used_for_dialog"] is False
+    assert payload["transcript_text_logged"] is False
+    assert payload["fallback_reason"] == "gateway_stt_dialog_use_disabled"
+    assert len(gateway.requests) == 1
+    assert transcript not in serialized
+
+
 def test_business_path_explicit_local_gateway_transcript_can_drive_boundary(
     monkeypatch,
     tmp_path: Path,

@@ -594,3 +594,27 @@ Next recommendation:
 ```text
 Run a controlled non-sensitive speech WAV diagnostic with STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false and STT_GATEWAY_LOG_TRANSCRIPT=false.
 ```
+
+## Controlled Speech WAV Smoke
+
+NODE-030 closes the controlled Russian speech WAV gateway transcript smoke.
+
+The NODE-028 empty transcript is closed as a silent/non-speech WAV artifact. Valid non-sensitive Russian speech produced transcript-bearing OpenAI Realtime events through the Kamatera gateway.
+
+Evidence:
+
+- `audio_quality_classification=valid_speech_candidate`
+- `gateway_auth=ok`
+- `openai_realtime_from_gateway=ok`
+- `chunks_sent=24`
+- `transcript_event_seen=true`
+- `transcript_present=true`
+- `transcript_text_logged=false`
+- `transcript_used_for_dialog=false`
+
+Operational boundary:
+
+- The manual smoke helper may send one measurement request with `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`.
+- In that helper mode, any transcript candidate is rejected with `fallback_reason=gateway_stt_dialog_use_disabled`.
+- Normal business dialog remains unchanged: with `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`, the ARI business path does not make a gateway request and falls back to the existing batch/deterministic path.
+- Gateway STT remains disabled by default and must not be productionized without a separate node.
