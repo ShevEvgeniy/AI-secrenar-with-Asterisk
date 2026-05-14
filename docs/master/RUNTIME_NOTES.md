@@ -664,6 +664,32 @@ REALTIME_GATEWAY_TOKEN
 - Transcript text is not logged by default in gateway adapter events or details.
 - NODE-025 did not modify live servers, did not start the Kamatera gateway, did not change `ai-secretary-ari.service`, and did not change the Asterisk runtime environment.
 
+## NODE-026 Runtime Notes
+
+- NODE-026 adds local dry-run validation only; it changes no production runtime behavior.
+- Production gateway STT remains disabled by default:
+
+```text
+STT_GATEWAY_STT_ENABLED=false
+STT_GATEWAY_ADAPTER_ENABLED=false
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
+STT_GATEWAY_LOG_TRANSCRIPT=false
+```
+
+- The dry-run method is:
+
+```text
+pytest fake/mocked gateway plus localhost-only fake HTTP gateway
+```
+
+- The fake HTTP gateway binds only to `127.0.0.1` on an ephemeral port and uses a fake bearer token.
+- The local dry-run confirms that `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false` prevents gateway network use and falls back to batch at the ARI boundary.
+- The local dry-run confirms that explicit fake transcript use can drive the transcript-source boundary only when both gateway and dialog-use flags are enabled in local test config.
+- Transcript text is not logged by default in adapter or ARI events.
+- `OPENAI_API_KEY` is not required for local dry-run validation.
+- No real gateway token is required for local dry-run validation.
+- NODE-026 did not modify live servers, did not SSH into Kamatera or Asterisk, did not start the Kamatera gateway, did not run live calls, did not change `ai-secretary-ari.service`, and did not change the Asterisk runtime environment.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

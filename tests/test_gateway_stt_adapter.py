@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import threading
 
 from ai_secretary.stt.gateway_adapter import GatewaySttAdapterConfig, config_from_env, transcribe_via_gateway
+from ai_secretary.stt.realtime_gateway import GATEWAY_ENDPOINT
 from ai_secretary.telephony import ari_app
 from ai_secretary.telephony.call_session import CallSession, DialogStage
 
@@ -45,6 +48,64 @@ def _settings(tmp_path: Path) -> object:
 
 def _events(session: CallSession) -> list[dict]:
     return [json.loads(line) for line in session.events_path.read_text(encoding="utf-8").splitlines()]
+
+
+class _FakeGatewayServer:
+    def __init__(self, response: dict, *, status_code: int = 200, token: str = "fake-token") -> None:
+        self.response = response
+        self.status_code = status_code
+        self.token = token
+        self.requests: list[dict] = []
+        self._server: ThreadingHTTPServer | None = None
+        self._thread: threading.Thread | None = None
+
+    @property
+    def url(self) -> str:
+        assert self._server is not None
+        host, port = self._server.server_address
+        return f"http://{host}:{port}"
+
+    def __enter__(self) -> "_FakeGatewayServer":
+        owner = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self) -> None:
+                length = int(self.headers.get("Content-Length", "0"))
+                body = self.rfile.read(length)
+                owner.requests.append(
+                    {
+                        "path": self.path,
+                        "authorization": self.headers.get("Authorization", ""),
+                        "content_type": self.headers.get("Content-Type", ""),
+                        "body": body,
+                    }
+                )
+                if self.headers.get("Authorization") != f"Bearer {owner.token}":
+                    self.send_response(403)
+                    payload = {"ok": False, "error_type": "gateway_auth_failed"}
+                else:
+                    self.send_response(owner.status_code)
+                    payload = owner.response
+                data = json.dumps(payload).encode("utf-8")
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def log_message(self, _format: str, *_args: object) -> None:
+                return
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        assert self._server is not None
+        assert self._thread is not None
+        self._server.shutdown()
+        self._server.server_close()
+        self._thread.join(timeout=5)
 
 
 def test_config_is_disabled_by_default() -> None:
@@ -153,6 +214,49 @@ def test_gateway_failures_fall_back_safely(tmp_path: Path) -> None:
         assert result.text == ""
 
 
+def test_local_fake_gateway_http_dry_run_accepts_without_real_secrets(tmp_path: Path, monkeypatch) -> None:
+    audio_path = _write_audio(tmp_path / "audio.wav")
+    transcript = "local fake transcript"
+    lines: list[dict] = []
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    with _FakeGatewayServer({"ok": True, "transcript_text_present": True, "transcript_text": transcript}) as gateway:
+        config = config_from_env(
+            {
+                "STT_GATEWAY_STT_ENABLED": "true",
+                "STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG": "true",
+                "STT_GATEWAY_URL": gateway.url,
+                "STT_GATEWAY_TOKEN": "fake-token",
+                "STT_GATEWAY_TIMEOUT_MS": "1000",
+                "STT_GATEWAY_LOG_TRANSCRIPT": "false",
+            }
+        )
+
+        result = asyncio.run(
+            transcribe_via_gateway(
+                audio_path,
+                config=config,
+                context={"call_id": "local-dry-run"},
+                log_event=lambda action, status, reason, details: lines.append(
+                    {"action": action, "status": status, "reason": reason, "details": details}
+                ),
+            )
+        )
+
+    serialized_logs = json.dumps(lines, ensure_ascii=False)
+    assert result.accepted is True
+    assert result.attempted is True
+    assert result.text == transcript
+    assert result.details["transcript_text_present"] is True
+    assert result.details["transcript_text_logged"] is False
+    assert result.details["redaction_applied"] is True
+    assert transcript not in serialized_logs
+    assert len(gateway.requests) == 1
+    assert gateway.requests[0]["path"].startswith(GATEWAY_ENDPOINT)
+    assert gateway.requests[0]["authorization"] == "Bearer fake-token"
+    assert gateway.requests[0]["body"] == b"test-audio"
+
+
 def test_transcript_text_not_logged_by_default(tmp_path: Path) -> None:
     audio_path = _write_audio(tmp_path / "audio.wav")
     lines: list[dict] = []
@@ -187,6 +291,80 @@ def test_transcript_text_not_logged_by_default(tmp_path: Path) -> None:
     assert result.text == "секретный текст"
     assert "секретный текст" not in serialized_logs
     assert result.details["transcript_text_logged"] is False
+
+
+def test_business_path_gateway_flag_enabled_but_dialog_use_disabled_falls_back_to_batch(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    audio_path = _write_audio(tmp_path / "turn_name.wav")
+    session = CallSession(
+        call_id="call-dialog-use-disabled",
+        channel_id="ch-dialog-use-disabled",
+        artifact_dir=tmp_path / "artifacts",
+    )
+    monkeypatch.setenv("STT_GATEWAY_STT_ENABLED", "true")
+    monkeypatch.setenv("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG", "false")
+    monkeypatch.setenv("STT_GATEWAY_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("STT_GATEWAY_TOKEN", "fake-token")
+    monkeypatch.setenv("TELEPHONY_STT_BACKEND", "fixture")
+    monkeypatch.setenv("TELEPHONY_STT_FIXTURE_NAME", "batch text")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    text, details = asyncio.run(
+        ari_app._transcribe_audio_artifact_experimental(
+            _settings(tmp_path),
+            session,
+            _artifact(audio_path),
+        )
+    )
+
+    events = _events(session)
+    assert text == "batch text"
+    assert details["stt_gateway_fallback_to_batch"] is True
+    assert details["stt_gateway_fallback_reason"] == "gateway_stt_dialog_use_disabled"
+    assert any(event["action"] == "gateway_stt_fallback_to_batch" for event in events)
+    assert not any(event["action"] == "gateway_stt_request_started" for event in events)
+
+
+def test_business_path_explicit_local_gateway_transcript_can_drive_boundary(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    audio_path = _write_audio(tmp_path / "turn_name.wav")
+    session = CallSession(
+        call_id="call-local-gateway",
+        channel_id="ch-local-gateway",
+        artifact_dir=tmp_path / "artifacts",
+    )
+    transcript = "explicit fake gateway transcript"
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    with _FakeGatewayServer({"ok": True, "transcript_text_present": True, "transcript_text": transcript}) as gateway:
+        monkeypatch.setenv("STT_GATEWAY_STT_ENABLED", "true")
+        monkeypatch.setenv("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG", "true")
+        monkeypatch.setenv("STT_GATEWAY_URL", gateway.url)
+        monkeypatch.setenv("STT_GATEWAY_TOKEN", "fake-token")
+        monkeypatch.setenv("STT_GATEWAY_TIMEOUT_MS", "1000")
+        monkeypatch.setenv("STT_GATEWAY_LOG_TRANSCRIPT", "false")
+        monkeypatch.setenv("TELEPHONY_STT_BACKEND", "fixture")
+        monkeypatch.setenv("TELEPHONY_STT_FIXTURE_NAME", "batch fallback text")
+
+        text, details = asyncio.run(
+            ari_app._transcribe_audio_artifact_experimental(
+                _settings(tmp_path),
+                session,
+                _artifact(audio_path),
+            )
+        )
+
+    serialized_events = json.dumps(_events(session), ensure_ascii=False)
+    assert text == transcript
+    assert details["stt_backend"] == "gateway_stt"
+    assert details["stt_gateway_transcript_accepted"] is True
+    assert "stt_gateway_fallback_to_batch" not in details
+    assert transcript not in serialized_events
+    assert len(gateway.requests) == 1
 
 
 def test_business_transcription_path_keeps_gateway_disabled_by_default(monkeypatch, tmp_path: Path) -> None:

@@ -516,3 +516,23 @@ Next implementation node:
 ```text
 NODE-026 / controlled local adapter smoke / dry-run validation
 ```
+
+## Controlled Local Gateway Adapter Dry-Run
+
+NODE-026 validates the NODE-025 adapter locally and does not enable production gateway STT.
+
+Accepted decision:
+
+- Local validation may use pytest mocks and a localhost-only fake HTTP gateway with fake tokens and fake transcripts.
+- Disabled default flags must keep the adapter inert and must not attempt a gateway network request.
+- `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false` keeps gateway transcripts from driving the business dialog and falls back to the existing batch/deterministic path.
+- Explicit local transcript use is allowed only when both gateway adapter and dialog-use flags are set in test/local config.
+- Adapter events and ARI events must not log transcript text by default.
+- `OPENAI_API_KEY` is not required for the dry-run and remains outside the Asterisk-side adapter boundary.
+- Real gateway tokens, Kamatera, OpenAI, live Asterisk, live calls, SSH, service changes, and Asterisk runtime env changes remain out of scope for local dry-run validation.
+
+Next implementation node:
+
+```text
+NODE-027 / controlled gateway adapter live smoke with explicit temporary flags
+```

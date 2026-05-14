@@ -3,11 +3,11 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `17caca5`
-- Source-of-truth commit message: `Record NODE-024 gateway STT integration boundary`
+- Source-of-truth commit: `59bca83`
+- Source-of-truth commit message: `Implement NODE-025 gateway STT adapter`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-025-controlled-disabled-by-default-gateway-stt-adapter-implementation`
+- Latest completed node branch: `feat/node-026-controlled-local-adapter-smoke-dry-run-validation`
 - Latest completed node commit: pending closeout commit
 
 ## Confirmed Working
@@ -231,6 +231,7 @@ OpenAI Realtime transcription over approved server egress -> batch fallback/base
 - NODE-023 deploys the gateway on Kamatera USA / New York 2 and validates a live one-off Asterisk-side gateway measurement: gateway reachable, gateway auth ok, OpenAI Realtime from gateway ok, `chunks_sent=6`, transcript text not logged, and business dialog/systemd profile unchanged.
 - NODE-024 defines the future production gateway STT integration boundary: gateway transcript use may connect only at the transcript-source boundary before `apply_turn(...)`, must be disabled by default, must keep the OpenAI key gateway-only, must not log transcript text by default, and must preserve NODE-016 diagnostic isolation plus all current business contracts.
 - NODE-025 implements the controlled gateway STT adapter at that boundary while keeping production gateway STT and dialog transcript use disabled by default.
+- NODE-026 validates the NODE-025 adapter through a local-only dry-run with mocks and a localhost fake gateway, using fake secrets only.
 
 ## NODE-004 Live Smoke
 
@@ -1002,4 +1003,51 @@ Next implementation:
 
 ```text
 NODE-026 / controlled local adapter smoke / dry-run validation
+```
+
+## NODE-026 Validation
+
+Result:
+
+```text
+PASS as controlled local adapter smoke / dry-run validation.
+```
+
+Dry-run method:
+
+```text
+pytest fake/mocked gateway plus localhost-only fake HTTP gateway
+```
+
+Validated:
+
+- Gateway STT remains disabled by default.
+- Disabled flags make no gateway call.
+- `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false` prevents gateway network use and falls back to batch at the ARI boundary.
+- Explicit local dry-run config reads fake gateway URL/token from env.
+- Local fake gateway auth success can produce `transcript_text_present=true`.
+- Explicit local transcript use can drive the transcript-source boundary only when both gateway and dialog-use flags are enabled.
+- Empty transcript, malformed response, timeout, unavailable gateway, and auth failure fall back safely.
+- Transcript text is not logged by default.
+- No `OPENAI_API_KEY` or real gateway token is required.
+- No live servers were modified, Kamatera gateway was not started, and no live calls were run.
+
+Focused NODE-026 smoke:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests/test_gateway_stt_adapter.py
+9 passed
+```
+
+Required focused suite:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests/test_gateway_stt_adapter.py tests/test_realtime_measurement.py tests/test_realtime_gateway.py tests/test_dialog_flow.py tests/test_transcription_integrity.py
+108 passed
+```
+
+Next implementation:
+
+```text
+NODE-027 / controlled gateway adapter live smoke with explicit temporary flags
 ```

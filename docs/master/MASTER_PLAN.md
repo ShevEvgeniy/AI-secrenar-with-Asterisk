@@ -4,8 +4,8 @@
 
 - Repository root: `C:\Projects\AI-secrenar-with-Asterisk`
 - Source-of-truth branch: `master`
-- Source-of-truth commit: `17caca5`
-- Source-of-truth commit message: `Record NODE-024 gateway STT integration boundary`
+- Source-of-truth commit: `59bca83`
+- Source-of-truth commit message: `Implement NODE-025 gateway STT adapter`
 - Workflow model: master-driven coordination with focused node branches for implementation.
 
 ## Confirmed Capabilities
@@ -166,6 +166,14 @@ downloaded WAV artifact -> Asterisk-side gateway adapter -> supported-region gat
 
 The adapter remains disabled by default, dialog transcript use remains separately disabled by default, and production behavior remains unchanged.
 
+NODE-026 validates the controlled adapter locally without live infrastructure:
+
+```text
+downloaded WAV artifact -> local fake/mocked gateway dry-run -> redacted transcript candidate/fallback -> ARI transcript-source boundary
+```
+
+The dry-run uses pytest mocks and a localhost fake HTTP gateway with fake secrets only. Production gateway STT remains disabled by default and production behavior remains unchanged.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -240,14 +248,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 48. Preserve NODE-025 implementation boundary: the gateway adapter may run only when explicitly enabled and may drive dialog only when `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true`.
 49. Preserve NODE-025 default safety: `STT_GATEWAY_STT_ENABLED=false`, `STT_GATEWAY_ADAPTER_ENABLED=false`, `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`, and `STT_GATEWAY_LOG_TRANSCRIPT=false`.
 50. Preserve NODE-025 Asterisk secret boundary: no `OPENAI_API_KEY` is needed or read by the adapter; Asterisk uses only gateway URL/token runtime config.
+51. Preserve NODE-026 local dry-run evidence: adapter validation may use mocks or a localhost-only fake HTTP gateway with fake tokens/transcripts, but must not require live Kamatera, OpenAI, Asterisk, live calls, real gateway tokens, or `OPENAI_API_KEY`.
+52. Preserve NODE-026 dialog boundary: `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false` keeps gateway transcripts from affecting `apply_turn(...)`; explicit transcript use remains non-default and must be validated only under local/test config until a later live-smoke node.
+53. Preserve NODE-026 redaction evidence: transcript text is not logged by default in adapter or ARI events.
 
 ## Next Recommended Step
 
 ```text
-NODE-026 / controlled local adapter smoke / dry-run validation
+NODE-027 / controlled gateway adapter live smoke with explicit temporary flags
 ```
 
-Run only a controlled local/mock gateway dry-run. Keep production gateway STT disabled, keep `OPENAI_API_KEY` off the Asterisk server, and preserve business dialog isolation until a later explicit enablement node accepts transcript quality and fallback behavior.
+Run only a controlled live smoke if explicitly scoped with temporary flags and a prepared supported-region gateway. Keep production gateway STT disabled by default, keep `OPENAI_API_KEY` off the Asterisk server, and preserve business dialog isolation until live evidence accepts transcript quality and fallback behavior.
 
 ## Node Completion Report Format
 
