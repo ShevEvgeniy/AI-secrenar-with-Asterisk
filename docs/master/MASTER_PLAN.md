@@ -4,8 +4,8 @@
 
 - Repository root: `C:\Projects\AI-secrenar-with-Asterisk`
 - Source-of-truth branch: `master`
-- Source-of-truth commit: `f91e713`
-- Source-of-truth commit message: `NODE-021 prepare supported-region gateway measurement`
+- Source-of-truth commit: `aaf8433`
+- Source-of-truth commit message: `Record NODE-023 Kamatera gateway live measurement`
 - Workflow model: master-driven coordination with focused node branches for implementation.
 
 ## Confirmed Capabilities
@@ -150,6 +150,14 @@ NODE-023 deploys the gateway on Kamatera USA / New York 2 and runs the live one-
 Asterisk server -> Kamatera HTTP gateway on 45.61.48.199:8080 -> OpenAI Realtime -> 200 OK, chunks_sent=6, transcript_text_logged=false
 ```
 
+NODE-024 defines the production integration boundary for future gateway-backed STT in business dialog:
+
+```text
+gateway STT adapter -> transcript candidate -> quality/redaction/fallback gates -> existing apply_turn(...)
+```
+
+The boundary is design-only. Gateway STT remains disabled by default and production dialog remains unchanged.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -218,14 +226,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 42. Preserve NODE-022 runtime boundary: no OpenAI key on the Asterisk server, no business dialog integration, and no `ai-secretary-ari.service` diagnostic profile change.
 43. Preserve NODE-023 live-smoke result: Kamatera USA gateway reachable, gateway auth ok, OpenAI Realtime from gateway ok, `chunks_sent=6`, `transcript_present=false`, and transcript text not logged.
 44. Preserve NODE-023 operational conclusion: the manual HTTP gateway process was stopped after smoke; code and host-only secrets remain on the gateway, but no gateway systemd service was installed.
+45. Preserve NODE-024 production integration boundary: gateway-backed STT may connect to business dialog only at the transcript-source boundary before `apply_turn(...)`, only behind disabled-by-default flags, and only after transcript quality/redaction/fallback gates pass.
+46. Preserve NODE-024 secret boundary: `OPENAI_API_KEY` stays gateway-only; Asterisk may use only gateway URL/token from secret runtime config; transcript text is not logged by default.
+47. Preserve NODE-024 failure policy: gateway unavailable, auth failure, timeout, OpenAI success with absent transcript, or low-quality transcript falls back to current deterministic prompt/retry behavior without weakening business contracts.
 
 ## Next Recommended Step
 
 ```text
-Productionize supported-region gateway or adopt live STT in a separate scoped node
+NODE-025 / controlled-disabled-by-default-gateway-stt-adapter-implementation
 ```
 
-If gateway STT should continue beyond measurement, add TLS, firewall allowlisting, systemd, token rotation/runbook, and feature-flagged dialog integration in a new node. Keep `STT_LIVE_STREAMING_USE_LIVE_TRANSCRIPT=false` by default, keep the Asterisk server in the NODE-016/NODE-018 diagnostic profile, and preserve business dialog isolation until transcript quality and fallback behavior are explicitly accepted.
+Implement only a disabled-by-default gateway STT adapter and focused tests. Keep `STT_GATEWAY_STT_ENABLED=false`, keep dialog transcript use disabled by default, keep `OPENAI_API_KEY` off the Asterisk server, and preserve business dialog isolation until a later explicit enablement node accepts transcript quality and fallback behavior.
 
 ## Node Completion Report Format
 

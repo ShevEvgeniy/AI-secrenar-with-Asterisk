@@ -472,3 +472,26 @@ business_dialog_changed=false
 systemd_profile_changed=false
 gateway_process_stopped=true
 ```
+
+## Production Gateway STT Integration Boundary
+
+NODE-024 closes as design-only. It does not enable gateway STT and does not change the business dialog, service profile, or live servers.
+
+Accepted decision:
+
+- Gateway-backed STT may connect to business dialog only as a transcript-source provider before the existing `apply_turn(...)` boundary.
+- Future implementation must be disabled by default.
+- Dialog-driving transcript use must have its own explicit flag and remain disabled by default.
+- `OPENAI_API_KEY` stays on the supported-region gateway only.
+- The Asterisk server may hold only gateway URL/token in secret runtime config.
+- Transcript text must not be logged by default.
+- Gateway auth failure, gateway unavailable, timeout, OpenAI success with absent transcript, and low-quality transcript must not advance dialog state.
+- Fallback must preserve current deterministic prompt/retry behavior and existing batch STT policy where configured.
+- PHONE, PHONE_CONFIRM, CITY, transfer, callback, after-hours, SAFE_FINISH, and Russian-only caller-facing contracts remain mandatory gates.
+- NODE-014 RTP topology and NODE-016 diagnostic isolation remain mandatory gates.
+
+Next implementation node:
+
+```text
+NODE-025 / controlled-disabled-by-default-gateway-stt-adapter-implementation
+```

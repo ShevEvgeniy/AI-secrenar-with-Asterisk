@@ -599,6 +599,35 @@ gateway_listener_stopped=yes
 - No gateway systemd service was installed in NODE-023.
 - Do not leave the gateway exposed over plain HTTP for production. A productionization node should add TLS, firewall allowlisting, systemd, and token rotation/runbook before persistent use.
 
+## NODE-024 Runtime Notes
+
+- NODE-024 is docs-only and changed no runtime behavior.
+- Gateway-backed STT for business dialog remains disabled:
+
+```text
+production_gateway_stt_enabled=false
+business_dialog_changed=false
+systemd_profile_changed=false
+live_server_changed=false
+runtime_behavior_changed=false
+```
+
+- Future gateway-backed STT may connect only at the transcript-source boundary before `apply_turn(...)`.
+- Required future defaults:
+
+```text
+STT_GATEWAY_STT_ENABLED=false
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
+STT_LIVE_OPENAI_DISABLED=true
+STT_LIVE_STREAMING_PROVIDER=rtp_diagnostics_only
+STT_LIVE_DIAGNOSTICS_DIALOG_ISOLATED=true
+```
+
+- `OPENAI_API_KEY` must remain gateway-only.
+- Asterisk-side gateway auth must use only secret runtime gateway URL/token config.
+- Transcript text must not be logged by default.
+- Gateway unavailable, auth failure, timeout, OpenAI success with absent transcript, and low-quality transcript must fall back to current deterministic prompt/retry behavior without weakening PHONE, PHONE_CONFIRM, CITY, transfer, callback, after-hours, SAFE_FINISH, or Russian-only caller-facing behavior.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

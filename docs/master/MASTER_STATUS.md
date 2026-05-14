@@ -3,11 +3,11 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `34f055e`
-- Source-of-truth commit message: `Record NODE-022 gateway deployment smoke blocker`
+- Source-of-truth commit: `aaf8433`
+- Source-of-truth commit message: `Record NODE-023 Kamatera gateway live measurement`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-023-deploy-kamatera-usa-gateway-and-run-live-measurement`
+- Latest completed node branch: `feat/node-024-design-production-gateway-stt-integration-boundary`
 - Latest completed node commit: pending closeout commit
 
 ## Confirmed Working
@@ -229,6 +229,7 @@ OpenAI Realtime transcription over approved server egress -> batch fallback/base
 - NODE-021 implements the prepared minimal supported-region gateway measurement path and Asterisk-side gateway client mode without requiring `OPENAI_API_KEY` on the Asterisk server.
 - NODE-022 records the supported-region gateway deployment path and one-off runbook, but live smoke remains blocked because no supported-region gateway host, gateway URL, or gateway token was available.
 - NODE-023 deploys the gateway on Kamatera USA / New York 2 and validates a live one-off Asterisk-side gateway measurement: gateway reachable, gateway auth ok, OpenAI Realtime from gateway ok, `chunks_sent=6`, transcript text not logged, and business dialog/systemd profile unchanged.
+- NODE-024 defines the future production gateway STT integration boundary: gateway transcript use may connect only at the transcript-source boundary before `apply_turn(...)`, must be disabled by default, must keep the OpenAI key gateway-only, must not log transcript text by default, and must preserve NODE-016 diagnostic isolation plus all current business contracts.
 
 ## NODE-004 Live Smoke
 
@@ -918,4 +919,41 @@ Next implementation:
 
 ```text
 Productionize supported-region gateway or adopt live STT in a separate scoped node.
+```
+
+## NODE-024 Validation
+
+Result:
+
+```text
+PASS as docs-only production integration boundary design.
+```
+
+Recorded boundary:
+
+```text
+production_gateway_stt_enabled=false
+business_dialog_changed=false
+systemd_profile_changed=false
+live_server_changed=false
+openai_key_on_asterisk=false
+gateway_secret_committed=false
+config_scaffolding_added=false
+runtime_behavior_changed=false
+```
+
+Accepted future constraints:
+
+- Gateway-backed STT may drive business dialog only after explicit disabled-by-default adapter implementation and a later enablement decision.
+- `OPENAI_API_KEY` stays on the supported-region gateway, not on the Asterisk server.
+- Asterisk-side gateway auth uses only secret runtime gateway token config.
+- Transcript text is not logged by default.
+- Gateway unavailable/auth failure/timeout/empty transcript/low-quality transcript falls back to the current deterministic prompt/retry behavior.
+- Russian-only caller-facing behavior and PHONE, PHONE_CONFIRM, CITY, transfer, callback, after-hours, and SAFE_FINISH contracts remain mandatory gates.
+- NODE-016 diagnostic isolation and NODE-014 RTP topology remain mandatory gates.
+
+Next implementation:
+
+```text
+NODE-025 / controlled-disabled-by-default-gateway-stt-adapter-implementation
 ```
