@@ -914,6 +914,23 @@ STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
 STT_GATEWAY_LOG_TRANSCRIPT=false
 ```
 
+## NODE-031A Runtime Notes
+
+- NODE-031A is docs-only.
+- No source/runtime code was changed.
+- No server SSH was performed.
+- No Asterisk restart was performed.
+- No gateway was started or stopped.
+- No deploy was performed.
+- No env file was changed.
+- No live smoke was run.
+- No Notion write was performed.
+- No Runtime or Evidence record was created.
+- No GitHub write was performed.
+- No scheduler, webhook, or automation mode was added.
+- No secrets or real tokens were intentionally logged or committed.
+- `data/storage/` and `node014-server.tar` remain historical untracked artifacts and must not be staged, committed, deleted, or cleaned by this node.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

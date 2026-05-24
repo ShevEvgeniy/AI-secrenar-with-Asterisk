@@ -206,6 +206,14 @@ existing safe Russian system prompt WAV -> temporary 24 kHz mono PCM -> NODE-025
 
 The speech payload was classified as `valid_speech_candidate`, gateway auth and OpenAI Realtime worked, `chunks_sent=24`, transcript events were observed, and `transcript_present=true`. Transcript text was not logged, transcript use for dialog stayed disabled, the business dialog was unchanged, the gateway was stopped after the smoke, and Asterisk still had no `OPENAI_API_KEY`.
 
+NODE-031A creates the docs-only bootstrap and PR workflow boundary:
+
+```text
+new GPT chat bootstrap -> scoped node handoff -> feature branch -> PR -> Control Plane supervised closeout/evidence where applicable
+```
+
+This is documentation-only and does not implement `NODE-031 / productionize-gateway-runtime-boundary`.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -293,14 +301,16 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 61. Preserve NODE-030 live-smoke result: valid non-sensitive Russian speech produced transcript-bearing Realtime events and `transcript_present=true`; the prior NODE-028 empty transcript is closed as a silent/non-speech audio artifact.
 62. Preserve NODE-030 helper boundary: only the manual smoke helper may request a gateway measurement while `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`; normal business dialog still makes no gateway request and no transcript may drive dialog unless dialog use is explicitly enabled.
 63. Preserve NODE-030 cleanup result: the temporary Kamatera gateway was stopped, port `8080` was no longer listening, Asterisk runtime env and `ai-secretary-ari.service` were unchanged, and `OPENAI_API_KEY` remained absent on Asterisk.
+64. Preserve NODE-031A workflow boundary: future AI-secrenar nodes should use feature branch plus PR workflow so Control Plane supervised runner closeout/evidence can apply where applicable.
+65. Preserve NODE-031A historical boundary: existing `NODE-001` through `NODE-030` are commit-based historical nodes and should not be retrofitted through the PR-based supervised runner without a separate commit-based closeout design.
 
 ## Next Recommended Step
 
 ```text
-Productionize the gateway only in a separate scoped node if the project is ready.
+NODE-031 / productionize-gateway-runtime-boundary
 ```
 
-The next node should not enable gateway STT by default. A productionization node should add TLS, systemd, firewall/runbook hardening, token rotation handling, and normal deployment of the adapter/helper source before any persistent gateway use.
+The next technical node should not enable gateway STT by default. A productionization boundary node should define or add TLS, systemd, firewall/runbook hardening, token rotation handling, and normal deployment of the adapter/helper source before any persistent gateway use.
 
 ## Node Completion Report Format
 

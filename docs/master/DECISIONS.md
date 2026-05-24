@@ -618,3 +618,22 @@ Operational boundary:
 - In that helper mode, any transcript candidate is rejected with `fallback_reason=gateway_stt_dialog_use_disabled`.
 - Normal business dialog remains unchanged: with `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`, the ARI business path does not make a gateway request and falls back to the existing batch/deterministic path.
 - Gateway STT remains disabled by default and must not be productionized without a separate node.
+
+## Chat Bootstrap And PR Workflow Boundary
+
+NODE-031A creates a docs-only bootstrap for new GPT chats and future Control Plane closeout.
+
+Accepted decision:
+
+- New GPT chats should start from `docs/master/CHAT_BOOTSTRAP.md`, then read the master docs and latest completed node doc.
+- Future AI-secrenar nodes should use feature branch plus PR workflow.
+- The intended flow is GPTChat coordinator discussion, Notion node creation/update, docs node file, Codex handoff, sync `master`, create a feature branch, scoped implementation, validation, commit, PR, review, merge, Control Plane supervised runner closeout/evidence where applicable, no-op verification, and next node.
+- Existing `NODE-001` through `NODE-030` are historical commit-based nodes.
+- Historical commit-based nodes should not be retrofitted through the PR-based supervised runner unless a later separate commit-based closeout design is explicitly created.
+- NODE-031A does not implement `NODE-031 / productionize-gateway-runtime-boundary`.
+
+Next technical node:
+
+```text
+NODE-031 / productionize-gateway-runtime-boundary
+```
