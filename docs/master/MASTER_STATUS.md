@@ -3,12 +3,14 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `59bca83`
-- Source-of-truth commit message: `Implement NODE-025 gateway STT adapter`
+- Source-of-truth commit: `901b5a4`
+- Source-of-truth commit message: `Close NODE-030 speech gateway smoke`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-026-controlled-local-adapter-smoke-dry-run-validation`
-- Latest completed node commit: pending closeout commit
+- Latest completed node branch: `feat/node-030-controlled-russian-speech-wav-gateway-transcript-smoke`
+- Latest completed node commit: `901b5a4`
+- Chat bootstrap: `docs/master/CHAT_BOOTSTRAP.md`
+- Planned next technical node: `NODE-031 / productionize-gateway-runtime-boundary`
 
 ## Confirmed Working
 
@@ -77,6 +79,14 @@
   - transfer completed with `status=ok` to `from-internal,sales_real,1`.
 
 ## Completed Nodes
+
+NODE-031A creates the docs-only chat bootstrap and workflow boundary:
+
+```text
+new GPT chat bootstrap -> future feature-branch plus PR workflow -> Control Plane closeout/evidence boundary
+```
+
+NODE-031A does not implement `NODE-031 / productionize-gateway-runtime-boundary`.
 
 NODE-001 completed the real sales transfer route:
 
