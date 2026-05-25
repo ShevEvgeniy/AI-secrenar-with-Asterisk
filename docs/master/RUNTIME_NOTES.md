@@ -1118,3 +1118,37 @@ PHONE_CONFIRM: max_duration=6s, max_silence=3s, wait_timeout=12s
 - NODE-005 patch 7 fixes NAME retry-loop regression. NAME retries are reason-based (`unclear`, `junk`, `meta_repair`), varied without immediate repetition, tolerant of short valid Russian names, and capped at 3 retries before advancing with `name="клиент"` and `name_unavailable=true`.
 - NODE-005 patch 8 fixes PHONE-stage acceptance/repair. Comma/dot grouped STT such as `920, 0.32, 0.3, 0.55` normalizes to `9200320355`, PHONE-stage meta-repair uses `meta_repair`, dynamic PHONE retry prompts are synthesized/published per call instead of replaying `prompt_4_v2`, and NAME now rejects short English filler such as `Yep.`.
 - NODE-005 patch 9 adds a NAME playback barrier for both base NAME prompt and dynamic NAME retry prompts. NAME recording starts only after `PlaybackFinished` plus `NAME_GUARD_DELAY_MS`, default `400 ms`; NAME timing is now `6s/2s/11s`.
+
+## NODE-032D Runtime Notes
+
+- NODE-032D is docs-only and performs no runtime action.
+- First future live smoke uses the historical gateway env path:
+
+```text
+/etc/ai-secretary/openai-realtime-gateway.env
+```
+
+- First future live smoke should not migrate secrets to `/etc/ai-secretary/gateway.env` and should not create a compatibility symlink.
+- Future NODE-032E may install/adapt:
+
+```text
+service=ai-secretary-gateway.service
+unit=/etc/systemd/system/ai-secretary-gateway.service
+runtime_user_group=gateway:gateway
+env_file=/etc/ai-secretary/openai-realtime-gateway.env
+first_smoke_port=8080
+```
+
+- First future live smoke should avoid public TLS/proxy exposure: do not expose `443`, do not open `8081`, and do not reload a proxy.
+- Use the existing Asterisk-only `8080/tcp` firewall path only if NODE-032E re-confirms it is restricted to `92.118.85.117`.
+- Keep business dialog transcript use disabled with `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`.
+- Keep transcript text logging disabled.
+- The Asterisk safe profile must continue to have no `OPENAI_API_KEY`.
+- Conservative cleanup default after first smoke: stop/rollback gateway service unless NODE-032E explicitly records a persistent service decision.
+- Future NODE-032E exact approval phrase:
+
+```text
+APPROVE NODE-032E LIVE APPLY/SMOKE
+```
+
+- No other phrase is approval.
