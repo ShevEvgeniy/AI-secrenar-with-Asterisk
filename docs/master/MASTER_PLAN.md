@@ -346,14 +346,20 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 76. Preserve NODE-032C gateway service/listen finding: `ai-secretary-gateway.service` is not installed/enabled, no gateway process is running, and no `443`, `8080`, or `8081` gateway target port is listening.
 77. Preserve NODE-032C firewall finding: UFW is active with deny incoming/allow outgoing, SSH open, and old `8080/tcp` allow from `92.118.85.117`.
 78. Preserve NODE-032C recommendation: NO-GO for immediate NODE-032D live apply/smoke until env path, service unit, TLS/proxy, firewall transition, and rollback plan are explicitly resolved.
+79. Preserve NODE-032D env path decision: first live smoke uses historical `/etc/ai-secretary/openai-realtime-gateway.env`; do not migrate to `/etc/ai-secretary/gateway.env` or create a symlink during first smoke.
+80. Preserve NODE-032D service decision: future live apply may install/adapt `ai-secretary-gateway.service` at `/etc/systemd/system/ai-secretary-gateway.service`, run as `gateway:gateway`, use the historical env path, and use `on-failure` restart policy.
+81. Preserve NODE-032D first-smoke network decision: no public TLS/proxy, no `443`, and no `8081` exposure for the first smoke; use the existing Asterisk-only `8080/tcp` path if re-confirmed source-restricted to `92.118.85.117`.
+82. Preserve NODE-032D firewall transition decision: keep the old `8080/tcp` allow for first smoke, do not remove it before replacement path proof, and do not broaden firewall exposure.
+83. Preserve NODE-032D rollback decision: stop/disable/remove only NODE-032E-installed service state, restore backed up unit state, leave historical env preserved, verify Asterisk has no `OPENAI_API_KEY`, and rotate tokens if any secret exposure occurs.
+84. Preserve NODE-032D approval gate: future NODE-032E requires exact phrase `APPROVE NODE-032E LIVE APPLY/SMOKE`; no other phrase is approval.
 
 ## Next Recommended Step
 
 ```text
-Resolve NODE-032C blockers before NODE-032D live apply/smoke.
+NODE-032E / controlled production gateway first smoke using accepted live delta.
 ```
 
-The next live step remains blocked until the operator explicitly accepts the env path, service unit, TLS/proxy, firewall, and rollback plan, and then provides the exact approval phrase required by NODE-032B. It must perform at most one controlled smoke, keep gateway STT disabled for business dialog, preserve transcript redaction, and stop if access, secrets, server state, templates, or rollback are unsafe.
+The next live step remains blocked until NODE-032E is explicitly scoped and the operator provides the exact NODE-032E approval phrase. It must perform at most one controlled non-business-dialog smoke, keep gateway STT disabled for business dialog, preserve transcript redaction, avoid public TLS/proxy exposure for the first smoke, and stop if access, secrets, server state, firewall state, templates, or rollback are unsafe.
 
 ## Node Completion Report Format
 

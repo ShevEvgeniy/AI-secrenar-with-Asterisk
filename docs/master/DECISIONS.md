@@ -697,3 +697,29 @@ Accepted decision:
 - Gateway masked secret presence is acceptable only on the gateway/vault side.
 - NODE-032C result is NO-GO for immediate NODE-032D live apply/smoke because env path, service unit, TLS/proxy, firewall transition, and rollback plan still require explicit operator decisions.
 - Future live apply/smoke still requires the exact NODE-032B approval phrase `APPROVE NODE-032B LIVE APPLY/SMOKE`.
+
+## Production Gateway Live Delta Decision
+
+NODE-032D resolves the live delta decisions required before a future controlled first smoke.
+
+Accepted decision:
+
+- First live smoke keeps the historical gateway env path `/etc/ai-secretary/openai-realtime-gateway.env`.
+- Do not migrate to `/etc/ai-secretary/gateway.env` and do not create a symlink during the first smoke.
+- Future live apply may install/adapt `ai-secretary-gateway.service` at `/etc/systemd/system/ai-secretary-gateway.service`.
+- The service should run as `gateway:gateway`, use the historical env path, bind for the first smoke on the existing Asterisk-only `8080` path, and use `Restart=on-failure`.
+- No public TLS/proxy setup is required for the first smoke.
+- Do not expose `443` and do not open `8081` during the first smoke.
+- Keep the old `8080/tcp` allow from `92.118.85.117` for first smoke if NODE-032E re-confirms it is still source-restricted.
+- Do not remove the old `8080/tcp` allow until a replacement path is proven or a separate cleanup/productionization node approves it.
+- Stop/rollback the gateway after smoke unless NODE-032E explicitly records a persistent service decision.
+- Business dialog transcript use remains disabled, and transcript text remains redacted.
+- The Asterisk safe profile must still contain no `OPENAI_API_KEY`.
+
+Future NODE-032E approval gate:
+
+```text
+APPROVE NODE-032E LIVE APPLY/SMOKE
+```
+
+No other phrase is approval.

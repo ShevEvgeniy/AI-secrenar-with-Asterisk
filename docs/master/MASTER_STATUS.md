@@ -3,14 +3,14 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `407eeeb`
-- Source-of-truth commit message: `Merge pull request #4 from ShevEvgeniy/feat/node-032b-controlled-production-gateway-live-apply-and-smoke`
+- Source-of-truth commit: `2726791`
+- Source-of-truth commit message: `Merge pull request #5 from ShevEvgeniy/feat/node-032c-live-readonly-production-gateway-readiness-inspection`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-032b-controlled-production-gateway-live-apply-and-smoke`
-- Latest completed node commit: `407eeeb`
+- Latest completed node branch: `feat/node-032c-live-readonly-production-gateway-readiness-inspection`
+- Latest completed node commit: `2726791`
 - Chat bootstrap: `docs/master/CHAT_BOOTSTRAP.md`
-- Planned next technical node: `NODE-032C / live-readonly-production-gateway-readiness-inspection`
+- Planned next technical node: `NODE-032D / production-gateway-live-delta-decision`
 
 ## Confirmed Working
 
@@ -1513,4 +1513,50 @@ live_smoke=false
 business_dialog_changed=false
 real_secrets_logged=false
 transcript_text_logged=false
+```
+
+## NODE-032D Live Delta Decision
+
+Result:
+
+```text
+docs_only_decision_complete=true
+live_apply=false
+ssh_used=false
+service_started_stopped_restarted_reloaded=false
+server_state_changed=false
+live_smoke=false
+business_dialog_changed=false
+real_secrets_logged=false
+transcript_text_logged=false
+```
+
+Accepted live delta for the next node:
+
+```text
+first_smoke_env_path=/etc/ai-secretary/openai-realtime-gateway.env
+service_name=ai-secretary-gateway.service
+unit_path=/etc/systemd/system/ai-secretary-gateway.service
+runtime_user_group=gateway:gateway
+first_smoke_listen=0.0.0.0:8080
+public_tls_proxy_for_first_smoke=false
+expose_443=false
+open_8081=false
+keep_existing_8080_allow_for_first_smoke=true
+allowed_smoke_source=92.118.85.117
+cleanup_default=stop_rollback_after_smoke
+```
+
+Approval gate for future NODE-032E:
+
+```text
+APPROVE NODE-032E LIVE APPLY/SMOKE
+```
+
+No other phrase is approval.
+
+Next recommendation:
+
+```text
+NODE-032E / controlled production gateway first smoke using accepted live delta.
 ```
