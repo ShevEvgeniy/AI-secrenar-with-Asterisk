@@ -236,6 +236,14 @@ NODE-031 templates + NODE-032 Phase A plan -> NODE-032B approval gate -> Phase B
 
 NODE-032B Phase A is docs-only. It performs no live apply, no service start/stop/restart/reload, no server state change, and no live smoke.
 
+NODE-032C performs read-only live readiness inspection:
+
+```text
+Asterisk read-only checks + gateway read-only checks -> masked env verification -> NO-GO until env path/service/proxy/firewall decisions are explicit
+```
+
+NODE-032C does not perform live apply, does not start/stop/restart/reload services, does not run live smoke, and does not enable business dialog transcript use.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -333,14 +341,19 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 71. Preserve NODE-032B Phase A boundary: readiness/preflight and command planning only, no live apply, no service start/stop/restart/reload, no server state change, no live smoke, and no business dialog transcript use.
 72. Preserve NODE-032B approval gate: Phase B requires exact operator approval phrase `APPROVE NODE-032B LIVE APPLY/SMOKE`; no other phrase is approval.
 73. Preserve NODE-032B evidence boundary: expected evidence must be redacted and may include server targets, service state before/after, port/listen state before/after, firewall/TLS state, masked gateway env checks, masked Asterisk safe profile checks, health result, smoke result, transcript flags without transcript text, business dialog unchanged, and cleanup/persistent state decision.
+74. Preserve NODE-032C read-only finding: Asterisk SSH works, `ai-secretary-ari.service` is active/enabled, and `OPENAI_API_KEY` is absent from the service process env.
+75. Preserve NODE-032C gateway finding: gateway SSH works, historical env file `/etc/ai-secretary/openai-realtime-gateway.env` exists with masked `OPENAI_API_KEY` and `GATEWAY_TOKEN`, but `/etc/ai-secretary/gateway.env` is absent.
+76. Preserve NODE-032C gateway service/listen finding: `ai-secretary-gateway.service` is not installed/enabled, no gateway process is running, and no `443`, `8080`, or `8081` gateway target port is listening.
+77. Preserve NODE-032C firewall finding: UFW is active with deny incoming/allow outgoing, SSH open, and old `8080/tcp` allow from `92.118.85.117`.
+78. Preserve NODE-032C recommendation: NO-GO for immediate NODE-032D live apply/smoke until env path, service unit, TLS/proxy, firewall transition, and rollback plan are explicitly resolved.
 
 ## Next Recommended Step
 
 ```text
-NODE-032B Phase B / controlled-production-gateway-live-apply-and-smoke
+Resolve NODE-032C blockers before NODE-032D live apply/smoke.
 ```
 
-The next step is Phase B only after the exact approval phrase `APPROVE NODE-032B LIVE APPLY/SMOKE`. It must perform at most one controlled smoke, keep gateway STT disabled for business dialog, preserve transcript redaction, and stop if access, secrets, server state, templates, or rollback are unsafe.
+The next live step remains blocked until the operator explicitly accepts the env path, service unit, TLS/proxy, firewall, and rollback plan, and then provides the exact approval phrase required by NODE-032B. It must perform at most one controlled smoke, keep gateway STT disabled for business dialog, preserve transcript redaction, and stop if access, secrets, server state, templates, or rollback are unsafe.
 
 ## Node Completion Report Format
 

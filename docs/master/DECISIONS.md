@@ -684,3 +684,16 @@ Accepted decision:
 - Phase B may run at most one controlled non-business-dialog smoke with transcript logging disabled and `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`.
 - The Asterisk safe profile must not contain `OPENAI_API_KEY`; gateway owns OpenAI Realtime access and secrets.
 - If access, secrets, templates, rollback readiness, or current server state is unsafe, NODE-032B must remain blocked before live apply.
+
+## Live Read-Only Production Gateway Readiness Inspection
+
+NODE-032C performs read-only live readiness inspection for the production gateway path.
+
+Accepted decision:
+
+- Read-only SSH inspection may verify host reachability, service status, process/listen state, firewall state, file metadata, masked env key presence, and sanitized journals.
+- Do not print real token values, env values, bearer headers, private keys, or transcript text.
+- Asterisk is acceptable only if `OPENAI_API_KEY` is absent from the safe service/process env.
+- Gateway masked secret presence is acceptable only on the gateway/vault side.
+- NODE-032C result is NO-GO for immediate NODE-032D live apply/smoke because env path, service unit, TLS/proxy, firewall transition, and rollback plan still require explicit operator decisions.
+- Future live apply/smoke still requires the exact NODE-032B approval phrase `APPROVE NODE-032B LIVE APPLY/SMOKE`.
