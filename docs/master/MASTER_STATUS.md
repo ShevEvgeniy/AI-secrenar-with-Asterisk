@@ -10,7 +10,7 @@
 - Latest completed node branch: `feat/node-030-controlled-russian-speech-wav-gateway-transcript-smoke`
 - Latest completed node commit: `901b5a4`
 - Chat bootstrap: `docs/master/CHAT_BOOTSTRAP.md`
-- Planned next technical node: `NODE-031 / productionize-gateway-runtime-boundary`
+- Planned next technical node: `NODE-032 / controlled-production-gateway-live-smoke`
 
 ## Confirmed Working
 
@@ -87,6 +87,14 @@ new GPT chat bootstrap -> future feature-branch plus PR workflow -> Control Plan
 ```
 
 NODE-031A does not implement `NODE-031 / productionize-gateway-runtime-boundary`.
+
+NODE-031 defines the production gateway runtime boundary:
+
+```text
+docs/templates only -> service ownership -> systemd/supervisor -> private listen -> restricted firewall -> TLS proxy -> secure env -> redacted logs
+```
+
+NODE-031 does not perform live deployment, live smoke, server action, Notion write, Runtime/Evidence create, GitHub write, or source/runtime behavior change.
 
 NODE-001 completed the real sales transfer route:
 
@@ -1319,4 +1327,50 @@ Next recommendation:
 
 ```text
 Productionize the gateway only in a separate scoped node if the project is ready.
+```
+
+## NODE-031 Validation
+
+Result:
+
+```text
+PASS as docs/templates-only production gateway runtime boundary draft.
+```
+
+Delivered:
+
+```text
+docs/nodes/NODE-031-productionize-gateway-runtime-boundary.md
+deploy/templates/gateway.env.example
+deploy/templates/gateway-systemd.service.example
+deploy/templates/gateway-nginx-proxy.example
+```
+
+Recorded boundary:
+
+```text
+live_deployment=false
+server_action=false
+source_runtime_behavior_changed=false
+gateway_stt_enabled=false
+business_dialog_changed=false
+openai_key_on_asterisk=false
+real_secrets_committed=false
+notion_write=false
+runtime_evidence_create=false
+github_write=false
+scheduler_webhook_automation_added=false
+```
+
+Validated content:
+
+- Service ownership, systemd/supervision, private listen, firewall allowlisting, TLS/reverse proxy, env permissions, and log redaction are required before persistent production gateway use.
+- `OPENAI_API_KEY` remains gateway-only; `GATEWAY_TOKEN` remains secure-runtime only; templates contain placeholders only.
+- Gateway STT remains disabled by default and business dialog must not use gateway transcript text unless a later explicit node enables it.
+- Rollback covers stopping the gateway service, restoring previous systemd state, closing/restricting ports, removing temporary files, clearing local env, verifying Asterisk has no `OPENAI_API_KEY`, and preserving transcript redaction.
+
+Next recommendation:
+
+```text
+NODE-032 / controlled-production-gateway-live-smoke
 ```

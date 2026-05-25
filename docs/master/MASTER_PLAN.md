@@ -214,6 +214,14 @@ new GPT chat bootstrap -> scoped node handoff -> feature branch -> PR -> Control
 
 This is documentation-only and does not implement `NODE-031 / productionize-gateway-runtime-boundary`.
 
+NODE-031 defines the production gateway runtime boundary:
+
+```text
+docs/templates only -> service/systemd/firewall/TLS/env/redaction boundaries -> NODE-032 live-smoke prerequisites
+```
+
+This is not a live deployment. It adds safe placeholder templates and records rollback, cleanup, token rotation, and explicit operator-approval gates for the next live node.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -303,14 +311,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 63. Preserve NODE-030 cleanup result: the temporary Kamatera gateway was stopped, port `8080` was no longer listening, Asterisk runtime env and `ai-secretary-ari.service` were unchanged, and `OPENAI_API_KEY` remained absent on Asterisk.
 64. Preserve NODE-031A workflow boundary: future AI-secrenar nodes should use feature branch plus PR workflow so Control Plane supervised runner closeout/evidence can apply where applicable.
 65. Preserve NODE-031A historical boundary: existing `NODE-001` through `NODE-030` are commit-based historical nodes and should not be retrofitted through the PR-based supervised runner without a separate commit-based closeout design.
+66. Preserve NODE-031 production gateway boundary: service ownership, supervised process boundary, loopback/private listen, restricted firewall sources, TLS reverse proxy, secure env ownership, and transcript log redaction are prerequisites for persistent gateway use.
+67. Preserve NODE-031 secret boundary: `OPENAI_API_KEY` is gateway-only, `GATEWAY_TOKEN` is secure-runtime only, repo templates are placeholders only, and exposed tokens require rotation and incident response.
+68. Preserve NODE-031 dialog boundary: gateway STT remains disabled by default, business dialog must not use gateway transcript text, and measurement helper paths remain distinct from business dialog paths unless a later explicit node changes this.
 
 ## Next Recommended Step
 
 ```text
-NODE-031 / productionize-gateway-runtime-boundary
+NODE-032 / controlled-production-gateway-live-smoke
 ```
 
-The next technical node should not enable gateway STT by default. A productionization boundary node should define or add TLS, systemd, firewall/runbook hardening, token rotation handling, and normal deployment of the adapter/helper source before any persistent gateway use.
+The next technical node must be the first live apply/smoke node, require explicit operator approval, and keep gateway STT disabled by default unless a separate adoption node enables dialog transcript use.
 
 ## Node Completion Report Format
 

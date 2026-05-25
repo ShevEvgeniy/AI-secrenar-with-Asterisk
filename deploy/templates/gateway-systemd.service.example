@@ -1,0 +1,19 @@
+# Example systemd unit for gateway (template only - do not apply from the repo)
+# Future operators must adapt paths, user, and EnvironmentFile manually in NODE-032 or later.
+
+[Unit]
+Description=AI Secretary Gateway (example)
+After=network.target
+
+[Service]
+Type=simple
+User=gateway
+Group=gateway
+EnvironmentFile=/etc/ai-secretary/gateway.env
+# ExecStart should point to the deployed gateway binary or wrapper that runs the gateway.
+ExecStart=/usr/local/bin/ai-secretary-gateway --bind ${GATEWAY_BIND}
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
