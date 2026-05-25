@@ -669,3 +669,18 @@ Accepted decision:
 - Phase B may run at most one controlled non-business-dialog smoke with transcript logging disabled and `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`.
 - `OPENAI_API_KEY` must remain gateway-only; the Asterisk safe profile must not contain it.
 - If access, secrets, templates, rollback readiness, or current server state is unsafe, NODE-032 must remain blocked before live apply.
+
+## Controlled Production Gateway Live Apply/Smoke Readiness
+
+NODE-032B Phase A prepares readiness/preflight for the first controlled production gateway live apply/smoke but does not execute it.
+
+Accepted decision:
+
+- Phase A is documentation and command planning only.
+- No service may be started, stopped, restarted, reloaded, enabled, disabled, or changed during Phase A.
+- No live apply, server state change, gateway/proxy change, firewall apply, live smoke, or business dialog transcript use is allowed during Phase A.
+- Phase B requires the exact operator approval phrase `APPROVE NODE-032B LIVE APPLY/SMOKE`.
+- No other phrase is approval.
+- Phase B may run at most one controlled non-business-dialog smoke with transcript logging disabled and `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`.
+- The Asterisk safe profile must not contain `OPENAI_API_KEY`; gateway owns OpenAI Realtime access and secrets.
+- If access, secrets, templates, rollback readiness, or current server state is unsafe, NODE-032B must remain blocked before live apply.
