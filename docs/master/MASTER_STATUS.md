@@ -1374,3 +1374,46 @@ Next recommendation:
 ```text
 NODE-032 / controlled-production-gateway-live-smoke
 ```
+
+## NODE-032 Phase A
+
+Result:
+
+```text
+PASS as preflight and live command plan only.
+```
+
+Delivered:
+
+```text
+docs/nodes/NODE-032-controlled-production-gateway-live-smoke.md
+```
+
+Recorded boundary:
+
+```text
+phase_a_only=true
+live_apply=false
+service_state_changed=false
+live_smoke=false
+source_runtime_behavior_changed=false
+business_dialog_changed=false
+openai_key_on_asterisk=false
+real_secrets_committed=false
+notion_write=false
+runtime_evidence_create=false
+github_write=false
+scheduler_webhook_automation_added=false
+```
+
+Phase A records the exact approval gate:
+
+```text
+APPROVE NODE-032 LIVE APPLY/SMOKE
+```
+
+Next recommendation:
+
+```text
+NODE-032 Phase B / controlled-production-gateway-live-smoke
+```

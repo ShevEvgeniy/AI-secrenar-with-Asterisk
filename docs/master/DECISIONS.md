@@ -656,3 +656,16 @@ Next implementation node:
 ```text
 NODE-032 / controlled-production-gateway-live-smoke
 ```
+
+## Controlled Production Gateway Live Smoke
+
+NODE-032 Phase A prepares the first live production gateway apply/smoke plan but does not execute it.
+
+Accepted decision:
+
+- Phase A is documentation and preflight planning only.
+- No service may be started, stopped, restarted, reloaded, enabled, disabled, or changed during Phase A.
+- Phase B requires the exact operator approval phrase `APPROVE NODE-032 LIVE APPLY/SMOKE`.
+- Phase B may run at most one controlled non-business-dialog smoke with transcript logging disabled and `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`.
+- `OPENAI_API_KEY` must remain gateway-only; the Asterisk safe profile must not contain it.
+- If access, secrets, templates, rollback readiness, or current server state is unsafe, NODE-032 must remain blocked before live apply.

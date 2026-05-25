@@ -957,6 +957,23 @@ STT_GATEWAY_LOG_TRANSCRIPT=false
 - NODE-032 must be the first live apply/smoke node and must require explicit operator approval.
 - No server action, Notion write, Runtime/Evidence create, GitHub write, live smoke, or scheduler/webhook/automation mode was performed by NODE-031.
 
+## NODE-032 Phase A Runtime Notes
+
+- NODE-032 Phase A changes no runtime behavior.
+- Phase A does not SSH to live servers, does not apply systemd or firewall changes, does not start/stop/restart/reload services, and does not run live smoke.
+- Phase A records the exact approval gate:
+
+```text
+APPROVE NODE-032 LIVE APPLY/SMOKE
+```
+
+- Planned Phase B smoke remains non-business-dialog:
+  - `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`;
+  - `STT_GATEWAY_LOG_TRANSCRIPT=false`;
+  - transcript text must not be logged;
+  - Asterisk must have no `OPENAI_API_KEY`.
+- Phase B must verify gateway reachability, gateway auth, OpenAI Realtime from gateway, `transcript_text_logged=false`, `transcript_used_for_dialog=false`, unchanged business dialog, and no Asterisk-side `OPENAI_API_KEY`.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.
