@@ -352,14 +352,22 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 82. Preserve NODE-032D firewall transition decision: keep the old `8080/tcp` allow for first smoke, do not remove it before replacement path proof, and do not broaden firewall exposure.
 83. Preserve NODE-032D rollback decision: stop/disable/remove only NODE-032E-installed service state, restore backed up unit state, leave historical env preserved, verify Asterisk has no `OPENAI_API_KEY`, and rotate tokens if any secret exposure occurs.
 84. Preserve NODE-032D approval gate: future NODE-032E requires exact phrase `APPROVE NODE-032E LIVE APPLY/SMOKE`; no other phrase is approval.
+85. Preserve NODE-032E Phase A gate finding: Asterisk SSH works, `ai-secretary-ari.service` is active/enabled, and `OPENAI_API_KEY` is absent from the Asterisk service process env.
+86. Preserve NODE-032E Phase A gateway finding: historical env file `/etc/ai-secretary/openai-realtime-gateway.env` exists as `root:root 600`, with masked `OPENAI_API_KEY` and `GATEWAY_TOKEN` presence.
+87. Preserve NODE-032E Phase A service/listener finding: `ai-secretary-gateway.service` is inactive/absent/not enabled, no gateway process is running, and no `443`, `8080`, or `8081` target listener exists.
+88. Preserve NODE-032E Phase A firewall finding: UFW is active with default incoming deny and existing `8080/tcp` allow from `92.118.85.117`.
+89. Preserve NODE-032E Phase A recommendation: Phase B is NO-GO now because exact approval phrase is absent, even though technical gates are ready for a tightly scoped attempt if re-confirmed.
+90. Preserve NODE-032E Phase B result: exact approval phrase was provided, hard gates were re-run, and live apply stopped before state change because the deployed Asterisk repo lacks the safe `gateway_adapter_smoke` helper path.
+91. Preserve NODE-032E Phase B boundary: no systemd unit was written, no service was installed or started, no daemon reload ran, no firewall/env change occurred, no live smoke ran, and server state remained unchanged.
+92. Preserve NODE-032E next blocker: a future node must prepare or approve an Asterisk-side safe gateway smoke helper/path before retrying live apply/smoke.
 
 ## Next Recommended Step
 
 ```text
-NODE-032E / controlled production gateway first smoke using accepted live delta.
+NODE-032F / prepare-asterisk-side-gateway-smoke-helper-or-approved-smoke-path.
 ```
 
-The next live step remains blocked until NODE-032E is explicitly scoped and the operator provides the exact NODE-032E approval phrase. It must perform at most one controlled non-business-dialog smoke, keep gateway STT disabled for business dialog, preserve transcript redaction, avoid public TLS/proxy exposure for the first smoke, and stop if access, secrets, server state, firewall state, templates, or rollback are unsafe.
+The next live step remains blocked until an Asterisk-side safe smoke helper/path is explicitly prepared or approved. It must keep gateway STT disabled for business dialog, preserve transcript redaction, avoid public TLS/proxy exposure for first smoke, and stop if access, secrets, server state, firewall state, templates, smoke path, or rollback are unsafe.
 
 ## Node Completion Report Format
 

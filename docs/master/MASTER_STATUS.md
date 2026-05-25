@@ -3,14 +3,14 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `2726791`
-- Source-of-truth commit message: `Merge pull request #5 from ShevEvgeniy/feat/node-032c-live-readonly-production-gateway-readiness-inspection`
+- Source-of-truth commit: `fcd0140`
+- Source-of-truth commit message: `Merge pull request #6 from ShevEvgeniy/feat/node-032d-production-gateway-live-delta-decision`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-032c-live-readonly-production-gateway-readiness-inspection`
-- Latest completed node commit: `2726791`
+- Latest completed node branch: `feat/node-032d-production-gateway-live-delta-decision`
+- Latest completed node commit: `fcd0140`
 - Chat bootstrap: `docs/master/CHAT_BOOTSTRAP.md`
-- Planned next technical node: `NODE-032D / production-gateway-live-delta-decision`
+- Planned next technical node: `NODE-032E / controlled-production-gateway-live-apply-and-smoke`
 
 ## Confirmed Working
 
@@ -1559,4 +1559,91 @@ Next recommendation:
 
 ```text
 NODE-032E / controlled production gateway first smoke using accepted live delta.
+```
+
+## NODE-032E Phase A Live Gate Re-Confirmation / Phase B Hard-Gate NO-GO
+
+Result:
+
+```text
+phase_a_live_gate_reconfirmation_complete=true
+live_apply=false
+service_installed=false
+service_started_stopped_restarted_reloaded=false
+firewall_changed=false
+env_files_edited=false
+server_state_changed=false
+live_smoke=false
+real_secrets_logged=false
+transcript_text_logged=false
+```
+
+Gate findings:
+
+```text
+asterisk_ssh=ok
+asterisk_service=active_enabled
+asterisk_openai_api_key=absent_from_process_env
+gateway_ssh=ok
+gateway_env=/etc/ai-secretary/openai-realtime-gateway.env present 600 root:root
+gateway_env_openai_key_present=masked
+gateway_env_token_present=masked
+gateway_service=inactive_or_absent_not_enabled
+gateway_listen_443=false
+gateway_listen_8080=false
+gateway_listen_8081=false
+gateway_firewall=ufw active deny incoming allow outgoing
+gateway_firewall_8080=allowed from 92.118.85.117
+```
+
+Recommendation:
+
+```text
+NO-GO for Phase B now because exact approval phrase is absent.
+```
+
+Technical gates are ready for a tightly scoped Phase B attempt if re-confirmed immediately before apply and if the operator later provides:
+
+```text
+APPROVE NODE-032E LIVE APPLY/SMOKE
+```
+
+Phase B update after exact approval:
+
+```text
+approval_phrase_confirmed=true
+phase_b_no_go=true
+reason=required_smoke_helper_path_not_identified_safely_on_asterisk
+service_installed=false
+systemd_unit_written=false
+daemon_reload=false
+gateway_service_started=false
+firewall_changed=false
+env_files_edited=false
+live_smoke=false
+```
+
+Hard-gate re-confirmation:
+
+```text
+asterisk_service=active_enabled
+asterisk_openai_api_key=absent_from_process_env
+asterisk_smoke_helper=absent
+gateway_env=/etc/ai-secretary/openai-realtime-gateway.env present 600 root:root
+gateway_secret_presence=masked_pass
+gateway_user=absent
+gateway_group=absent
+gateway_deploy_path=/opt/ai-secretary-gateway present
+gateway_unit=absent
+gateway_service=inactive_or_absent_not_enabled
+gateway_listen_443=false
+gateway_listen_8080=false
+gateway_listen_8081=false
+gateway_firewall_8080=allowed from 92.118.85.117 only
+```
+
+Next recommendation:
+
+```text
+NODE-032F / prepare-asterisk-side-gateway-smoke-helper-or-approved-smoke-path
 ```
