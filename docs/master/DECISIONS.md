@@ -748,3 +748,20 @@ APPROVE NODE-032E LIVE APPLY/SMOKE
 ```
 
 No other phrase is approval.
+
+## NODE-032E Phase B Hard-Gate NO-GO
+
+NODE-032E Phase B received the exact approval phrase and re-ran hard gates before any state-changing action.
+
+Accepted decision:
+
+- Stop before live apply because the required Asterisk-side smoke helper/path could not be identified safely.
+- The deployed Asterisk repo path exists, but `src/ai_secretary/stt/gateway_adapter_smoke.py` is absent there.
+- Deploying or copying the local helper to Asterisk would be source/runtime deployment outside the approved live apply scope.
+- Running the smoke from a non-Asterisk source would not prove the source-restricted `8080/tcp` path from `92.118.85.117`.
+- Do not install the gateway service until the smoke path blocker is resolved.
+- No service install/start, daemon reload, firewall change, env edit, live smoke, or rollback action was performed.
+
+Next decision required:
+
+- A separate node must prepare or approve the Asterisk-side smoke helper/path before retrying live apply/smoke.

@@ -1561,7 +1561,7 @@ Next recommendation:
 NODE-032E / controlled production gateway first smoke using accepted live delta.
 ```
 
-## NODE-032E Phase A Live Gate Re-Confirmation
+## NODE-032E Phase A Live Gate Re-Confirmation / Phase B Hard-Gate NO-GO
 
 Result:
 
@@ -1606,4 +1606,44 @@ Technical gates are ready for a tightly scoped Phase B attempt if re-confirmed i
 
 ```text
 APPROVE NODE-032E LIVE APPLY/SMOKE
+```
+
+Phase B update after exact approval:
+
+```text
+approval_phrase_confirmed=true
+phase_b_no_go=true
+reason=required_smoke_helper_path_not_identified_safely_on_asterisk
+service_installed=false
+systemd_unit_written=false
+daemon_reload=false
+gateway_service_started=false
+firewall_changed=false
+env_files_edited=false
+live_smoke=false
+```
+
+Hard-gate re-confirmation:
+
+```text
+asterisk_service=active_enabled
+asterisk_openai_api_key=absent_from_process_env
+asterisk_smoke_helper=absent
+gateway_env=/etc/ai-secretary/openai-realtime-gateway.env present 600 root:root
+gateway_secret_presence=masked_pass
+gateway_user=absent
+gateway_group=absent
+gateway_deploy_path=/opt/ai-secretary-gateway present
+gateway_unit=absent
+gateway_service=inactive_or_absent_not_enabled
+gateway_listen_443=false
+gateway_listen_8080=false
+gateway_listen_8081=false
+gateway_firewall_8080=allowed from 92.118.85.117 only
+```
+
+Next recommendation:
+
+```text
+NODE-032F / prepare-asterisk-side-gateway-smoke-helper-or-approved-smoke-path
 ```

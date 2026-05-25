@@ -1,6 +1,6 @@
 # NODE-032E / controlled-production-gateway-live-apply-and-smoke
 
-Status: Phase A live gate re-confirmation complete
+Status: Phase B approved, hard-gate NO-GO before live apply
 
 Summary
 -------
@@ -428,3 +428,219 @@ transcript_text_logged=false
 data_storage_staged=false
 node014_server_tar_staged=false
 ```
+
+Phase B approval
+----------------
+
+Operator approval phrase was provided exactly:
+
+```text
+APPROVE NODE-032E LIVE APPLY/SMOKE
+```
+
+Phase B remained scoped to NODE-032E only. Hard gates were re-run before any state-changing command. Because a hard gate failed, no service install, systemd write, service start, firewall change, env edit, deploy/copy, live smoke, or cleanup state change was performed.
+
+Phase B commands run
+--------------------
+
+Local inspection:
+
+```powershell
+Get-Content docs\nodes\NODE-032E-controlled-production-gateway-live-apply-and-smoke.md
+Get-Content docs\nodes\NODE-032D-production-gateway-live-delta-decision.md
+Get-Content deploy\templates\gateway-systemd.service.example
+Get-Content deploy\templates\gateway.env.example
+Get-Content deploy\templates\gateway-nginx-proxy.example
+rg -n "gateway_adapter_smoke|realtime_gateway|openai-realtime-gateway|45\.61\.48\.199|8080" docs src tests deploy -g "*.md" -g "*.py" -g "*.example"
+Get-Content src\ai_secretary\stt\realtime_gateway.py -TotalCount 260
+Get-Content src\ai_secretary\stt\gateway_adapter_smoke.py -TotalCount 260
+Get-Content src\ai_secretary\stt\realtime_measurement.py -TotalCount 220
+```
+
+Asterisk hard-gate check:
+
+```powershell
+@'<masked Asterisk hard-gate script>'@ | C:\Windows\System32\OpenSSH\ssh.exe root@92.118.85.117 bash
+```
+
+The Asterisk hard-gate script ran only read-only checks:
+
+- `hostname -f`
+- `uptime -p`
+- `systemctl is-active ai-secretary-ari.service`
+- `systemctl is-enabled ai-secretary-ari.service`
+- process env presence check for `OPENAI_API_KEY`
+- masked gateway/STT env presence check
+- repo path existence check
+- virtualenv Python existence check
+- smoke helper existence check
+- bounded WAV file discovery
+- business dialog unchanged marker
+
+Gateway hard-gate check:
+
+```powershell
+@'<masked gateway hard-gate script>'@ | C:\Windows\System32\OpenSSH\ssh.exe root@45.61.48.199 bash
+```
+
+The gateway hard-gate script ran only read-only checks:
+
+- `hostname -f`
+- `uptime -p`
+- `stat` on `/etc/ai-secretary/openai-realtime-gateway.env`
+- masked key presence checks for `OPENAI_API_KEY` and `GATEWAY_TOKEN`
+- `id gateway`
+- `getent group gateway`
+- deployment path checks under `/opt/ai-secretary-gateway`
+- `systemctl is-active/is-enabled` for `ai-secretary-gateway.service`
+- unit existence check
+- target listener check for `443`, `8080`, and `8081`
+- `ufw status verbose`
+- rollback target marker
+
+No secret values or transcript text were printed.
+
+Phase B hard-gate results
+-------------------------
+
+Asterisk:
+
+```text
+ssh_reachable=pass
+hostname=localhost
+uptime=up 1 hour, 28 minutes
+ai-secretary-ari.service_active=active
+ai-secretary-ari.service_enabled=enabled
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+asterisk_repo_path=/home/tulauser/AI-secrenar-with-Asterisk-node014 present
+asterisk_venv_python=present
+asterisk_smoke_helper=absent
+business_dialog_change=not_performed
+```
+
+Gateway:
+
+```text
+ssh_reachable=pass
+hostname=ai-secretary-gateway-node023
+uptime=up 1 hour, 28 minutes
+historical_env=/etc/ai-secretary/openai-realtime-gateway.env present root:root 600
+openai_api_key_presence=OPENAI_API_KEY_PRESENT_MASKED
+gateway_token_presence=GATEWAY_TOKEN_PRESENT_MASKED
+gateway_user=absent
+gateway_group=absent
+deploy_path=/opt/ai-secretary-gateway present
+gateway_venv_python=present
+realtime_gateway_module=present
+ai-secretary-gateway.service_active=inactive_or_absent
+ai-secretary-gateway.service_enabled=not_found
+gateway_unit=absent
+target_listeners_443_8080_8081=absent
+ufw_status=active
+ufw_default_incoming=deny
+ufw_8080_allow=92.118.85.117 only
+rollback_targets=accepted
+```
+
+Hard NO-GO result
+-----------------
+
+Phase B stopped before live apply:
+
+```text
+phase_b_no_go=true
+reason=required_smoke_helper_path_not_identified_safely_on_asterisk
+state_changing_commands_run=false
+service_installed=false
+systemd_unit_written=false
+daemon_reload=false
+service_started=false
+firewall_changed=false
+env_files_edited=false
+live_smoke=false
+```
+
+The Asterisk-side deployed repo does not contain:
+
+```text
+/home/tulauser/AI-secrenar-with-Asterisk-node014/src/ai_secretary/stt/gateway_adapter_smoke.py
+```
+
+The locally documented helper exists in the current repo, but deploying or copying it to the Asterisk host would be a source/runtime deployment outside the approved live apply scope. Running the smoke from a non-Asterisk source would not prove the source-restricted `8080/tcp` path from `92.118.85.117`. Therefore the required smoke helper/path could not be identified safely.
+
+Service install/start result
+----------------------------
+
+Not run due to hard NO-GO.
+
+```text
+gateway_user_created=false
+systemd_unit_installed=false
+systemctl_daemon_reload=false
+gateway_service_started=false
+gateway_service_status_after=not_changed
+```
+
+Health check result
+-------------------
+
+Not run because the service was not installed or started.
+
+Controlled smoke result
+-----------------------
+
+Blocked before smoke:
+
+```text
+smoke_attempted=false
+smoke_blocker=required_smoke_helper_path_not_identified_safely_on_asterisk
+transcript_text_logged=false
+business_dialog_changed=false
+```
+
+Cleanup / rollback result
+-------------------------
+
+No cleanup was required because no state-changing apply occurred.
+
+```text
+service_stop_required=false
+service_disable_required=false
+unit_restore_required=false
+unit_remove_required=false
+firewall_restore_required=false
+historical_env_preserved=true
+```
+
+Final server state
+------------------
+
+Final state is unchanged from hard-gate inspection:
+
+```text
+asterisk_service=active_enabled
+asterisk_openai_api_key=absent_from_process_env
+gateway_service=inactive_or_absent_not_enabled
+gateway_unit=absent
+gateway_target_listeners_443_8080_8081=absent
+gateway_firewall_8080=allowed_from_92.118.85.117_only
+env_files_edited=false
+firewall_changed=false
+```
+
+Next recommendation
+-------------------
+
+GO/NO-GO for next node:
+
+```text
+NO-GO for live apply/smoke retry until an Asterisk-side safe smoke helper/path is explicitly prepared or approved.
+```
+
+Recommended next node:
+
+```text
+NODE-032F / prepare-asterisk-side-gateway-smoke-helper-or-approved-smoke-path
+```
+
+NODE-032F should decide whether to safely deploy/update the Asterisk-side smoke helper, use another existing approved smoke path, or change the smoke topology. It must preserve the no-transcript-text and no-business-dialog-use boundaries.

@@ -357,14 +357,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 87. Preserve NODE-032E Phase A service/listener finding: `ai-secretary-gateway.service` is inactive/absent/not enabled, no gateway process is running, and no `443`, `8080`, or `8081` target listener exists.
 88. Preserve NODE-032E Phase A firewall finding: UFW is active with default incoming deny and existing `8080/tcp` allow from `92.118.85.117`.
 89. Preserve NODE-032E Phase A recommendation: Phase B is NO-GO now because exact approval phrase is absent, even though technical gates are ready for a tightly scoped attempt if re-confirmed.
+90. Preserve NODE-032E Phase B result: exact approval phrase was provided, hard gates were re-run, and live apply stopped before state change because the deployed Asterisk repo lacks the safe `gateway_adapter_smoke` helper path.
+91. Preserve NODE-032E Phase B boundary: no systemd unit was written, no service was installed or started, no daemon reload ran, no firewall/env change occurred, no live smoke ran, and server state remained unchanged.
+92. Preserve NODE-032E next blocker: a future node must prepare or approve an Asterisk-side safe gateway smoke helper/path before retrying live apply/smoke.
 
 ## Next Recommended Step
 
 ```text
-NODE-032E Phase B / controlled production gateway first smoke using accepted live delta.
+NODE-032F / prepare-asterisk-side-gateway-smoke-helper-or-approved-smoke-path.
 ```
 
-The next live step remains blocked until the operator provides the exact NODE-032E approval phrase. It must re-run the read-only live gates immediately before apply, perform at most one controlled non-business-dialog smoke, keep gateway STT disabled for business dialog, preserve transcript redaction, avoid public TLS/proxy exposure for the first smoke, and stop if access, secrets, server state, firewall state, templates, or rollback are unsafe.
+The next live step remains blocked until an Asterisk-side safe smoke helper/path is explicitly prepared or approved. It must keep gateway STT disabled for business dialog, preserve transcript redaction, avoid public TLS/proxy exposure for first smoke, and stop if access, secrets, server state, firewall state, templates, smoke path, or rollback are unsafe.
 
 ## Node Completion Report Format
 

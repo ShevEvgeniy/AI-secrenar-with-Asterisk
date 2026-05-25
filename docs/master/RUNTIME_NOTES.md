@@ -1183,3 +1183,43 @@ APPROVE NODE-032E LIVE APPLY/SMOKE
 ```
 
 - Phase B must re-confirm all gates immediately before apply and stop if any gate changes.
+
+## NODE-032E Phase B Runtime Notes
+
+- Exact approval phrase was provided:
+
+```text
+APPROVE NODE-032E LIVE APPLY/SMOKE
+```
+
+- Hard gates were re-run before any state-changing command.
+- Asterisk remained active/enabled and `OPENAI_API_KEY` was absent from service process env.
+- Gateway hard gates passed for historical env presence, masked secret presence, target listener absence, and source-restricted `8080/tcp` firewall state.
+- Gateway `gateway:gateway` user/group was absent, but no service-account change was attempted because a harder smoke-path blocker stopped the node first.
+- The deployed Asterisk repo path exists:
+
+```text
+/home/tulauser/AI-secrenar-with-Asterisk-node014
+```
+
+- The deployed Asterisk repo does not contain:
+
+```text
+src/ai_secretary/stt/gateway_adapter_smoke.py
+```
+
+- NODE-032E Phase B stopped before service install/start because no safe Asterisk-side smoke helper/path was identified.
+- Final runtime state remained unchanged:
+
+```text
+service_installed=false
+systemd_unit_written=false
+daemon_reload=false
+gateway_service_started=false
+firewall_changed=false
+env_files_edited=false
+live_smoke=false
+gateway_target_listeners_443_8080_8081=absent
+```
+
+- Next node should prepare or approve an Asterisk-side safe gateway smoke helper/path before retrying live apply/smoke.
