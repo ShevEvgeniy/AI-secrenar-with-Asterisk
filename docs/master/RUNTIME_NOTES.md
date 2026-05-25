@@ -993,6 +993,31 @@ APPROVE NODE-032B LIVE APPLY/SMOKE
 - Phase B must verify gateway reachability, gateway auth, OpenAI Realtime from gateway, `transcript_text_logged=false`, `transcript_used_for_dialog=false`, unchanged business dialog, no Asterisk-side `OPENAI_API_KEY`, and cleanup or persistent service state decision.
 - If access, secrets, templates, current server state, redaction, or rollback readiness is unsafe, NODE-032B must remain blocked before live apply.
 
+## NODE-032C Runtime Notes
+
+- NODE-032C performed read-only live readiness inspection.
+- Asterisk host `92.118.85.117`:
+  - SSH reachable;
+  - hostname `localhost`;
+  - uptime observed as `up 8 minutes`;
+  - `ai-secretary-ari.service` active and enabled;
+  - `/etc/ai-secretary/ari-app.env` metadata `root:tulauser 0640`;
+  - `OPENAI_API_KEY_ABSENT` from service process env;
+  - recent sanitized journal showed system sounds published and `READY_WAITING_FOR_CALLS`.
+- Gateway host `45.61.48.199`:
+  - SSH reachable;
+  - hostname `ai-secretary-gateway-node023`;
+  - uptime observed as `up 8 minutes`;
+  - `ai-secretary-gateway.service` inactive/not found;
+  - gateway process not running;
+  - `/etc/ai-secretary/gateway.env` absent;
+  - `/etc/ai-secretary/openai-realtime-gateway.env` present as `root:root 0600`;
+  - masked `OPENAI_API_KEY` and `GATEWAY_TOKEN` key presence verified without values;
+  - no `443`, `8080`, or `8081` gateway target ports listening;
+  - UFW active with default deny incoming and old `8080/tcp` allow from `92.118.85.117`.
+- NODE-032C recommendation: NO-GO for immediate NODE-032D live apply/smoke until env path, service unit, TLS/proxy, firewall transition, and rollback plan are explicitly resolved.
+- No live apply, service start/stop/restart/reload, live smoke, live call, business dialog enablement, Notion write, Runtime/Evidence create, GitHub write, scheduler, webhook, or automation mode was performed.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

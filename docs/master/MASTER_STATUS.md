@@ -3,14 +3,14 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `ceda36b`
-- Source-of-truth commit message: `Merge PR #3: Document NODE-032 controlled gateway live smoke plan`
+- Source-of-truth commit: `407eeeb`
+- Source-of-truth commit message: `Merge pull request #4 from ShevEvgeniy/feat/node-032b-controlled-production-gateway-live-apply-and-smoke`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-032-controlled-production-gateway-live-smoke`
-- Latest completed node commit: `ceda36b`
+- Latest completed node branch: `feat/node-032b-controlled-production-gateway-live-apply-and-smoke`
+- Latest completed node commit: `407eeeb`
 - Chat bootstrap: `docs/master/CHAT_BOOTSTRAP.md`
-- Planned next technical node: `NODE-032B / controlled-production-gateway-live-apply-and-smoke`
+- Planned next technical node: `NODE-032C / live-readonly-production-gateway-readiness-inspection`
 
 ## Confirmed Working
 
@@ -1461,4 +1461,56 @@ Next recommendation:
 
 ```text
 NODE-032B Phase B only after exact explicit approval.
+```
+
+## NODE-032C Read-Only Inspection
+
+Result:
+
+```text
+NO-GO for immediate NODE-032D live apply/smoke.
+```
+
+Delivered:
+
+```text
+docs/nodes/NODE-032C-live-readonly-production-gateway-readiness-inspection.md
+```
+
+Read-only findings:
+
+```text
+asterisk_ssh=ok
+asterisk_service=active_enabled
+asterisk_openai_api_key=absent_from_process_env
+gateway_ssh=ok
+gateway_service=not_installed_not_enabled
+gateway_process=not_running
+gateway_env=/etc/ai-secretary/openai-realtime-gateway.env present 600 root:root
+gateway_env_openai_key_present=masked
+gateway_env_token_present=masked
+gateway_listen_443=false
+gateway_listen_8080=false
+gateway_listen_8081=false
+gateway_firewall=ufw active deny incoming allow outgoing
+gateway_firewall_8080=allowed from 92.118.85.117
+```
+
+Blockers:
+
+- Decide env path: historical `/etc/ai-secretary/openai-realtime-gateway.env` vs planned `/etc/ai-secretary/gateway.env`.
+- Install/adapt gateway systemd unit only in an approved future node.
+- Install/adapt TLS reverse proxy only in an approved future node.
+- Resolve firewall transition from old `8080/tcp` allow to production TLS/proxy plan.
+- Prepare rollback commands before any live apply.
+
+Boundary:
+
+```text
+live_apply=false
+service_started_stopped_restarted_reloaded=false
+live_smoke=false
+business_dialog_changed=false
+real_secrets_logged=false
+transcript_text_logged=false
 ```
