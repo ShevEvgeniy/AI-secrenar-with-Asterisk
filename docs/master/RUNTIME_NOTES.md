@@ -1152,3 +1152,34 @@ APPROVE NODE-032E LIVE APPLY/SMOKE
 ```
 
 - No other phrase is approval.
+
+## NODE-032E Phase A Runtime Notes
+
+- NODE-032E Phase A ran read-only live gate re-confirmation only.
+- Asterisk gate:
+  - SSH reachable;
+  - `ai-secretary-ari.service` active/enabled;
+  - `OPENAI_API_KEY` absent from service process env;
+  - business dialog unchanged.
+- Gateway gate:
+  - SSH reachable;
+  - historical env file `/etc/ai-secretary/openai-realtime-gateway.env` present as `root:root 600`;
+  - masked `OPENAI_API_KEY` and `GATEWAY_TOKEN` presence verified without values;
+  - `/etc/ai-secretary/gateway.env` remains not required for first smoke;
+  - `ai-secretary-gateway.service` inactive/absent/not enabled;
+  - no target listener on `443`, `8080`, or `8081`.
+- Firewall gate:
+
+```text
+ufw_status=active
+default_incoming=deny
+8080/tcp=ALLOW from 92.118.85.117
+```
+
+- Phase B remains NO-GO until a later exact approval phrase is provided:
+
+```text
+APPROVE NODE-032E LIVE APPLY/SMOKE
+```
+
+- Phase B must re-confirm all gates immediately before apply and stop if any gate changes.

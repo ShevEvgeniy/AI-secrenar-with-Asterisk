@@ -723,3 +723,28 @@ APPROVE NODE-032E LIVE APPLY/SMOKE
 ```
 
 No other phrase is approval.
+
+## NODE-032E Phase A Live Gate Re-Confirmation
+
+NODE-032E Phase A re-confirms the live gates before any controlled production gateway live apply/smoke.
+
+Accepted decision:
+
+- Phase A remains read-only inspection and documentation only.
+- Asterisk is acceptable for Phase B planning because SSH works, `ai-secretary-ari.service` is active/enabled, and `OPENAI_API_KEY` is absent from the service process env.
+- Gateway is acceptable for Phase B planning because SSH works, `/etc/ai-secretary/openai-realtime-gateway.env` exists as `root:root 600`, and masked checks show required gateway secret presence without values.
+- `/etc/ai-secretary/gateway.env` remains not required for the first smoke.
+- `ai-secretary-gateway.service` is not currently enabled/installed as a usable service and may be installed/adapted only in Phase B after exact approval.
+- No unexpected listener exists on `443`, `8080`, or `8081`.
+- UFW keeps `8080/tcp` source-restricted to `92.118.85.117`.
+- No public TLS/proxy, no `443`, no proxy reload, and no `8081` opening are allowed for first smoke.
+- Phase B is NO-GO now because the exact approval phrase is absent.
+- Phase B must re-run live gate checks immediately before apply.
+
+Future Phase B still requires:
+
+```text
+APPROVE NODE-032E LIVE APPLY/SMOKE
+```
+
+No other phrase is approval.
