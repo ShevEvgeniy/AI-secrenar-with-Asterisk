@@ -314,14 +314,16 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 66. Preserve NODE-031 production gateway boundary: service ownership, supervised process boundary, loopback/private listen, restricted firewall sources, TLS reverse proxy, secure env ownership, and transcript log redaction are prerequisites for persistent gateway use.
 67. Preserve NODE-031 secret boundary: `OPENAI_API_KEY` is gateway-only, `GATEWAY_TOKEN` is secure-runtime only, repo templates are placeholders only, and exposed tokens require rotation and incident response.
 68. Preserve NODE-031 dialog boundary: gateway STT remains disabled by default, business dialog must not use gateway transcript text, and measurement helper paths remain distinct from business dialog paths unless a later explicit node changes this.
+69. Preserve NODE-032 Phase A boundary: preflight and command planning only, no live apply, no service state change, no live smoke, and no business dialog transcript use.
+70. Preserve NODE-032 approval gate: Phase B requires exact operator approval phrase `APPROVE NODE-032 LIVE APPLY/SMOKE`.
 
 ## Next Recommended Step
 
 ```text
-NODE-032 / controlled-production-gateway-live-smoke
+NODE-032 Phase B / controlled-production-gateway-live-smoke
 ```
 
-The next technical node must be the first live apply/smoke node, require explicit operator approval, and keep gateway STT disabled by default unless a separate adoption node enables dialog transcript use.
+The next step is Phase B only after explicit operator approval. It must be the first live apply/smoke step, perform at most one controlled smoke, keep gateway STT disabled for business dialog, and preserve transcript redaction.
 
 ## Node Completion Report Format
 
