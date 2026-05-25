@@ -974,6 +974,25 @@ APPROVE NODE-032 LIVE APPLY/SMOKE
   - Asterisk must have no `OPENAI_API_KEY`.
 - Phase B must verify gateway reachability, gateway auth, OpenAI Realtime from gateway, `transcript_text_logged=false`, `transcript_used_for_dialog=false`, unchanged business dialog, and no Asterisk-side `OPENAI_API_KEY`.
 
+## NODE-032B Phase A Runtime Notes
+
+- NODE-032B Phase A changes no runtime behavior.
+- Phase A does not SSH to live servers, does not apply systemd or firewall changes, does not start/stop/restart/reload services, does not reload proxy config, and does not run live smoke.
+- Phase A records the exact approval gate:
+
+```text
+APPROVE NODE-032B LIVE APPLY/SMOKE
+```
+
+- No other phrase is approval.
+- Planned Phase B smoke remains non-business-dialog:
+  - `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`;
+  - `STT_GATEWAY_LOG_TRANSCRIPT=false`;
+  - transcript text must not be logged;
+  - Asterisk must have no `OPENAI_API_KEY`.
+- Phase B must verify gateway reachability, gateway auth, OpenAI Realtime from gateway, `transcript_text_logged=false`, `transcript_used_for_dialog=false`, unchanged business dialog, no Asterisk-side `OPENAI_API_KEY`, and cleanup or persistent service state decision.
+- If access, secrets, templates, current server state, redaction, or rollback readiness is unsafe, NODE-032B must remain blocked before live apply.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.

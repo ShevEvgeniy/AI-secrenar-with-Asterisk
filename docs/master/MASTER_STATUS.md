@@ -3,14 +3,14 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `901b5a4`
-- Source-of-truth commit message: `Close NODE-030 speech gateway smoke`
+- Source-of-truth commit: `ceda36b`
+- Source-of-truth commit message: `Merge PR #3: Document NODE-032 controlled gateway live smoke plan`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-030-controlled-russian-speech-wav-gateway-transcript-smoke`
-- Latest completed node commit: `901b5a4`
+- Latest completed node branch: `feat/node-032-controlled-production-gateway-live-smoke`
+- Latest completed node commit: `ceda36b`
 - Chat bootstrap: `docs/master/CHAT_BOOTSTRAP.md`
-- Planned next technical node: `NODE-032 / controlled-production-gateway-live-smoke`
+- Planned next technical node: `NODE-032B / controlled-production-gateway-live-apply-and-smoke`
 
 ## Confirmed Working
 
@@ -1416,4 +1416,49 @@ Next recommendation:
 
 ```text
 NODE-032 Phase B / controlled-production-gateway-live-smoke
+```
+
+## NODE-032B Phase A
+
+Result:
+
+```text
+PASS as readiness/preflight and command plan only.
+```
+
+Delivered:
+
+```text
+docs/nodes/NODE-032B-controlled-production-gateway-live-apply-and-smoke.md
+```
+
+Recorded boundary:
+
+```text
+phase_a_only=true
+live_apply=false
+service_state_changed=false
+live_smoke=false
+source_runtime_behavior_changed=false
+business_dialog_changed=false
+openai_key_on_asterisk=false
+real_secrets_committed=false
+notion_write=false
+runtime_evidence_create=false
+github_write=false
+scheduler_webhook_automation_added=false
+```
+
+NODE-032B Phase A records the exact approval gate:
+
+```text
+APPROVE NODE-032B LIVE APPLY/SMOKE
+```
+
+No other phrase is approval.
+
+Next recommendation:
+
+```text
+NODE-032B Phase B only after exact explicit approval.
 ```

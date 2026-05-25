@@ -4,8 +4,8 @@
 
 - Repository root: `C:\Projects\AI-secrenar-with-Asterisk`
 - Source-of-truth branch: `master`
-- Source-of-truth commit: `59bca83`
-- Source-of-truth commit message: `Implement NODE-025 gateway STT adapter`
+- Source-of-truth commit: `ceda36b`
+- Source-of-truth commit message: `Merge PR #3: Document NODE-032 controlled gateway live smoke plan`
 - Workflow model: master-driven coordination with focused node branches for implementation.
 
 ## Confirmed Capabilities
@@ -222,6 +222,20 @@ docs/templates only -> service/systemd/firewall/TLS/env/redaction boundaries -> 
 
 This is not a live deployment. It adds safe placeholder templates and records rollback, cleanup, token rotation, and explicit operator-approval gates for the next live node.
 
+NODE-032 Phase A prepares the first controlled production gateway live-smoke plan:
+
+```text
+preflight and command plan only -> no live apply -> exact approval gate -> rollback/cleanup plan
+```
+
+NODE-032B Phase A refines the readiness/preflight plan for the controlled production gateway live apply/smoke:
+
+```text
+NODE-031 templates + NODE-032 Phase A plan -> NODE-032B approval gate -> Phase B live apply/smoke command plan
+```
+
+NODE-032B Phase A is docs-only. It performs no live apply, no service start/stop/restart/reload, no server state change, and no live smoke.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -316,14 +330,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 68. Preserve NODE-031 dialog boundary: gateway STT remains disabled by default, business dialog must not use gateway transcript text, and measurement helper paths remain distinct from business dialog paths unless a later explicit node changes this.
 69. Preserve NODE-032 Phase A boundary: preflight and command planning only, no live apply, no service state change, no live smoke, and no business dialog transcript use.
 70. Preserve NODE-032 approval gate: Phase B requires exact operator approval phrase `APPROVE NODE-032 LIVE APPLY/SMOKE`.
+71. Preserve NODE-032B Phase A boundary: readiness/preflight and command planning only, no live apply, no service start/stop/restart/reload, no server state change, no live smoke, and no business dialog transcript use.
+72. Preserve NODE-032B approval gate: Phase B requires exact operator approval phrase `APPROVE NODE-032B LIVE APPLY/SMOKE`; no other phrase is approval.
+73. Preserve NODE-032B evidence boundary: expected evidence must be redacted and may include server targets, service state before/after, port/listen state before/after, firewall/TLS state, masked gateway env checks, masked Asterisk safe profile checks, health result, smoke result, transcript flags without transcript text, business dialog unchanged, and cleanup/persistent state decision.
 
 ## Next Recommended Step
 
 ```text
-NODE-032 Phase B / controlled-production-gateway-live-smoke
+NODE-032B Phase B / controlled-production-gateway-live-apply-and-smoke
 ```
 
-The next step is Phase B only after explicit operator approval. It must be the first live apply/smoke step, perform at most one controlled smoke, keep gateway STT disabled for business dialog, and preserve transcript redaction.
+The next step is Phase B only after the exact approval phrase `APPROVE NODE-032B LIVE APPLY/SMOKE`. It must perform at most one controlled smoke, keep gateway STT disabled for business dialog, preserve transcript redaction, and stop if access, secrets, server state, templates, or rollback are unsafe.
 
 ## Node Completion Report Format
 
