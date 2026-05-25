@@ -637,3 +637,22 @@ Next technical node:
 ```text
 NODE-031 / productionize-gateway-runtime-boundary
 ```
+
+## Production Gateway Runtime Boundary
+
+NODE-031 defines the production gateway runtime boundary as docs and safe templates only.
+
+Accepted decision:
+
+- Production gateway ownership, systemd/supervisor boundaries, port/listen assumptions, firewall source restriction, TLS/reverse-proxy boundaries, env-file ownership, and log redaction requirements are documented before any persistent gateway deployment.
+- `OPENAI_API_KEY` must live only on the supported-region gateway, never in the Asterisk safe profile.
+- `GATEWAY_TOKEN` must be stored only in secure runtime env/vault material; repository templates use placeholders only.
+- Gateway STT remains disabled by default, and business dialog must not use gateway transcript text unless a later explicit node enables it.
+- Transcript text must not be logged by default; measurement helper and business dialog paths remain distinct.
+- NODE-031 performs no live deployment, no server action, no systemd/firewall/TLS apply, no live smoke, no Notion write, no Runtime/Evidence create, and no GitHub write.
+
+Next implementation node:
+
+```text
+NODE-032 / controlled-production-gateway-live-smoke
+```

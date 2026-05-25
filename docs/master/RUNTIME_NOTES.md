@@ -931,6 +931,32 @@ STT_GATEWAY_LOG_TRANSCRIPT=false
 - No secrets or real tokens were intentionally logged or committed.
 - `data/storage/` and `node014-server.tar` remain historical untracked artifacts and must not be staged, committed, deleted, or cleaned by this node.
 
+## NODE-031 Runtime Notes
+
+- NODE-031 is docs/templates-only and changes no production runtime behavior.
+- Safe placeholder templates live under `deploy/templates/`:
+  - `gateway.env.example`;
+  - `gateway-systemd.service.example`;
+  - `gateway-nginx-proxy.example`.
+- Production gateway runtime boundary:
+  - gateway service ownership belongs to infra/ops;
+  - systemd or equivalent supervision is required before persistent production use;
+  - the app should bind on loopback or private IP, with public exposure only through TLS reverse proxy;
+  - firewall policy must default-deny and allow only Asterisk, operator, and monitoring source CIDRs;
+  - env files must be owned by root/service account and readable only by the service boundary;
+  - logs must redact transcript text by default.
+- Secret boundary:
+  - `OPENAI_API_KEY` lives on the gateway only, not in the Asterisk safe profile;
+  - `GATEWAY_TOKEN` lives only in secure server env/vault material;
+  - repository templates use placeholders only;
+  - exposed tokens require immediate revocation, rotation, log review, and incident response.
+- Dialog/STT boundary:
+  - gateway STT remains disabled by default;
+  - business dialog must not use gateway transcript unless a later explicit node enables it;
+  - measurement helper and business dialog paths remain distinct.
+- NODE-032 must be the first live apply/smoke node and must require explicit operator approval.
+- No server action, Notion write, Runtime/Evidence create, GitHub write, live smoke, or scheduler/webhook/automation mode was performed by NODE-031.
+
 ## NODE-010 Runtime Notes
 
 - Bounded local callback persistence is implemented.
