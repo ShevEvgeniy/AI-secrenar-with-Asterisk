@@ -3,14 +3,14 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `fcd0140`
-- Source-of-truth commit message: `Merge pull request #6 from ShevEvgeniy/feat/node-032d-production-gateway-live-delta-decision`
+- Source-of-truth commit: `a280bb2`
+- Source-of-truth commit message: `Merge pull request #9 from ShevEvgeniy/feat/node-032g-controlled-gateway-live-smoke-with-asterisk-side-helper`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-032d-production-gateway-live-delta-decision`
-- Latest completed node commit: `fcd0140`
+- Latest completed node branch: `feat/node-032g-controlled-gateway-live-smoke-with-asterisk-side-helper`
+- Latest completed node commit: `a280bb2`
 - Chat bootstrap: `docs/master/CHAT_BOOTSTRAP.md`
-- Planned next technical node: `NODE-032E / controlled-production-gateway-live-apply-and-smoke`
+- Planned next technical node: `NODE-032H / production-gateway-persistence-and-reboot-strategy`
 
 ## Confirmed Working
 
@@ -1778,4 +1778,63 @@ temp_audio_removed=true
 asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
 helper_autostart=false
 scheduler_webhook_automation_added=false
+```
+
+## NODE-032H Production Gateway Persistence And Reboot Strategy
+
+Result:
+
+```text
+docs_only_strategy_complete=true
+live_apply=false
+ssh=false
+server_state_changed=false
+service_installed_started_stopped_restarted_reloaded_enabled=false
+firewall_changed=false
+env_files_edited=false
+live_smoke=false
+business_dialog_enabled=false
+real_secrets_logged=false
+transcript_text_logged=false
+```
+
+Persistence decision:
+
+```text
+persistence_mode=staged_persistence
+manual_only_gateway_for_now=true
+installed_but_disabled_service_first=true
+installed_and_enabled_service_now=false
+enable_reboot_smoke_deferred=true
+```
+
+Future service policy:
+
+```text
+service_name=ai-secretary-gateway.service
+unit_path=/etc/systemd/system/ai-secretary-gateway.service
+runtime_user_group=gateway:gateway
+env_file=/etc/ai-secretary/openai-realtime-gateway.env
+working_directory=/opt/ai-secretary-gateway
+listen=0.0.0.0:8080
+restart=on-failure
+enable_policy=disabled_until_reboot_node
+```
+
+Network and safety policy:
+
+```text
+listen_8080=acceptable_only_with_source_restricted_firewall
+required_source=92.118.85.117
+open_443=false
+open_8081=false
+firewall_broadened=false
+asterisk_openai_api_key=false
+business_dialog_integration_deferred=true
+```
+
+Next recommendation:
+
+```text
+NODE-032I / controlled-persistent-gateway-service-and-reboot-smoke
 ```
