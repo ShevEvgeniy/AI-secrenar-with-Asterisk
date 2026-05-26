@@ -1223,3 +1223,45 @@ gateway_target_listeners_443_8080_8081=absent
 ```
 
 - Next node should prepare or approve an Asterisk-side safe gateway smoke helper/path before retrying live apply/smoke.
+
+## NODE-032F Runtime Notes
+
+- NODE-032F prepares the Asterisk-side helper/path locally only.
+- No SSH, live deploy, service change, firewall change, server env edit, live call, or live smoke occurred.
+- Approved helper path for the next live node:
+
+```text
+scripts/asterisk_gateway_smoke_helper.py
+```
+
+- The helper wraps:
+
+```text
+python -m ai_secretary.stt.gateway_adapter_smoke
+```
+
+- Future live use must run from the Asterisk host to prove:
+
+```text
+92.118.85.117 -> 45.61.48.199:8080
+```
+
+- Required one-off runtime boundary:
+
+```text
+STT_GATEWAY_STT_ENABLED=true
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false
+STT_GATEWAY_URL=http://45.61.48.199:8080
+STT_GATEWAY_TOKEN=<gateway-token-from-secure-runtime>
+STT_GATEWAY_LOG_TRANSCRIPT=false
+OPENAI_API_KEY must be absent
+```
+
+- The helper fails closed if `OPENAI_API_KEY` exists on Asterisk, if transcript dialog use is enabled, if transcript logging is enabled, or if gateway URL/token material is missing.
+- The helper must never print token values or transcript text.
+- The helper is power-cycle safe: no autostart, no scheduler, no webhook, no timer, no cron, and no persistent server state.
+- Next recommended node:
+
+```text
+NODE-032G / controlled-gateway-live-smoke-with-asterisk-side-helper
+```
