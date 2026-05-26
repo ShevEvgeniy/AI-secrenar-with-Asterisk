@@ -803,3 +803,21 @@ Accepted decision:
 - Phase B should use a temporary root-owned `600` runtime env file at `/tmp/node032g-gateway-client.env` or an equally secure operator-injected runtime secret path to avoid shell-history token exposure.
 - No helper autostart, persistent helper state, scheduler, webhook, cron, timer, or automation loop is allowed.
 - Business dialog must remain unchanged and transcript text must remain redacted.
+
+## NODE-032G Phase B Live Smoke Result
+
+NODE-032G Phase B received exact approval and completed the controlled Asterisk-origin gateway smoke.
+
+Accepted result:
+
+- The temporary helper bundle was deployed only to `/tmp/node032g-asterisk-helper`.
+- The temporary runtime env file was deployed only to `/tmp/node032g-gateway-client.env` with `root:root 600`.
+- The gateway service was installed and started temporarily, using `/etc/ai-secretary/openai-realtime-gateway.env`, `0.0.0.0:8080`, and `Restart=on-failure`.
+- No `443`, `8081`, TLS/proxy, or firewall broadening occurred.
+- The smoke ran from Asterisk and proved `92.118.85.117 -> 45.61.48.199:8080`.
+- Gateway auth succeeded, OpenAI Realtime from gateway succeeded, and `chunks_sent=28`.
+- `transcript_present=true`, `transcript_text_logged=false`, and `business_dialog_unchanged=true`.
+- The helper rejected transcript use for dialog with `fallback_reason=gateway_stt_dialog_use_disabled`.
+- Temporary gateway service/unit, helper bundle, runtime env file, and temp audio were removed during cleanup.
+- Asterisk still had no `OPENAI_API_KEY`.
+- No helper autostart, scheduler, webhook, timer, cron, or automation loop was added.

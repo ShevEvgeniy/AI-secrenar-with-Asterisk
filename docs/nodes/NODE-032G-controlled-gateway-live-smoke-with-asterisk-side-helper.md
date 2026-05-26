@@ -315,3 +315,218 @@ Known pre-existing/environmental full-suite failures remain unrelated to NODE-03
 
 - missing `src/scripts/make_demo_audio.py`;
 - missing `sentence_transformers`.
+
+## Phase B Controlled Live Smoke
+
+Approval phrase confirmed:
+
+```text
+APPROVE NODE-032G LIVE APPLY/SMOKE
+```
+
+Phase B stayed within NODE-032G scope. Hard gates were re-run before any state-changing command. No `443`, `8081`, TLS/proxy, firewall, business dialog, Notion, Runtime/Evidence, GitHub, scheduler, webhook, or automation change occurred.
+
+### Phase B Hard Gate Re-Confirmation
+
+Asterisk hard gate:
+
+```text
+ssh_reachable=true
+hostname=tula
+ai-secretary-ari.service_active=active
+ai-secretary-ari.service_enabled=enabled
+process_env_openai_api_key=OPENAI_API_KEY_ABSENT
+node032g_helper_path_absent_before_apply=true
+node032g_env_path_absent_before_apply=true
+node032g_timer_absent=true
+node032g_cron_absent=true
+node032g_unit_absent=true
+```
+
+Gateway hard gate:
+
+```text
+ssh_reachable=true
+hostname=ai-secretary-gateway-node023
+historical_env=/etc/ai-secretary/openai-realtime-gateway.env present root:root 600
+openai_api_key_presence=OPENAI_API_KEY_PRESENT_MASKED
+gateway_token_presence=GATEWAY_TOKEN_PRESENT_MASKED
+target_listeners_443_8080_8081=absent
+ufw_status=active
+ufw_default_incoming=deny
+ufw_8080_allow=92.118.85.117 only
+gateway_unit_absent_before_apply=true
+gateway_deploy_path=/opt/ai-secretary-gateway present
+gateway_venv_deps_ok=true
+```
+
+### Helper Bundle Result
+
+The first tar/scp attempts using sandbox-denied local aliases did not place files on the server. The approved bundle was then copied using the explicit Windows OpenSSH `scp.exe` path.
+
+Temporary Asterisk helper bundle:
+
+```text
+path=/tmp/node032g-asterisk-helper
+created=true
+autostart=false
+persistent_state=false
+business_dialog_modified=false
+```
+
+Bundled files:
+
+```text
+scripts/asterisk_gateway_smoke_helper.py
+src/ai_secretary/__init__.py
+src/ai_secretary/config/__init__.py
+src/ai_secretary/config/settings.py
+src/ai_secretary/stt/__init__.py
+src/ai_secretary/stt/gateway_adapter.py
+src/ai_secretary/stt/gateway_adapter_smoke.py
+src/ai_secretary/stt/realtime_gateway.py
+src/ai_secretary/stt/realtime_measurement.py
+```
+
+The `config` package was added after an initial pre-smoke import failure showed the current package initializer requires it. That failed invocation did not reach the gateway or create a smoke request.
+
+### Temporary Runtime Env Result
+
+Temporary Asterisk env:
+
+```text
+path=/tmp/node032g-gateway-client.env
+owner_mode=root:root 600
+stt_gateway_stt_enabled=present_masked
+stt_gateway_use_transcript_for_dialog=present_masked
+stt_gateway_url=present_masked
+stt_gateway_timeout_ms=present_masked
+stt_gateway_log_transcript=present_masked
+stt_gateway_token=present_masked
+openai_api_key=absent
+```
+
+Token material was transferred through a pipe without printing the value. No token value was written to docs or chat.
+
+### Gateway Service Result
+
+No existing unit was present, so no backup was required.
+
+Temporary service:
+
+```text
+unit=/etc/systemd/system/ai-secretary-gateway.service
+working_directory=/opt/ai-secretary-gateway
+env_file=/etc/ai-secretary/openai-realtime-gateway.env
+exec=/opt/ai-secretary-gateway/.venv/bin/python -m ai_secretary.stt.realtime_gateway --host 0.0.0.0 --port 8080
+restart=on-failure
+started=true
+active=true
+enabled=false
+```
+
+Because no persistent service state was approved and the gateway env is `root:root 600`, NODE-032G used a temporary root-run service unit and removed it during cleanup. No `gateway:gateway` user/group was created.
+
+Listener/firewall after start:
+
+```text
+listener_8080=true
+listener_443=false
+listener_8081=false
+ufw_8080_allow=92.118.85.117 only
+firewall_broadened=false
+```
+
+Health/readiness:
+
+```text
+service_active=true
+listener_8080=true
+docs_endpoint_ok=true
+explicit_health_endpoint=not_available
+```
+
+### Controlled Smoke Result
+
+Smoke command shape:
+
+```text
+cd /tmp/node032g-asterisk-helper
+set -a
+. /tmp/node032g-gateway-client.env
+set +a
+unset OPENAI_API_KEY
+/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python scripts/asterisk_gateway_smoke_helper.py --audio /tmp/node032g-smoke.wav
+```
+
+Smoke audio:
+
+```text
+source=/home/tulauser/AI-secrenar-with-Asterisk-node014/data/storage/_system/prompt_1.wav
+temp_audio=/tmp/node032g-smoke.wav
+format=mono 16-bit PCM 24000 Hz
+caller_audio=false
+```
+
+Safe smoke result:
+
+```text
+adapter_smoke_exercised_node025_path=true
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+gateway_http_status=200
+chunks_sent=28
+transcript_present=true
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+fallback_reason=gateway_stt_dialog_use_disabled
+adapter_default_enabled_after_smoke=false
+helper_manual_only=true
+persistent_server_state_created=false
+autostart_configured=false
+```
+
+No transcript text was printed. The response reported `transcript_text_length=0` and safe redaction fields only.
+
+### Cleanup And Final State
+
+Cleanup commands stopped and removed only NODE-032G temporary state:
+
+```text
+systemctl stop ai-secretary-gateway.service
+systemctl disable ai-secretary-gateway.service
+rm -f /etc/systemd/system/ai-secretary-gateway.service
+systemctl daemon-reload
+rm -rf /tmp/node032g-asterisk-helper
+rm -f /tmp/node032g-gateway-client.env /tmp/node032g-smoke.wav
+```
+
+Final state:
+
+```text
+gateway_service=inactive_or_absent_after_cleanup
+gateway_unit=absent_after_cleanup
+gateway_enabled=not_enabled_or_absent_after_cleanup
+gateway_target_listeners_443_8080_8081=absent
+gateway_firewall_8080=allowed from 92.118.85.117 only
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+asterisk_service=active_enabled
+helper_bundle_removed=true
+temp_env_removed=true
+temp_audio_removed=true
+node032g_timer_absent=true
+node032g_cron_absent=true
+node032g_unit_absent=true
+```
+
+## Phase B Recommendation
+
+NODE-032G reached GO for the next closeout node:
+
+```text
+NODE-032G closeout commit/PR
+```
+
+The production gateway first-smoke proof succeeded. A later node may decide whether to productionize persistent gateway service state, create a non-root gateway runtime user, replace the temporary helper-bundle approach with a proper deployment/update path, or clean up the old `8080/tcp` allowance after a replacement path is approved.

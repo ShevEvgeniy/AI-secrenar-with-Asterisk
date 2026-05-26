@@ -1308,3 +1308,76 @@ business_dialog_changed=false
 ```text
 APPROVE NODE-032G LIVE APPLY/SMOKE
 ```
+
+## NODE-032G Phase B Runtime Notes
+
+- Exact approval phrase was provided:
+
+```text
+APPROVE NODE-032G LIVE APPLY/SMOKE
+```
+
+- Hard gates were re-run before state-changing commands.
+- Asterisk remained active/enabled and had `OPENAI_API_KEY_ABSENT` in the service process env.
+- Gateway historical env remained `/etc/ai-secretary/openai-realtime-gateway.env` as `root:root 600`, with masked `OPENAI_API_KEY` and `GATEWAY_TOKEN` presence verified without values.
+- UFW stayed source-restricted:
+
+```text
+8080/tcp ALLOW IN from 92.118.85.117
+```
+
+- Temporary Asterisk helper state:
+
+```text
+helper_bundle=/tmp/node032g-asterisk-helper
+runtime_env=/tmp/node032g-gateway-client.env
+temp_audio=/tmp/node032g-smoke.wav
+autostart=false
+persistent_state=false
+```
+
+- The first helper invocation failed before any gateway request because the bundle missed `ai_secretary.config`; the bundle was corrected by adding only `src/ai_secretary/config/__init__.py` and `src/ai_secretary/config/settings.py`.
+- Temporary gateway service state:
+
+```text
+unit=/etc/systemd/system/ai-secretary-gateway.service
+env_file=/etc/ai-secretary/openai-realtime-gateway.env
+listen=0.0.0.0:8080
+restart=on-failure
+enabled=false
+```
+
+- No existing gateway unit was present, so no backup was required.
+- No `gateway:gateway` user/group was created; the temporary unit was removed after smoke.
+- Health/readiness used service/listen checks and the FastAPI docs endpoint. No explicit `/health` endpoint was available.
+- Controlled smoke safe result:
+
+```text
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+gateway_http_status=200
+chunks_sent=28
+transcript_present=true
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+fallback_reason=gateway_stt_dialog_use_disabled
+```
+
+- Cleanup removed the temporary service/unit, helper bundle, runtime env file, and temp audio.
+- Final state:
+
+```text
+gateway_service=inactive_or_absent
+gateway_unit=absent
+gateway_target_listeners_443_8080_8081=absent
+firewall_broadened=false
+helper_bundle_removed=true
+temp_env_removed=true
+temp_audio_removed=true
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+node032g_timer_absent=true
+node032g_cron_absent=true
+node032g_unit_absent=true
+```

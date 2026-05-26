@@ -1747,3 +1747,35 @@ Phase B remains NO-GO until exact approval:
 ```text
 APPROVE NODE-032G LIVE APPLY/SMOKE
 ```
+
+Phase B result after exact approval:
+
+```text
+approval_phrase_confirmed=true
+phase_b_live_smoke_complete=true
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+gateway_http_status=200
+chunks_sent=28
+transcript_present=true
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+fallback_reason=gateway_stt_dialog_use_disabled
+```
+
+Cleanup/final state:
+
+```text
+gateway_service=inactive_or_absent_after_cleanup
+gateway_unit=absent_after_cleanup
+gateway_target_listeners_443_8080_8081=absent
+firewall_broadened=false
+helper_bundle_removed=true
+temp_env_removed=true
+temp_audio_removed=true
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+helper_autostart=false
+scheduler_webhook_automation_added=false
+```
