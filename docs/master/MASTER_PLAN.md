@@ -363,6 +363,11 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 93. Preserve NODE-032F helper path: `scripts/asterisk_gateway_smoke_helper.py` is the approved manual Asterisk-side wrapper for the next live smoke path.
 94. Preserve NODE-032F safety boundary: the helper refuses Asterisk-side `OPENAI_API_KEY`, requires `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`, requires transcript logging disabled, does not configure autostart, and creates no persistent server state.
 95. Preserve NODE-032F proof boundary: the helper must run from the Asterisk host to prove `92.118.85.117 -> 45.61.48.199:8080`; workstation-origin smoke is not acceptable for that proof.
+96. Preserve NODE-032G Phase A finding: live gates pass read-only, but Phase B is NO-GO until exact approval phrase `APPROVE NODE-032G LIVE APPLY/SMOKE`.
+97. Preserve NODE-032G helper availability finding: `/home/tulauser/AI-secrenar-with-Asterisk-node014` exists but lacks the NODE-032F wrapper and required adapter modules, so Phase B should use an explicitly approved temporary helper bundle rather than assume `git pull`.
+98. Preserve NODE-032G Phase B boundary: helper bundle deployment, gateway service start, runtime env file creation, and one Asterisk-origin smoke may occur only after exact approval and immediate hard-gate re-confirmation.
+99. Preserve NODE-032G live-smoke result: Asterisk-origin helper smoke reached the gateway on `45.61.48.199:8080`, authenticated successfully, reached OpenAI Realtime from the gateway, sent `28` chunks, observed `transcript_present=true`, kept `transcript_text_logged=false`, and kept `business_dialog_unchanged=true`.
+100. Preserve NODE-032G cleanup result: temporary gateway service/unit, helper bundle, runtime env file, and temp audio were removed; no `443`/`8081`/TLS/proxy/firewall broadening occurred; Asterisk still had no `OPENAI_API_KEY`.
 
 ## Next Recommended Step
 
@@ -370,7 +375,7 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 NODE-032G / controlled-gateway-live-smoke-with-asterisk-side-helper.
 ```
 
-The next live step must make the approved Asterisk-side helper/path available on the Asterisk host, re-confirm all live gates, and run at most one controlled non-business-dialog smoke only after explicit scoped approval. It must keep gateway STT disabled for business dialog, preserve transcript redaction, avoid public TLS/proxy exposure for first smoke, and stop if access, secrets, server state, firewall state, templates, smoke path, or rollback are unsafe.
+The NODE-032G live proof is complete. The next node should close out NODE-032G through PR review/merge, then decide whether to productionize persistent gateway service state, create a non-root gateway runtime user, replace the temporary helper-bundle approach with a proper deployment/update path, or clean up the old `8080/tcp` allowance after a replacement path is approved.
 
 ## Node Completion Report Format
 
