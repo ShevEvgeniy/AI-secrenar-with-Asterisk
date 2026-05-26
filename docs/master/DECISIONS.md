@@ -765,3 +765,25 @@ Accepted decision:
 Next decision required:
 
 - A separate node must prepare or approve the Asterisk-side smoke helper/path before retrying live apply/smoke.
+
+## NODE-032F Asterisk-Side Smoke Helper Path
+
+NODE-032F prepares the Asterisk-side helper/path for the next controlled live smoke.
+
+Accepted decision:
+
+- Reuse the existing tested core helper `ai_secretary.stt.gateway_adapter_smoke`.
+- Add `scripts/asterisk_gateway_smoke_helper.py` as the explicit Asterisk-side manual wrapper for future live use.
+- The wrapper is manual-only and must not be configured as a service, cron job, timer, webhook, scheduler, or automation loop.
+- The wrapper requires `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false` and `STT_GATEWAY_LOG_TRANSCRIPT=false`.
+- The wrapper refuses to run if `OPENAI_API_KEY` exists on Asterisk.
+- The wrapper may use only gateway URL/token runtime material supplied by a future live node through secure one-off env or an explicitly approved temporary secure runtime file.
+- The wrapper must never print token values or transcript text.
+- The wrapper records safe flags/metrics only, including `transcript_text_logged=false` and `business_dialog_unchanged=true`.
+- The next live smoke must run this helper from the Asterisk host to prove the source-restricted `92.118.85.117 -> 45.61.48.199:8080` path.
+
+Next live node:
+
+```text
+NODE-032G / controlled-gateway-live-smoke-with-asterisk-side-helper
+```

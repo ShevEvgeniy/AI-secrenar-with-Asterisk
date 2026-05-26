@@ -1647,3 +1647,49 @@ Next recommendation:
 ```text
 NODE-032F / prepare-asterisk-side-gateway-smoke-helper-or-approved-smoke-path
 ```
+
+## NODE-032F Asterisk-Side Gateway Smoke Helper Preparation
+
+Result:
+
+```text
+helper_path_prepared=true
+selected_helper=scripts/asterisk_gateway_smoke_helper.py
+core_helper_reused=ai_secretary.stt.gateway_adapter_smoke
+live_deploy=false
+ssh=false
+server_state_changed=false
+service_installed_started_stopped_restarted_reloaded=false
+firewall_changed=false
+server_env_edited=false
+live_smoke=false
+business_dialog_enabled=false
+real_secrets_logged=false
+transcript_text_logged=false
+```
+
+Helper boundary:
+
+```text
+manual_only=true
+requires_asterisk_origin=true
+requires_openai_api_key_absent=true
+requires_stt_gateway_use_transcript_for_dialog=false
+requires_stt_gateway_log_transcript=false
+records_business_dialog_unchanged=true
+autostart_configured=false
+persistent_server_state_created=false
+```
+
+Future live command path:
+
+```text
+cd /home/tulauser/AI-secrenar-with-Asterisk-node014
+python scripts/asterisk_gateway_smoke_helper.py --audio <approved-non-sensitive-smoke-wav>
+```
+
+Next recommendation:
+
+```text
+NODE-032G / controlled-gateway-live-smoke-with-asterisk-side-helper
+```

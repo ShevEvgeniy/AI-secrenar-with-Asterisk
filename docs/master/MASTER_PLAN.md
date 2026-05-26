@@ -360,14 +360,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 90. Preserve NODE-032E Phase B result: exact approval phrase was provided, hard gates were re-run, and live apply stopped before state change because the deployed Asterisk repo lacks the safe `gateway_adapter_smoke` helper path.
 91. Preserve NODE-032E Phase B boundary: no systemd unit was written, no service was installed or started, no daemon reload ran, no firewall/env change occurred, no live smoke ran, and server state remained unchanged.
 92. Preserve NODE-032E next blocker: a future node must prepare or approve an Asterisk-side safe gateway smoke helper/path before retrying live apply/smoke.
+93. Preserve NODE-032F helper path: `scripts/asterisk_gateway_smoke_helper.py` is the approved manual Asterisk-side wrapper for the next live smoke path.
+94. Preserve NODE-032F safety boundary: the helper refuses Asterisk-side `OPENAI_API_KEY`, requires `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false`, requires transcript logging disabled, does not configure autostart, and creates no persistent server state.
+95. Preserve NODE-032F proof boundary: the helper must run from the Asterisk host to prove `92.118.85.117 -> 45.61.48.199:8080`; workstation-origin smoke is not acceptable for that proof.
 
 ## Next Recommended Step
 
 ```text
-NODE-032F / prepare-asterisk-side-gateway-smoke-helper-or-approved-smoke-path.
+NODE-032G / controlled-gateway-live-smoke-with-asterisk-side-helper.
 ```
 
-The next live step remains blocked until an Asterisk-side safe smoke helper/path is explicitly prepared or approved. It must keep gateway STT disabled for business dialog, preserve transcript redaction, avoid public TLS/proxy exposure for first smoke, and stop if access, secrets, server state, firewall state, templates, smoke path, or rollback are unsafe.
+The next live step must make the approved Asterisk-side helper/path available on the Asterisk host, re-confirm all live gates, and run at most one controlled non-business-dialog smoke only after explicit scoped approval. It must keep gateway STT disabled for business dialog, preserve transcript redaction, avoid public TLS/proxy exposure for first smoke, and stop if access, secrets, server state, firewall state, templates, smoke path, or rollback are unsafe.
 
 ## Node Completion Report Format
 
