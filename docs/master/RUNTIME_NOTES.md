@@ -1265,3 +1265,46 @@ OPENAI_API_KEY must be absent
 ```text
 NODE-032G / controlled-gateway-live-smoke-with-asterisk-side-helper
 ```
+
+## NODE-032G Phase A Runtime Notes
+
+- NODE-032G Phase A performed read-only gate re-confirmation and command planning only.
+- No helper was copied or deployed.
+- Asterisk gate:
+  - SSH reachable;
+  - `ai-secretary-ari.service` active/enabled;
+  - `OPENAI_API_KEY` absent from service process env;
+  - business dialog unchanged by Phase A.
+- Asterisk helper path finding:
+
+```text
+/home/tulauser/AI-secrenar-with-Asterisk-node014 present
+scripts/asterisk_gateway_smoke_helper.py absent
+src/ai_secretary/stt/gateway_adapter_smoke.py absent
+src/ai_secretary/stt/gateway_adapter.py absent
+src/ai_secretary/stt/realtime_gateway.py absent
+git_head=unavailable
+```
+
+- Gateway gate:
+  - SSH reachable;
+  - historical env file `/etc/ai-secretary/openai-realtime-gateway.env` present as `root:root 600`;
+  - masked `OPENAI_API_KEY` and `GATEWAY_TOKEN` presence verified without values;
+  - `ai-secretary-gateway.service` inactive/not enabled;
+  - no target listener on `443`, `8080`, or `8081`;
+  - UFW allows `8080/tcp` only from `92.118.85.117`.
+- Phase B helper availability plan:
+
+```text
+temporary_helper_bundle=/tmp/node032g-asterisk-helper
+temporary_runtime_env=/tmp/node032g-gateway-client.env
+helper_autostart=false
+helper_persistent_state=false
+business_dialog_changed=false
+```
+
+- Phase B remains NO-GO until exact approval phrase:
+
+```text
+APPROVE NODE-032G LIVE APPLY/SMOKE
+```

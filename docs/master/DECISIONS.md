@@ -787,3 +787,19 @@ Next live node:
 ```text
 NODE-032G / controlled-gateway-live-smoke-with-asterisk-side-helper
 ```
+
+## NODE-032G Phase A Live Gate And Helper Availability Plan
+
+NODE-032G Phase A re-confirms gates and plans the future live smoke with the NODE-032F helper.
+
+Accepted decision:
+
+- Phase A remains read-only plus documentation only.
+- The exact approval phrase for Phase B is `APPROVE NODE-032G LIVE APPLY/SMOKE`; no other phrase is approval.
+- Asterisk is acceptable for Phase B planning because SSH works, `ai-secretary-ari.service` is active/enabled, and `OPENAI_API_KEY` is absent from process env.
+- Gateway is acceptable for Phase B planning because the historical env file exists as `root:root 600`, masked secret presence checks pass, no target listener exists on `443`, `8080`, or `8081`, and UFW restricts `8080/tcp` to `92.118.85.117`.
+- The deployed Asterisk `node014` path is not a usable Git checkout and lacks the NODE-032F helper plus required adapter modules.
+- Phase B should use a temporary helper bundle at `/tmp/node032g-asterisk-helper` instead of assuming `git pull` on the Asterisk host.
+- Phase B should use a temporary root-owned `600` runtime env file at `/tmp/node032g-gateway-client.env` or an equally secure operator-injected runtime secret path to avoid shell-history token exposure.
+- No helper autostart, persistent helper state, scheduler, webhook, cron, timer, or automation loop is allowed.
+- Business dialog must remain unchanged and transcript text must remain redacted.

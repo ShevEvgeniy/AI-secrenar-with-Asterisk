@@ -1693,3 +1693,57 @@ Next recommendation:
 ```text
 NODE-032G / controlled-gateway-live-smoke-with-asterisk-side-helper
 ```
+
+## NODE-032G Phase A Gate Re-Confirmation And Live Command Planning
+
+Result:
+
+```text
+phase_a_gate_reconfirmation_complete=true
+live_apply=false
+helper_copied_or_deployed=false
+service_installed_started_stopped_restarted_reloaded=false
+firewall_changed=false
+env_files_edited=false
+server_state_changed=false
+live_smoke=false
+business_dialog_enabled=false
+real_secrets_logged=false
+transcript_text_logged=false
+```
+
+Read-only gate findings:
+
+```text
+asterisk_ssh=ok
+asterisk_service=active_enabled
+asterisk_openai_api_key=absent_from_process_env
+asterisk_node014_repo_present=true
+asterisk_node014_helper_present=false
+asterisk_node014_core_helper_present=false
+asterisk_node014_git_head=unavailable
+gateway_ssh=ok
+gateway_env=/etc/ai-secretary/openai-realtime-gateway.env present 600 root:root
+gateway_secret_presence=masked_pass
+gateway_service=inactive_not_enabled
+gateway_listen_443=false
+gateway_listen_8080=false
+gateway_listen_8081=false
+gateway_firewall_8080=allowed from 92.118.85.117 only
+```
+
+Phase B helper availability plan:
+
+```text
+deploy_temporary_helper_bundle=/tmp/node032g-asterisk-helper
+runtime_env_file=/tmp/node032g-gateway-client.env
+helper_autostart=false
+helper_persistent_state=false
+business_dialog_changed=false
+```
+
+Phase B remains NO-GO until exact approval:
+
+```text
+APPROVE NODE-032G LIVE APPLY/SMOKE
+```
