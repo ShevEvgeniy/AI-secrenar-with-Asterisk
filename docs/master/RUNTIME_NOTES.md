@@ -1381,3 +1381,53 @@ node032g_timer_absent=true
 node032g_cron_absent=true
 node032g_unit_absent=true
 ```
+
+## NODE-032H Runtime Strategy Notes
+
+- NODE-032H is docs-only strategy work. No live apply, SSH, service action, firewall change, env edit, live smoke, or server state change occurred.
+- Persistence mode decision:
+
+```text
+persistence_mode=staged_persistence
+installed_enabled_now=false
+enable_reboot_smoke_deferred=true
+business_dialog_integration_deferred=true
+```
+
+- Future gateway service policy:
+
+```text
+service_name=ai-secretary-gateway.service
+unit_path=/etc/systemd/system/ai-secretary-gateway.service
+runtime_user_group=gateway:gateway
+env_file=/etc/ai-secretary/openai-realtime-gateway.env
+working_directory=/opt/ai-secretary-gateway
+listen=0.0.0.0:8080
+restart=on-failure
+enable_policy=disabled_until_reboot_node
+```
+
+- The historical env file must be made safely readable by the non-root runtime before persistent start. Preferred future mode is `root:gateway 640`, approved and verified with masked checks only.
+- Firewall/listen policy:
+
+```text
+listen_8080=allowed_only_with_source_restricted_ufw
+required_source=92.118.85.117
+open_443=false
+open_8081=false
+firewall_broadened=false
+```
+
+- Reboot/power-cycle policy:
+  - no auto-start until a controlled enablement/reboot node approves it;
+  - missing or invalid env must fail closed;
+  - after any reboot proof, verify service state, listener state, source-restricted firewall, masked env presence, journal redaction, and Asterisk `OPENAI_API_KEY_ABSENT`;
+  - Asterisk gateway STT and business dialog transcript use remain disabled by default.
+- Observability policy:
+  - allowed: lifecycle, HTTP status, timing, chunks, transcript presence flags, error class;
+  - forbidden: token values, bearer headers, env dumps, transcript text, caller audio content.
+- Next recommended node:
+
+```text
+NODE-032I / controlled-persistent-gateway-service-and-reboot-smoke
+```

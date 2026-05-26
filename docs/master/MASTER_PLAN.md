@@ -4,8 +4,8 @@
 
 - Repository root: `C:\Projects\AI-secrenar-with-Asterisk`
 - Source-of-truth branch: `master`
-- Source-of-truth commit: `ceda36b`
-- Source-of-truth commit message: `Merge PR #3: Document NODE-032 controlled gateway live smoke plan`
+- Source-of-truth commit: `a280bb2`
+- Source-of-truth commit message: `Merge pull request #9 from ShevEvgeniy/feat/node-032g-controlled-gateway-live-smoke-with-asterisk-side-helper`
 - Workflow model: master-driven coordination with focused node branches for implementation.
 
 ## Confirmed Capabilities
@@ -244,6 +244,22 @@ Asterisk read-only checks + gateway read-only checks -> masked env verification 
 
 NODE-032C does not perform live apply, does not start/stop/restart/reload services, does not run live smoke, and does not enable business dialog transcript use.
 
+NODE-032G completes the controlled Asterisk-side gateway live smoke:
+
+```text
+Asterisk helper -> Gateway 45.61.48.199:8080 -> OpenAI Realtime -> chunks_sent=28, transcript_present=true, transcript_text_logged=false
+```
+
+NODE-032G removed temporary service/helper/env/audio state after the smoke. No persistent gateway service remained.
+
+NODE-032H decides staged production gateway persistence:
+
+```text
+successful smoke -> staged persistence strategy -> install/start/smoke before enable/reboot proof -> business dialog integration deferred
+```
+
+NODE-032H is docs-only and performs no live apply or server state change.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -368,14 +384,20 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 98. Preserve NODE-032G Phase B boundary: helper bundle deployment, gateway service start, runtime env file creation, and one Asterisk-origin smoke may occur only after exact approval and immediate hard-gate re-confirmation.
 99. Preserve NODE-032G live-smoke result: Asterisk-origin helper smoke reached the gateway on `45.61.48.199:8080`, authenticated successfully, reached OpenAI Realtime from the gateway, sent `28` chunks, observed `transcript_present=true`, kept `transcript_text_logged=false`, and kept `business_dialog_unchanged=true`.
 100. Preserve NODE-032G cleanup result: temporary gateway service/unit, helper bundle, runtime env file, and temp audio were removed; no `443`/`8081`/TLS/proxy/firewall broadening occurred; Asterisk still had no `OPENAI_API_KEY`.
+101. Preserve NODE-032H persistence decision: use staged persistence, not immediate auto-enabled production service.
+102. Preserve NODE-032H systemd policy: future durable gateway service is `ai-secretary-gateway.service` at `/etc/systemd/system/ai-secretary-gateway.service`, running as `gateway:gateway`, using `/etc/ai-secretary/openai-realtime-gateway.env`, `/opt/ai-secretary-gateway`, `0.0.0.0:8080`, and `Restart=on-failure`.
+103. Preserve NODE-032H enablement boundary: install/start/smoke may be a next live node, but `systemctl enable` and reboot/power-cycle proof require explicit approval and may be separate controlled work.
+104. Preserve NODE-032H firewall/listen policy: `0.0.0.0:8080` is acceptable only with UFW source restriction to `92.118.85.117`; do not expose `443` or `8081` in this stage and do not broaden firewall.
+105. Preserve NODE-032H secrets/env policy: gateway owns OpenAI Realtime secrets, Asterisk must not contain `OPENAI_API_KEY`, durable service must not depend on shell exports, and exposed tokens require rotation.
+106. Preserve NODE-032H business-dialog boundary: business dialog integration remains out of scope until gateway persistence and reboot behavior are proven.
 
 ## Next Recommended Step
 
 ```text
-NODE-032G / controlled-gateway-live-smoke-with-asterisk-side-helper.
+NODE-032I / controlled-persistent-gateway-service-and-reboot-smoke
 ```
 
-The NODE-032G live proof is complete. The next node should close out NODE-032G through PR review/merge, then decide whether to productionize persistent gateway service state, create a non-root gateway runtime user, replace the temporary helper-bundle approach with a proper deployment/update path, or clean up the old `8080/tcp` allowance after a replacement path is approved.
+NODE-032H chooses staged persistence. The next live node should apply only the approved persistence step after exact approval: re-confirm gates, install/adapt a non-root `ai-secretary-gateway.service`, resolve env readability safely, start/smoke from Asterisk, and leave enablement/reboot proof separate unless explicitly scoped.
 
 ## Node Completion Report Format
 

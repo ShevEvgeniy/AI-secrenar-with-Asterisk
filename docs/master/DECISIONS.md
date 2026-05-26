@@ -821,3 +821,36 @@ Accepted result:
 - Temporary gateway service/unit, helper bundle, runtime env file, and temp audio were removed during cleanup.
 - Asterisk still had no `OPENAI_API_KEY`.
 - No helper autostart, scheduler, webhook, timer, cron, or automation loop was added.
+
+## NODE-032H Production Gateway Persistence And Reboot Strategy
+
+NODE-032H decides persistence strategy after the successful NODE-032G smoke.
+
+Accepted decision:
+
+- Use staged persistence, not immediate always-on production enablement.
+- The next live node may install/adapt and start `ai-secretary-gateway.service` only after exact approval and immediate gate re-confirmation.
+- Service enablement and reboot/power-cycle proof remain separate controlled work unless explicitly included with an exact approval phrase.
+- The durable service target is:
+  - service name `ai-secretary-gateway.service`;
+  - unit path `/etc/systemd/system/ai-secretary-gateway.service`;
+  - runtime `gateway:gateway`;
+  - env file `/etc/ai-secretary/openai-realtime-gateway.env`;
+  - working directory `/opt/ai-secretary-gateway`;
+  - listen `0.0.0.0:8080`;
+  - restart policy `on-failure`.
+- Running the durable production service as root is not accepted.
+- The historical env file must be made safely readable by the non-root gateway service before persistent start, preferably `root:gateway 640` after approval.
+- `0.0.0.0:8080` is acceptable only while UFW restricts `8080/tcp` to Asterisk `92.118.85.117`.
+- Do not expose `443` or `8081` in this stage unless a separate node approves it.
+- Gateway owns OpenAI Realtime secrets; Asterisk must not contain `OPENAI_API_KEY`.
+- Durable service behavior must not depend on shell exports after reboot.
+- Missing or invalid env must fail closed without opening a useful gateway listener.
+- Logs may include lifecycle, status, timing, chunks, and transcript presence flags, but must not include token values, bearer headers, env dumps, transcript text, or caller audio content.
+- Business dialog integration remains out of scope until gateway persistence and reboot/power-cycle behavior are proven.
+
+Next live node:
+
+```text
+NODE-032I / controlled-persistent-gateway-service-and-reboot-smoke
+```
