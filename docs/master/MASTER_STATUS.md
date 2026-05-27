@@ -3,14 +3,14 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `a280bb2`
-- Source-of-truth commit message: `Merge pull request #9 from ShevEvgeniy/feat/node-032g-controlled-gateway-live-smoke-with-asterisk-side-helper`
+- Source-of-truth commit: `c70f788`
+- Source-of-truth commit message: `Merge pull request #10 from ShevEvgeniy/feat/node-032h-production-gateway-persistence-and-reboot-strategy`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-032g-controlled-gateway-live-smoke-with-asterisk-side-helper`
-- Latest completed node commit: `a280bb2`
+- Latest completed node branch: `feat/node-032h-production-gateway-persistence-and-reboot-strategy`
+- Latest completed node commit: `c70f788`
 - Chat bootstrap: `docs/master/CHAT_BOOTSTRAP.md`
-- Planned next technical node: `NODE-032H / production-gateway-persistence-and-reboot-strategy`
+- Planned next technical node: `NODE-032I / controlled-persistent-gateway-service-install-start-smoke`
 
 ## Confirmed Working
 
@@ -1837,4 +1837,71 @@ Next recommendation:
 
 ```text
 NODE-032I / controlled-persistent-gateway-service-and-reboot-smoke
+```
+
+## NODE-032I Phase A Persistent Gateway Service Install/Start/Smoke Planning
+
+Result:
+
+```text
+phase_a_readiness_and_command_planning_complete=true
+phase_b_go=conditional_after_exact_approval
+live_apply=false
+helper_copied_or_deployed=false
+service_installed_started_stopped_restarted_reloaded_enabled=false
+systemd_unit_modified=false
+user_group_created=false
+permissions_changed=false
+firewall_changed=false
+env_files_edited=false
+server_state_changed=false
+live_smoke=false
+reboot=false
+provider_power_cycle=false
+business_dialog_enabled=false
+real_secrets_logged=false
+transcript_text_logged=false
+```
+
+Read-only gate findings:
+
+```text
+initial_asterisk_ssh=fresh_check_timeout
+initial_gateway_ssh=fresh_check_timeout
+rerun_asterisk_ssh=ok
+rerun_gateway_ssh=ok
+asterisk_service=active_enabled
+asterisk_openai_api_key_absence=process_and_service_env_absent
+business_dialog_gateway_transcript=not_enabled
+gateway_env_presence=present
+gateway_env_owner_mode=root:root 600
+gateway_secret_presence=masked_pass
+gateway_user_group=absent
+gateway_deploy_path=/opt/ai-secretary-gateway present root:root 755
+gateway_unit=absent
+gateway_backup_target=absent
+gateway_target_listeners_443_8080_8081=absent
+gateway_firewall_8080_source_restriction=92.118.85.117_only
+```
+
+Phase B is conditionally GO only after exact approval and immediate hard-gate re-confirmation:
+
+```text
+APPROVE NODE-032I SERVICE INSTALL/START/SMOKE
+```
+
+Phase B plan:
+
+```text
+service=ai-secretary-gateway.service
+unit=/etc/systemd/system/ai-secretary-gateway.service
+runtime=gateway:gateway
+env_file=/etc/ai-secretary/openai-realtime-gateway.env
+working_directory=/opt/ai-secretary-gateway
+exec=/opt/ai-secretary-gateway/.venv/bin/python -m ai_secretary.stt.realtime_gateway --host 0.0.0.0 --port 8080
+restart=on-failure
+enable=false
+reboot=false
+provider_power_cycle=false
+business_dialog_enabled=false
 ```

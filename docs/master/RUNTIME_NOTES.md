@@ -1431,3 +1431,49 @@ firewall_broadened=false
 ```text
 NODE-032I / controlled-persistent-gateway-service-and-reboot-smoke
 ```
+
+## NODE-032I Phase A Runtime Notes
+
+- NODE-032I Phase A performed local planning and attempted read-only SSH gate checks only.
+- No live apply, service install/start/stop/restart/reload/enable, systemd unit write, user/group creation, chmod/chown, firewall change, env edit, helper deploy, live smoke, reboot, provider power-cycle, business dialog enablement, Notion write, Runtime/Evidence update, GitHub write, scheduler, webhook, or automation loop occurred.
+- Exact Phase B approval phrase:
+
+```text
+APPROVE NODE-032I SERVICE INSTALL/START/SMOKE
+```
+
+- Initial read-only SSH checks timed out while servers were likely powering on. Rerun read-only SSH checks passed:
+
+```text
+asterisk_ssh=ok
+gateway_ssh=ok
+asterisk_service=active_enabled
+asterisk_openai_api_key=absent_from_process_and_service_env
+gateway_env=/etc/ai-secretary/openai-realtime-gateway.env present root:root 600
+gateway_secret_presence=masked_pass
+gateway_user_group=absent
+gateway_deploy_path=/opt/ai-secretary-gateway present
+gateway_unit=absent
+gateway_target_listeners_443_8080_8081=absent
+gateway_firewall_8080=allowed from 92.118.85.117 only
+phase_b_go=conditional_after_exact_approval
+```
+
+- Planned service shape after exact approval and successful hard gates:
+
+```text
+service=ai-secretary-gateway.service
+unit=/etc/systemd/system/ai-secretary-gateway.service
+runtime_user_group=gateway:gateway
+env_file=/etc/ai-secretary/openai-realtime-gateway.env
+working_directory=/opt/ai-secretary-gateway
+listen=0.0.0.0:8080
+restart=on-failure
+enable=false
+reboot=false
+provider_power_cycle=false
+```
+
+- Env readability plan for Phase B: re-confirm masked env presence; if approved and needed, create locked `gateway:gateway`, record pre-change env stat, and change `/etc/ai-secretary/openai-realtime-gateway.env` to a restrictive service-readable mode such as `root:gateway 640` without printing values.
+- Firewall/listener policy remains unchanged: `8080/tcp` must be source-restricted to `92.118.85.117`; no `443`; no `8081`; no firewall broadening.
+- Business dialog integration remains out of scope and gateway transcript text remains disabled/redacted by default.

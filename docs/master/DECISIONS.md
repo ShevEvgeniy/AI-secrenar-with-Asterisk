@@ -854,3 +854,20 @@ Next live node:
 ```text
 NODE-032I / controlled-persistent-gateway-service-and-reboot-smoke
 ```
+
+## NODE-032I Phase A Persistent Gateway Service Install/Start/Smoke Plan
+
+NODE-032I Phase A prepares the staged persistence live node after NODE-032H.
+
+Accepted decision:
+
+- Phase A is readiness inspection and command planning only.
+- The exact approval phrase for Phase B is `APPROVE NODE-032I SERVICE INSTALL/START/SMOKE`; no other phrase is approval.
+- Do not install or modify systemd units during Phase A.
+- Do not create `gateway:gateway`, change env file ownership/mode, start/stop/restart/reload/enable services, change firewall, edit env files, copy helper bundles, run live smoke, reboot, provider power-cycle, or enable business dialog during Phase A.
+- Local template delta for Phase B is known: adapt `deploy/templates/gateway-systemd.service.example` from `/etc/ai-secretary/gateway.env` and `/usr/local/bin/ai-secretary-gateway --bind ${GATEWAY_BIND}` to `/etc/ai-secretary/openai-realtime-gateway.env`, `/opt/ai-secretary-gateway`, and `/opt/ai-secretary-gateway/.venv/bin/python -m ai_secretary.stt.realtime_gateway --host 0.0.0.0 --port 8080`.
+- Phase B must not run `systemctl enable`, reboot, provider power-cycle, expose `443`, open `8081`, broaden firewall, or enable business dialog.
+- Initial read-only SSH checks timed out while the servers were likely still powering on; after operator confirmation, fresh rerun SSH checks passed for both Asterisk `92.118.85.117` and Gateway `45.61.48.199`.
+- Rerun gates confirmed Asterisk active/enabled with no `OPENAI_API_KEY` in process/service env, Gateway historical env present as `root:root 600` with masked `OPENAI_API_KEY` and `GATEWAY_TOKEN` presence, no target listeners on `443`, `8080`, or `8081`, and UFW `8080/tcp` restricted to `92.118.85.117`.
+- Rerun gates confirmed `gateway:gateway` is absent, so Phase B must create the locked service account and adjust env readability only after exact approval.
+- Phase B is conditionally GO only after exact approval is present and all hard gates are re-confirmed immediately before state change.

@@ -260,6 +260,14 @@ successful smoke -> staged persistence strategy -> install/start/smoke before en
 
 NODE-032H is docs-only and performs no live apply or server state change.
 
+NODE-032I Phase A prepares the controlled persistent gateway service install/start/smoke plan:
+
+```text
+staged persistence plan -> exact approval gate -> install/start/smoke command set -> no enable/reboot/power-cycle
+```
+
+NODE-032I Phase A is planning/read-only only. Initial SSH reachability timed out while servers were likely powering on; rerun read-only gates passed and Phase B is conditionally GO only after exact approval plus immediate gate re-confirmation.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -390,14 +398,18 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 104. Preserve NODE-032H firewall/listen policy: `0.0.0.0:8080` is acceptable only with UFW source restriction to `92.118.85.117`; do not expose `443` or `8081` in this stage and do not broaden firewall.
 105. Preserve NODE-032H secrets/env policy: gateway owns OpenAI Realtime secrets, Asterisk must not contain `OPENAI_API_KEY`, durable service must not depend on shell exports, and exposed tokens require rotation.
 106. Preserve NODE-032H business-dialog boundary: business dialog integration remains out of scope until gateway persistence and reboot behavior are proven.
+107. Preserve NODE-032I Phase A boundary: readiness and command planning only, no live apply, no service install/start/stop/restart/reload/enable, no user/group creation, no chmod/chown, no firewall/env change, no helper deploy, no live smoke, no reboot/power-cycle, and no business dialog enablement.
+108. Preserve NODE-032I approval gate: Phase B requires exact phrase `APPROVE NODE-032I SERVICE INSTALL/START/SMOKE`; no other phrase is approval.
+109. Preserve NODE-032I rerun result: initial read-only SSH timed out, then rerun gates passed for Asterisk/Gateway reachability, Asterisk `OPENAI_API_KEY` absence, Gateway masked secret presence, listener absence, and UFW source restriction.
+110. Preserve NODE-032I Phase B scope: install/adapt and start `ai-secretary-gateway.service` only after exact approval and hard gates, keep `systemctl enable`, reboot, and provider power-cycle out of scope.
 
 ## Next Recommended Step
 
 ```text
-NODE-032I / controlled-persistent-gateway-service-and-reboot-smoke
+NODE-032I Phase A closeout / PR review, then Phase B only after exact approval
 ```
 
-NODE-032H chooses staged persistence. The next live node should apply only the approved persistence step after exact approval: re-confirm gates, install/adapt a non-root `ai-secretary-gateway.service`, resolve env readability safely, start/smoke from Asterisk, and leave enablement/reboot proof separate unless explicitly scoped.
+NODE-032I Phase A produced the command plan and reran live gates successfully after the hosts became reachable. The next action should review/merge the Phase A docs, then only after exact approval re-confirm gates and run the install/start/smoke sequence without enablement or reboot.
 
 ## Node Completion Report Format
 
