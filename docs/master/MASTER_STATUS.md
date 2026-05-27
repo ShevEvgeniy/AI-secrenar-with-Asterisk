@@ -3,14 +3,14 @@
 ## Current State
 
 - Branch: `master`
-- Source-of-truth commit: `c70f788`
-- Source-of-truth commit message: `Merge pull request #10 from ShevEvgeniy/feat/node-032h-production-gateway-persistence-and-reboot-strategy`
+- Source-of-truth commit: `990dc59`
+- Source-of-truth commit message: `Merge pull request #11 from ShevEvgeniy/feat/node-032i-controlled-persistent-gateway-service-install-start-smoke`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
 - Master docs initialized: yes.
-- Latest completed node branch: `feat/node-032h-production-gateway-persistence-and-reboot-strategy`
-- Latest completed node commit: `c70f788`
+- Latest completed node branch: `feat/node-032i-controlled-persistent-gateway-service-install-start-smoke`
+- Latest completed node commit: `990dc59`
 - Chat bootstrap: `docs/master/CHAT_BOOTSTRAP.md`
-- Planned next technical node: `NODE-032I / controlled-persistent-gateway-service-install-start-smoke`
+- Planned next technical node: `NODE-032J / gateway-service-enable-policy-and-autostart-decision`
 
 ## Confirmed Working
 
@@ -1961,4 +1961,77 @@ notion_write=false
 runtime_evidence_update=false
 github_push_pr=false
 scheduler_webhook_automation_added=false
+```
+
+## NODE-032J Gateway Service Enable Policy And Autostart Decision
+
+Result:
+
+```text
+docs_only_decision_complete=true
+live_apply=false
+ssh=false
+server_state_changed=false
+service_started_stopped_restarted_reloaded_enabled=false
+systemctl_enable=false
+firewall_changed=false
+env_files_edited=false
+live_smoke=false
+reboot=false
+provider_power_cycle=false
+business_dialog_enabled=false
+real_secrets_logged=false
+transcript_text_logged=false
+```
+
+Current staged service truth from NODE-032I:
+
+```text
+unit_installed=true
+unit=/etc/systemd/system/ai-secretary-gateway.service
+service_active=false
+service_enabled=false
+runtime_user_group=gateway:gateway
+env_owner_mode=root:gateway 640
+working_directory=/opt/ai-secretary-gateway
+listen=0.0.0.0:8080
+restart=on-failure
+pythonpath=/opt/ai-secretary-gateway/src
+target_listeners_443_8080_8081=absent
+firewall_changed=false
+reboot_power_cycle_proof=false
+business_dialog_integration=false
+```
+
+Enable/autostart decision:
+
+```text
+policy=separate_controlled_enablement_reboot_smoke
+keep_staged_service_installed=true
+keep_service_disabled_until_next_exact_approval=true
+cleanup_now=false
+enable_now=false
+business_dialog_integration_now=false
+provider_power_cycle_in_next_node=false_unless_separately_scoped
+```
+
+Future NODE-032K approval gate:
+
+```text
+APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE
+```
+
+Next recommendation:
+
+```text
+NODE-032K / controlled-gateway-service-enable-and-reboot-smoke
+```
+
+Remaining blockers:
+
+```text
+enable_reboot_proof=false
+node032k_exact_approval_phrase_provided=false
+provider_power_cycle=separately_scoped
+business_dialog_integration=out_of_scope
 ```

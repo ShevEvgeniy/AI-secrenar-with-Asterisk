@@ -889,3 +889,89 @@ Accepted result:
 - One Asterisk-side controlled smoke reached the gateway, authenticated, reached OpenAI Realtime, returned HTTP 200, sent `28` chunks, and kept `transcript_text_logged=false`, `transcript_used_for_dialog=false`, and `business_dialog_unchanged=true`.
 - Final maximum-safety state: service unit installed as the staged artifact, service stopped, service disabled, no target listeners on `443`, `8080`, or `8081`, firewall unchanged, temp helper/env/audio removed, and Asterisk still had no `OPENAI_API_KEY`.
 - No `systemctl enable`, reboot, provider power-cycle, `443`, `8081`, TLS/proxy change, firewall broadening, business dialog enablement, scheduler, webhook, automation loop, Notion write, Runtime/Evidence update, GitHub push/PR, token value logging, or transcript text logging occurred.
+
+## NODE-032J Gateway Service Enable Policy And Autostart Decision
+
+NODE-032J decides what to do with the staged gateway service artifact left by NODE-032I.
+
+Accepted decision:
+
+- Keep the NODE-032I staged service artifact installed but stopped and disabled for now.
+- Do not run immediate `systemctl enable`.
+- Do not combine service enablement with business dialog transcript use.
+- Proceed toward autostart only through a separate controlled enablement/reboot-smoke node.
+- Do not include provider power-cycle in the next node unless separately scoped.
+- Do not perform cleanup/rollback now because NODE-032I left a useful staged artifact: installed unit, stopped/disabled service, no target listeners, unchanged firewall, preserved env, and successful manual start/smoke evidence.
+
+Current staged truth:
+
+```text
+service_unit_installed=true
+service_active=false
+service_enabled=false
+runtime_user_group=gateway:gateway
+env_owner_mode=root:gateway 640
+listen_policy=0.0.0.0:8080 only with UFW restricted to 92.118.85.117
+reboot_power_cycle_proof=false
+business_dialog_integration=false
+```
+
+Future enablement gates before `systemctl enable`:
+
+- Asterisk reachable.
+- Asterisk has `OPENAI_API_KEY_ABSENT`.
+- Business dialog gateway transcript use disabled.
+- Gateway reachable.
+- Env readable by the service runtime.
+- Masked `OPENAI_API_KEY` and `GATEWAY_TOKEN` presence passes.
+- Service unit present and valid.
+- Service can start manually.
+- Service is disabled before enablement.
+- No unexpected listeners on `443`, `8080`, or `8081`.
+- UFW `8080/tcp` remains restricted to `92.118.85.117`.
+- Rollback commands accepted.
+- No token values or transcript text printed.
+
+Future exact approval phrase:
+
+```text
+APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE
+```
+
+No other phrase is approval.
+
+Next live node:
+
+```text
+NODE-032K / controlled-gateway-service-enable-and-reboot-smoke
+```
+
+NODE-032K expected scope:
+
+- Re-confirm gates.
+- Start service manually if needed and verify readiness.
+- Run `systemctl enable ai-secretary-gateway.service`.
+- Reboot the Gateway server.
+- Verify SSH returns.
+- Verify service auto-starts.
+- Verify listener/firewall/log redaction.
+- Run one Asterisk-side smoke.
+- Document final state and rollback path.
+
+Out of scope for NODE-032K unless separately approved:
+
+- Provider power-cycle.
+- Business dialog enablement.
+- TLS/proxy.
+- `443`.
+- `8081`.
+- Firewall broadening.
+
+Remaining blockers:
+
+```text
+enable_reboot_proof=false
+node032k_exact_approval_phrase_provided=false
+provider_power_cycle=separately_scoped
+business_dialog_integration=out_of_scope
+```
