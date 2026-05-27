@@ -1553,3 +1553,45 @@ reboot=false
 provider_power_cycle=false
 business_dialog_enabled=false
 ```
+
+## NODE-032J Runtime Decision Notes
+
+- NODE-032J is docs-only decision work. No live apply, SSH, service action, firewall change, env edit, live smoke, reboot, provider power-cycle, or server state change occurred.
+- Current staged service truth from NODE-032I:
+
+```text
+unit=/etc/systemd/system/ai-secretary-gateway.service
+unit_installed=true
+service_active=false
+service_enabled=false
+runtime_user_group=gateway:gateway
+env_file=/etc/ai-secretary/openai-realtime-gateway.env
+env_owner_mode=root:gateway 640
+working_directory=/opt/ai-secretary-gateway
+listen=0.0.0.0:8080
+restart=on-failure
+pythonpath=/opt/ai-secretary-gateway/src
+target_listeners_443_8080_8081=absent
+firewall_changed=false
+business_dialog_enabled=false
+```
+
+- Enable/autostart policy:
+
+```text
+enable_now=false
+cleanup_now=false
+keep_staged_service_installed=true
+keep_service_disabled_until_next_exact_approval=true
+next_enablement_node=NODE-032K
+```
+
+- NODE-032K must require exact approval:
+
+```text
+APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE
+```
+
+- Before enablement, NODE-032K must re-confirm Asterisk has no `OPENAI_API_KEY`, business dialog transcript use is disabled, gateway masked secret presence passes, the service unit is present/valid, manual start works, the service is disabled before enablement, no unexpected target listeners exist, UFW `8080/tcp` remains restricted to `92.118.85.117`, and rollback commands are accepted.
+- NODE-032K may prove controlled service enablement and Gateway reboot auto-start. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, and firewall broadening remain out of scope unless separately approved.
+- Rollback policy: disable and stop the service, remove or restore the unit only if rollback requires it, preserve historical env values, keep or restore env ownership/mode according to the selected rollback policy, verify no target listeners, verify firewall unchanged, verify Asterisk `OPENAI_API_KEY_ABSENT`, and rotate tokens if exposure occurs.

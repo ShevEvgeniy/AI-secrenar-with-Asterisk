@@ -4,8 +4,8 @@
 
 - Repository root: `C:\Projects\AI-secrenar-with-Asterisk`
 - Source-of-truth branch: `master`
-- Source-of-truth commit: `a280bb2`
-- Source-of-truth commit message: `Merge pull request #9 from ShevEvgeniy/feat/node-032g-controlled-gateway-live-smoke-with-asterisk-side-helper`
+- Source-of-truth commit: `990dc59`
+- Source-of-truth commit message: `Merge pull request #11 from ShevEvgeniy/feat/node-032i-controlled-persistent-gateway-service-install-start-smoke`
 - Workflow model: master-driven coordination with focused node branches for implementation.
 
 ## Confirmed Capabilities
@@ -276,6 +276,14 @@ locked gateway:gateway + root:gateway 640 env + installed disabled unit -> start
 
 NODE-032I does not enable the service, reboot, power-cycle, expose `443`, open `8081`, broaden firewall, or integrate the business dialog.
 
+NODE-032J decides the enable/autostart policy for the staged gateway service:
+
+```text
+installed disabled staged artifact -> no immediate enablement -> next live node must separately approve enable/reboot/smoke
+```
+
+NODE-032J is docs-only. It keeps the staged service installed but disabled for now, rejects immediate `systemctl enable`, keeps business dialog integration out of scope, and defines NODE-032K as the controlled enablement/reboot-smoke node.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -413,14 +421,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 111. Preserve NODE-032I Phase B service result: `gateway:gateway` exists, gateway env is `root:gateway 640`, `ai-secretary-gateway.service` is installed at `/etc/systemd/system/ai-secretary-gateway.service`, and the final service state is stopped and disabled.
 112. Preserve NODE-032I Phase B smoke result: Asterisk-origin helper smoke reached the gateway, gateway auth was ok, OpenAI Realtime from gateway was ok, HTTP status was 200, `chunks_sent=28`, `transcript_present=true`, `transcript_text_logged=false`, `transcript_used_for_dialog=false`, and `business_dialog_unchanged=true`.
 113. Preserve NODE-032I final safety boundary: no `systemctl enable`, no reboot/power-cycle, no `443`, no `8081`, no firewall broadening, no business dialog enablement, and temporary Asterisk helper/env/audio removed.
+114. Preserve NODE-032J decision: keep the NODE-032I staged service artifact installed but stopped/disabled until a separate controlled enablement/reboot-smoke node receives exact approval.
+115. Preserve NODE-032J approval gate for the next live node: `APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE`; no other phrase is approval.
+116. Preserve NODE-032J scope boundary: NODE-032K may prove service enablement and reboot auto-start, but provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, and firewall broadening remain out of scope unless separately approved.
 
 ## Next Recommended Step
 
 ```text
-NODE-032I Phase A closeout / PR review, then Phase B only after exact approval
+NODE-032J docs-only closeout / PR review, then NODE-032K only after exact approval
 ```
 
-NODE-032I Phase B completed install/start/smoke and left the service installed but stopped and disabled. The next node should decide whether to enable the service and prove reboot/power-cycle behavior, or perform a separate cleanup/rollback, under a new exact approval gate.
+NODE-032J decides to proceed toward autostart only through a separate controlled enablement/reboot smoke node. NODE-032K must re-confirm gates, manually prove service readiness, enable the service, reboot the Gateway server, verify auto-start/listener/firewall/log redaction, run one Asterisk-side smoke, and keep business dialog integration out of scope.
 
 ## Node Completion Report Format
 
