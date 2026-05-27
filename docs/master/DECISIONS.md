@@ -871,3 +871,21 @@ Accepted decision:
 - Rerun gates confirmed Asterisk active/enabled with no `OPENAI_API_KEY` in process/service env, Gateway historical env present as `root:root 600` with masked `OPENAI_API_KEY` and `GATEWAY_TOKEN` presence, no target listeners on `443`, `8080`, or `8081`, and UFW `8080/tcp` restricted to `92.118.85.117`.
 - Rerun gates confirmed `gateway:gateway` is absent, so Phase B must create the locked service account and adjust env readability only after exact approval.
 - Phase B is conditionally GO only after exact approval is present and all hard gates are re-confirmed immediately before state change.
+
+## NODE-032I Phase B Persistent Gateway Service Result
+
+NODE-032I Phase B received exact approval and completed the controlled persistent gateway service install/start/smoke.
+
+Accepted result:
+
+- Exact approval phrase was `APPROVE NODE-032I SERVICE INSTALL/START/SMOKE`.
+- Hard gates passed before state change.
+- A locked `gateway:gateway` service account was created.
+- `/etc/ai-secretary/openai-realtime-gateway.env` changed from `root:root 600` to `root:gateway 640`; env values were preserved and not printed.
+- `ai-secretary-gateway.service` was installed at `/etc/systemd/system/ai-secretary-gateway.service`, using `gateway:gateway`, `/etc/ai-secretary/openai-realtime-gateway.env`, `/opt/ai-secretary-gateway`, `0.0.0.0:8080`, and `Restart=on-failure`.
+- The deployed src-layout required `PYTHONPATH=/opt/ai-secretary-gateway/src` in the unit.
+- The service was started, verified active, verified disabled/not enabled, and verified listening on `8080` only.
+- UFW remained source-restricted: `8080/tcp` allowed only from `92.118.85.117`.
+- One Asterisk-side controlled smoke reached the gateway, authenticated, reached OpenAI Realtime, returned HTTP 200, sent `28` chunks, and kept `transcript_text_logged=false`, `transcript_used_for_dialog=false`, and `business_dialog_unchanged=true`.
+- Final maximum-safety state: service unit installed as the staged artifact, service stopped, service disabled, no target listeners on `443`, `8080`, or `8081`, firewall unchanged, temp helper/env/audio removed, and Asterisk still had no `OPENAI_API_KEY`.
+- No `systemctl enable`, reboot, provider power-cycle, `443`, `8081`, TLS/proxy change, firewall broadening, business dialog enablement, scheduler, webhook, automation loop, Notion write, Runtime/Evidence update, GitHub push/PR, token value logging, or transcript text logging occurred.

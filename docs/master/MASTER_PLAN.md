@@ -268,6 +268,14 @@ staged persistence plan -> exact approval gate -> install/start/smoke command se
 
 NODE-032I Phase A is planning/read-only only. Initial SSH reachability timed out while servers were likely powering on; rerun read-only gates passed and Phase B is conditionally GO only after exact approval plus immediate gate re-confirmation.
 
+NODE-032I Phase B completes the controlled persistent gateway service install/start/smoke:
+
+```text
+locked gateway:gateway + root:gateway 640 env + installed disabled unit -> start -> Asterisk helper smoke -> stop service, keep unit installed disabled
+```
+
+NODE-032I does not enable the service, reboot, power-cycle, expose `443`, open `8081`, broaden firewall, or integrate the business dialog.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -402,6 +410,9 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 108. Preserve NODE-032I approval gate: Phase B requires exact phrase `APPROVE NODE-032I SERVICE INSTALL/START/SMOKE`; no other phrase is approval.
 109. Preserve NODE-032I rerun result: initial read-only SSH timed out, then rerun gates passed for Asterisk/Gateway reachability, Asterisk `OPENAI_API_KEY` absence, Gateway masked secret presence, listener absence, and UFW source restriction.
 110. Preserve NODE-032I Phase B scope: install/adapt and start `ai-secretary-gateway.service` only after exact approval and hard gates, keep `systemctl enable`, reboot, and provider power-cycle out of scope.
+111. Preserve NODE-032I Phase B service result: `gateway:gateway` exists, gateway env is `root:gateway 640`, `ai-secretary-gateway.service` is installed at `/etc/systemd/system/ai-secretary-gateway.service`, and the final service state is stopped and disabled.
+112. Preserve NODE-032I Phase B smoke result: Asterisk-origin helper smoke reached the gateway, gateway auth was ok, OpenAI Realtime from gateway was ok, HTTP status was 200, `chunks_sent=28`, `transcript_present=true`, `transcript_text_logged=false`, `transcript_used_for_dialog=false`, and `business_dialog_unchanged=true`.
+113. Preserve NODE-032I final safety boundary: no `systemctl enable`, no reboot/power-cycle, no `443`, no `8081`, no firewall broadening, no business dialog enablement, and temporary Asterisk helper/env/audio removed.
 
 ## Next Recommended Step
 
@@ -409,7 +420,7 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 NODE-032I Phase A closeout / PR review, then Phase B only after exact approval
 ```
 
-NODE-032I Phase A produced the command plan and reran live gates successfully after the hosts became reachable. The next action should review/merge the Phase A docs, then only after exact approval re-confirm gates and run the install/start/smoke sequence without enablement or reboot.
+NODE-032I Phase B completed install/start/smoke and left the service installed but stopped and disabled. The next node should decide whether to enable the service and prove reboot/power-cycle behavior, or perform a separate cleanup/rollback, under a new exact approval gate.
 
 ## Node Completion Report Format
 

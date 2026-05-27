@@ -331,3 +331,231 @@ course_submission_staged=false
 data_storage_staged=false
 node014_server_tar_staged=false
 ```
+
+## Phase B Controlled Service Install/Start/Smoke
+
+Approval phrase confirmed:
+
+```text
+APPROVE NODE-032I SERVICE INSTALL/START/SMOKE
+```
+
+Phase B stayed within NODE-032I scope. Hard gates were re-run before state-changing commands. No `systemctl enable`, reboot, provider power-cycle, business dialog enablement, `443`, `8081`, TLS/proxy change, firewall broadening, Notion write, Runtime/Evidence update, GitHub push/PR, scheduler, webhook, or automation loop occurred.
+
+### Phase B Hard Gate Re-Confirmation
+
+Asterisk hard gate:
+
+```text
+ssh_reachable=true
+hostname=tula
+ai-secretary-ari.service_active=active
+ai-secretary-ari.service_enabled=enabled
+process_env_openai_api_key=OPENAI_API_KEY_ABSENT
+service_env_openai_api_key=SERVICE_ENV_OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+helper_autostart=false
+helper_timer=false
+helper_cron=false
+```
+
+Gateway hard gate:
+
+```text
+ssh_reachable=true
+hostname=ai-secretary-gateway-node023
+historical_env=/etc/ai-secretary/openai-realtime-gateway.env present
+pre_change_env_stat=root:root:600:/etc/ai-secretary/openai-realtime-gateway.env
+openai_api_key_presence=OPENAI_API_KEY_PRESENT_MASKED
+gateway_token_presence=GATEWAY_TOKEN_PRESENT_MASKED
+deploy_path=/opt/ai-secretary-gateway present root:root 755
+gateway_runtime_import_requires_pythonpath=true
+gateway_runtime_help_with_pythonpath=ok
+target_listeners_443_8080_8081=absent
+ufw_status=active
+ufw_default_incoming=deny
+ufw_8080_allow=92.118.85.117 only
+unit_absent_before_apply=true
+backup_required=false
+```
+
+No secret values were printed.
+
+### Service Account And Env Readability
+
+The `gateway:gateway` account was absent before Phase B and was created as a locked system runtime account:
+
+```text
+gateway_user=present
+gateway_group=present
+interactive_login=false
+```
+
+The historical gateway env content was preserved. Only owner/group/mode changed for non-root service readability:
+
+```text
+pre_change_env_stat=root:root:600:/etc/ai-secretary/openai-realtime-gateway.env
+post_change_env_stat=root:gateway:640:/etc/ai-secretary/openai-realtime-gateway.env
+env_values_printed=false
+```
+
+### Service Unit Install And Start
+
+No previous `/etc/systemd/system/ai-secretary-gateway.service` existed, so no backup was required.
+
+Installed unit shape:
+
+```text
+unit=/etc/systemd/system/ai-secretary-gateway.service
+runtime=gateway:gateway
+working_directory=/opt/ai-secretary-gateway
+env_file=/etc/ai-secretary/openai-realtime-gateway.env
+environment=PYTHONPATH=/opt/ai-secretary-gateway/src
+exec=/opt/ai-secretary-gateway/.venv/bin/python -m ai_secretary.stt.realtime_gateway --host 0.0.0.0 --port 8080
+restart=on-failure
+daemon_reload=true
+started=true
+active_after_start=true
+enabled_after_start=false
+```
+
+The `PYTHONPATH` entry is required because the deployed gateway uses the current src-layout tree and the venv does not import `ai_secretary` without `/opt/ai-secretary-gateway/src`.
+
+Start verification:
+
+```text
+service_active=true
+service_enabled=false
+listener_8080=true
+listener_443=false
+listener_8081=false
+ufw_8080_allow=92.118.85.117 only
+health_endpoint_http_status=404
+docs_endpoint_http_status=200
+sensitive_log_pattern_absent=true
+transcript_text_log_pattern_absent=true
+```
+
+No dedicated `/health` endpoint was available, so service/process/listener checks and the FastAPI docs endpoint were used for readiness.
+
+### Controlled Asterisk-Side Smoke
+
+Temporary helper bundle:
+
+```text
+path=/tmp/node032i-asterisk-helper
+files=9
+autostart=false
+persistent_state=false
+```
+
+Temporary runtime env:
+
+```text
+path=/tmp/node032i-gateway-client.env
+owner_mode=root:root 600
+gateway_token=present_masked
+openai_api_key=absent
+```
+
+The first attempted smoke invocation failed before the helper ran because the temporary env file had Windows line endings:
+
+```text
+pre_smoke_shell_failure=true
+gateway_request_sent=false
+helper_executed=false
+reason=temporary_env_crlf
+```
+
+After normalizing the temporary env file, exactly one controlled gateway smoke request was run from Asterisk.
+
+Smoke result:
+
+```text
+adapter_smoke_exercised_node025_path=true
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+gateway_http_status=200
+chunks_sent=28
+transcript_present=true
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+fallback_reason=gateway_stt_dialog_use_disabled
+adapter_default_enabled_after_smoke=false
+helper_manual_only=true
+autostart_configured=false
+persistent_server_state_created=false
+```
+
+The smoke printed safe redacted metadata only. It did not print token values or transcript text.
+
+### Final State And Cleanup
+
+NODE-032I used the maximum-safety final service state:
+
+```text
+service_unit_installed=true
+service_active=false
+service_enabled=false
+unit_preserved_as_staged_artifact=true
+env_preserved=true
+env_owner_mode=root:gateway 640
+listener_443=false
+listener_8080=false
+listener_8081=false
+firewall_changed=false
+ufw_8080_allow=92.118.85.117 only
+```
+
+Temporary Asterisk state was removed:
+
+```text
+helper_bundle_removed=true
+temp_env_removed=true
+temp_audio_removed=true
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+helper_autostart=false
+helper_timer=false
+helper_cron=false
+```
+
+Rollback path from the final installed-disabled state:
+
+```bash
+systemctl stop ai-secretary-gateway.service || true
+systemctl disable ai-secretary-gateway.service || true
+rm -f /etc/systemd/system/ai-secretary-gateway.service
+systemctl daemon-reload
+# If policy requires full pre-NODE-032I env mode restoration:
+chown root:root /etc/ai-secretary/openai-realtime-gateway.env
+chmod 600 /etc/ai-secretary/openai-realtime-gateway.env
+ss -ltnp | grep -E ':(443|8080|8081)\b' || echo no_target_listeners_443_8080_8081
+ufw status verbose
+```
+
+## Phase B Result
+
+```text
+node_status=phase_b_install_start_smoke_complete
+approval_phrase_confirmed=true
+service_account_created=true
+env_readability_changed=true
+unit_installed=true
+daemon_reload=true
+service_started=true
+service_stopped_after_smoke=true
+service_enabled=false
+reboot=false
+provider_power_cycle=false
+firewall_changed=false
+live_smoke=true
+business_dialog_enabled=false
+transcript_text_logged=false
+transcript_used_for_dialog=false
+real_secrets_logged=false
+temp_helper_bundle_removed=true
+temp_env_removed=true
+temp_audio_removed=true
+```

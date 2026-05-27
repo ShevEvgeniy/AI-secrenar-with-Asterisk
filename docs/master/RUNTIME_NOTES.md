@@ -1477,3 +1477,79 @@ provider_power_cycle=false
 - Env readability plan for Phase B: re-confirm masked env presence; if approved and needed, create locked `gateway:gateway`, record pre-change env stat, and change `/etc/ai-secretary/openai-realtime-gateway.env` to a restrictive service-readable mode such as `root:gateway 640` without printing values.
 - Firewall/listener policy remains unchanged: `8080/tcp` must be source-restricted to `92.118.85.117`; no `443`; no `8081`; no firewall broadening.
 - Business dialog integration remains out of scope and gateway transcript text remains disabled/redacted by default.
+
+## NODE-032I Phase B Runtime Notes
+
+- Exact approval phrase was confirmed: `APPROVE NODE-032I SERVICE INSTALL/START/SMOKE`.
+- Hard gates passed before state change.
+- Gateway service account/env result:
+
+```text
+gateway_user_group=created_locked_system_account
+env_pre=root:root 600
+env_post=root:gateway 640
+env_values_printed=false
+```
+
+- Gateway service result:
+
+```text
+unit=/etc/systemd/system/ai-secretary-gateway.service
+runtime_user_group=gateway:gateway
+working_directory=/opt/ai-secretary-gateway
+env_file=/etc/ai-secretary/openai-realtime-gateway.env
+pythonpath=/opt/ai-secretary-gateway/src
+listen=0.0.0.0:8080
+restart=on-failure
+started=true
+active_after_start=true
+enabled=false
+```
+
+- Health/listener/firewall:
+
+```text
+health_endpoint=404_not_available
+docs_endpoint=200
+listener_8080_after_start=true
+listener_443=false
+listener_8081=false
+ufw_8080_allow=92.118.85.117 only
+sensitive_log_pattern_absent=true
+transcript_text_log_pattern_absent=true
+```
+
+- Controlled smoke result:
+
+```text
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+gateway_http_status=200
+chunks_sent=28
+transcript_present=true
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+fallback_reason=gateway_stt_dialog_use_disabled
+adapter_default_enabled_after_smoke=false
+```
+
+- Final maximum-safety state:
+
+```text
+unit_installed=true
+service_active=false
+service_enabled=false
+target_listeners_443_8080_8081=absent
+firewall_changed=false
+env_owner_mode=root:gateway 640
+temp_helper_bundle_removed=true
+temp_env_removed=true
+temp_audio_removed=true
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+systemctl_enable=false
+reboot=false
+provider_power_cycle=false
+business_dialog_enabled=false
+```

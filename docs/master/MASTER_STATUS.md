@@ -1905,3 +1905,60 @@ reboot=false
 provider_power_cycle=false
 business_dialog_enabled=false
 ```
+
+Phase B result after exact approval:
+
+```text
+approval_phrase_confirmed=true
+hard_gates_passed=true
+gateway_user_group=created_locked_system_account
+gateway_env_pre=root:root 600
+gateway_env_post=root:gateway 640
+unit_installed=true
+unit_backup_required=false
+daemon_reload=true
+service_started=true
+service_active_after_start=true
+service_enabled=false
+listener_8080_after_start=true
+listener_443=false
+listener_8081=false
+ufw_8080_allow=92.118.85.117 only
+health_endpoint=404_not_available
+docs_endpoint=200
+controlled_smoke=true
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+gateway_http_status=200
+chunks_sent=28
+transcript_present=true
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Final state:
+
+```text
+service_unit_installed=true
+service_active=false
+service_enabled=false
+target_listeners_443_8080_8081=absent
+firewall_changed=false
+env_preserved=true
+env_owner_mode=root:gateway 640
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+temp_helper_bundle_removed=true
+temp_env_removed=true
+temp_audio_removed=true
+systemctl_enable=false
+reboot=false
+provider_power_cycle=false
+business_dialog_enabled=false
+notion_write=false
+runtime_evidence_update=false
+github_push_pr=false
+scheduler_webhook_automation_added=false
+```
