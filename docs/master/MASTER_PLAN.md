@@ -284,6 +284,16 @@ installed disabled staged artifact -> no immediate enablement -> next live node 
 
 NODE-032J is docs-only. It keeps the staged service installed but disabled for now, rejects immediate `systemctl enable`, keeps business dialog integration out of scope, and defines NODE-032K as the controlled enablement/reboot-smoke node.
 
+NODE-032K Phase B attempted the approved controlled enable/reboot smoke:
+
+```text
+hard gates passed -> manual start -> systemctl enable -> Gateway reboot -> service auto-start verified -> token-output safety failure before smoke -> rollback
+```
+
+The service enablement and Gateway reboot proof reached active/enabled post-reboot with listener on `8080` only and UFW still restricted to `92.118.85.117`, but a malformed temporary Asterisk smoke env caused a token value to print during diagnostic inspection. The smoke did not run. Rollback disabled/stopped the service, removed temporary helper/env/audio, left no target listeners, and preserved firewall state. Token rotation and a safer temp-env creation path are required before retry.
+
+NODE-032K security remediation rotated the exposed Gateway token without printing old or new token values. The Gateway env remains `root:gateway 640`; the service remains disabled/inactive; no target listeners exist; firewall state is unchanged. A safer temporary env creation/verification path is still required before any retry.
+
 ## Execution Model
 
 - `master` remains the source-of-truth branch.
@@ -427,14 +437,18 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 117. Preserve NODE-032K Phase A boundary: readiness and command planning only, with read-only SSH gates and no live enablement, no service start/stop/restart/reload, no `systemctl enable`, no reboot, no provider power-cycle, no firewall/env change, no helper deploy, no live smoke, and no business dialog enablement.
 118. Preserve NODE-032K Phase A handoff archive: long-form sanitized handoff is stored at `docs/handoffs/NODE-032K-phase-a-codex-handoff.md`; short external playbooks should reference the repo archive.
 119. Preserve NODE-032K Phase A gate result: Asterisk gates passed, Gateway staged service is present/inactive/disabled, gateway env is `root:gateway 640`, masked secrets are present, unit verifies, no `443`/`8080`/`8081` listeners exist, and UFW restricts `8080/tcp` to `92.118.85.117`.
+120. Preserve NODE-032K Phase B partial proof and rollback: after exact approval, hard gates passed, the gateway service manually started, `systemctl enable` ran, Gateway-only reboot returned, and the service auto-started active/enabled with listener on `8080` only and UFW still source-restricted.
+121. Preserve NODE-032K Phase B hard NO-GO: the controlled smoke stopped before a gateway request because a malformed temporary Asterisk env diagnostic printed a gateway token value. Do not record the value; rotate the gateway token before any retry.
+122. Preserve NODE-032K rollback state: `systemctl disable` and stop were run, final service state is disabled/inactive, no target listeners remain on `443`, `8080`, or `8081`, firewall was unchanged, temporary Asterisk helper/env/audio were removed, and Asterisk still has no `OPENAI_API_KEY`.
+123. Preserve NODE-032K security remediation: the exposed Gateway token was rotated on the Gateway host only, no token values were printed or recorded, Gateway env remains `root:gateway 640`, the service remains disabled/inactive, no target listeners exist, firewall is unchanged, and no smoke retry occurred.
 
 ## Next Recommended Step
 
 ```text
-NODE-032K Phase A closeout / PR review, then Phase B only after exact approval
+NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan
 ```
 
-NODE-032K Phase A confirms readiness and records the exact Phase B command plan. Phase B remains blocked until `APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE`; provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, and firewall broadening remain out of scope.
+NODE-032K Phase B is NO-GO for further retry until the temporary Asterisk env creation/verification path is corrected and all hard gates are re-confirmed. The exposed gateway token has been rotated. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, and firewall broadening remain out of scope.
 
 ## Node Completion Report Format
 

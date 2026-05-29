@@ -2106,3 +2106,53 @@ open_8081=false
 tls_proxy_change=false
 firewall_broadening=false
 ```
+
+## NODE-032K Phase B Enable/Reboot Attempt Hard NO-GO
+
+Result:
+
+```text
+approval_phrase_confirmed=true
+phase_b_result=NO-GO
+hard_gates_passed=true
+manual_start=true
+systemctl_enable=true
+gateway_only_reboot=true
+post_reboot_autostart_verified=true
+controlled_smoke=false
+rollback_performed=true
+final_service_active=false
+final_service_enabled=false
+target_listeners_443_8080_8081=absent
+firewall_changed=false
+provider_power_cycle=false
+business_dialog_enabled=false
+```
+
+Blocker:
+
+```text
+token_value_printed_during_temporary_env_diagnostic=true
+transcript_text_printed=false
+required_before_retry=rotate_gateway_token
+required_before_retry=fix_temp_env_creation_and_verification_path
+next_node=NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan
+```
+
+The Gateway service successfully enabled and auto-started after a Gateway-only reboot, but the Asterisk-side smoke was stopped before a gateway request after token-output safety failed. The exposed token value is not recorded in repo docs. Temporary helper/env/audio were removed from Asterisk, Asterisk still has no `OPENAI_API_KEY`, and the gateway service was disabled/stopped as rollback.
+
+Security remediation:
+
+```text
+gateway_token_rotated=true
+token_values_printed=false
+token_values_recorded=false
+env_owner_mode=root:gateway 640
+gateway_token_presence=masked_pass
+service_active=false
+service_enabled=false
+target_listeners_443_8080_8081=absent
+firewall_changed=false
+smoke_retry=false
+next_node=NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan
+```

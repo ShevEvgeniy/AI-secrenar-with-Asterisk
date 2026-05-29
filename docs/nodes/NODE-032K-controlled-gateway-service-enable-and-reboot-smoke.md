@@ -1,6 +1,6 @@
 # NODE-032K / controlled-gateway-service-enable-and-reboot-smoke
 
-Status: Phase A readiness and command planning complete
+Status: Phase B attempted; hard NO-GO on token-output safety, rollback performed
 
 ## Summary
 
@@ -20,6 +20,12 @@ Long-form sanitized Phase A handoff archive:
 
 ```text
 docs/handoffs/NODE-032K-phase-a-codex-handoff.md
+```
+
+Long-form sanitized Phase B handoff archive:
+
+```text
+docs/handoffs/NODE-032K-phase-b-codex-handoff.md
 ```
 
 ## Baseline
@@ -242,4 +248,232 @@ transcript_text_logged=false
 course_submission_staged=false
 data_storage_staged=false
 node014_server_tar_staged=false
+```
+
+## Phase B Attempt After Exact Approval
+
+Exact approval phrase was provided:
+
+```text
+APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE
+```
+
+Phase B re-ran hard gates before state-changing commands. The gates passed and the staged service was manually started, enabled, and verified after a Gateway-only reboot. The controlled smoke did not run because a temporary Asterisk smoke env was malformed during preparation and a token value was printed during a diagnostic inspection. That is a hard NODE-032K NO-GO.
+
+The exposed token value is not recorded in this document. Token rotation is required before any future gateway smoke or production use.
+
+### Phase B Commands Run
+
+Sanitized command groups:
+
+```text
+git status --short
+ssh root@92.118.85.117 '<sanitized Asterisk hard gates>'
+ssh root@45.61.48.199 '<sanitized Gateway hard gates>'
+tar -cf C:\tmp\node032k-helper.tar '<approved helper bundle files>'
+ssh root@45.61.48.199 'systemctl start ai-secretary-gateway.service'
+ssh root@45.61.48.199 '<service/listener/firewall/log redaction readiness checks>'
+ssh root@45.61.48.199 'systemctl enable ai-secretary-gateway.service'
+ssh root@45.61.48.199 'reboot'
+ssh root@45.61.48.199 '<post-reboot active/enabled/listener/firewall/log checks>'
+ssh root@92.118.85.117 '<temporary helper bundle transfer>'
+ssh root@92.118.85.117 '<temporary runtime env creation attempt>'
+ssh root@92.118.85.117 '<temporary audio preparation>'
+ssh root@92.118.85.117 '<sanitized temporary env inspection attempt; failed safety boundary>'
+ssh root@45.61.48.199 'systemctl disable ai-secretary-gateway.service; systemctl stop ai-secretary-gateway.service'
+ssh root@92.118.85.117 '<remove temporary helper/env/audio and re-check Asterisk safety>'
+```
+
+The smoke helper invocation did not reach a gateway request after the token-output failure. No transcript text was printed.
+
+### Hard Gate Re-Confirmation
+
+```text
+asterisk_ssh=ok
+asterisk_hostname=tula
+asterisk_service=active_enabled
+asterisk_process_openai_api_key=OPENAI_API_KEY_ABSENT
+asterisk_service_env_openai_api_key=SERVICE_ENV_OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+gateway_ssh=ok
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_present=true
+gateway_unit_verify=ok
+gateway_service_active_before_phase_b=inactive
+gateway_service_enabled_before_phase_b=disabled
+gateway_user_group=gateway:gateway present
+gateway_env_owner_mode=root:gateway 640
+gateway_secret_presence=masked_pass
+gateway_deploy_path=/opt/ai-secretary-gateway present
+target_listeners_before_phase_b=NO_TARGET_LISTENERS_443_8080_8081
+ufw_status=active
+ufw_default_incoming=deny
+ufw_8080_allow=92.118.85.117 only
+rollback_tools_available=true
+```
+
+### Pre-Enable Readiness And Enablement
+
+```text
+manual_start=true
+service_active_after_manual_start=true
+service_enabled_before_enablement=disabled
+listener_after_manual_start=8080 only
+listener_443=false
+listener_8081=false
+ufw_8080_allow=92.118.85.117 only
+log_sensitive_pattern_absent=true
+systemctl_enable=true
+service_enabled_after_enablement=enabled
+firewall_changed=false
+env_files_edited=false
+```
+
+The first readiness check was too early and did not yet observe the `8080` listener; a delayed re-check observed the service active with `8080` listening and no `443` or `8081`.
+
+### Gateway Reboot Result
+
+```text
+gateway_only_reboot=true
+asterisk_reboot=false
+provider_power_cycle=false
+ssh_returned=true
+post_reboot_hostname=ai-secretary-gateway-node023
+post_reboot_service_active=active
+post_reboot_service_enabled=enabled
+post_reboot_listener=8080 only
+post_reboot_listener_443=false
+post_reboot_listener_8081=false
+post_reboot_ufw_8080_allow=92.118.85.117 only
+post_reboot_log_sensitive_pattern_absent=true
+```
+
+### Controlled Smoke Result
+
+```text
+controlled_smoke_run=false
+controlled_smoke_blocker=token_value_printed_during_temporary_env_diagnostic
+gateway_reachable_from_asterisk=not_run_after_blocker
+gateway_auth=not_run_after_blocker
+openai_realtime_from_gateway=not_run_after_blocker
+transcript_text_logged=false
+business_dialog_unchanged=true
+transcript_used_for_dialog=false
+adapter_default_enabled_after_smoke=not_run
+```
+
+The malformed temporary env caused the helper to fail closed on the first invocation before gateway access. A following env-key diagnostic printed a token value, which triggered hard NO-GO and stopped the smoke path.
+
+### Rollback And Final State
+
+Rollback was performed after the hard NO-GO:
+
+```text
+systemctl_disable=true
+systemctl_stop=true
+service_enabled_final=disabled
+service_active_final=inactive
+target_listeners_final=NO_TARGET_LISTENERS_443_8080_8081
+firewall_changed=false
+ufw_8080_allow=92.118.85.117 only
+temporary_helper_bundle_removed=true
+temporary_runtime_env_removed=true
+temporary_audio_removed=true
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+env_file_edited=false
+provider_power_cycle=false
+business_dialog_enablement=false
+tls_proxy_change=false
+open_443=false
+open_8081=false
+github_push_pr=false
+notion_write=false
+runtime_evidence_update=false
+scheduler_webhook_automation_added=false
+```
+
+The service unit remains installed as the staged artifact from NODE-032I/NODE-032K, but the service is disabled and inactive after rollback.
+
+### Blockers And Next Recommendation
+
+```text
+phase_b_result=NO-GO
+primary_blocker=token_value_exposed_in_command_output
+required_before_retry=rotate_gateway_token
+required_before_retry=replace_temporary_env_creation_with_verified_newline-safe_method
+required_before_retry=reconfirm_all_hard_gates
+next_node=NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan
+```
+
+Recommendation: NO-GO for further enable/reboot/smoke work until the exposed gateway token is rotated and the helper env creation path is corrected. A future retry must use a safer one-shot env creation method that verifies keys without printing values and must re-confirm all hard gates before any state change.
+
+## Security Remediation: Gateway Token Rotation
+
+NODE-032K security remediation rotated the exposed Gateway token on the Gateway host only. No smoke retry, service enablement, service start, reboot, provider power-cycle, firewall change, Asterisk env change, business dialog enablement, transcript logging, GitHub push, Notion write, Runtime/Evidence update, scheduler, webhook, or automation loop occurred.
+
+Token values were not printed or recorded.
+
+Sanitized command groups:
+
+```text
+git status --short
+ssh root@45.61.48.199 '<pre-rotation env stat, service/listener/firewall checks>'
+ssh root@92.118.85.117 '<read-only Asterisk OPENAI_API_KEY absence check>'
+ssh root@45.61.48.199 '<rotate GATEWAY_TOKEN with remote-only generated value; print marker only>'
+ssh root@45.61.48.199 '<post-rotation env stat, masked token presence, service/listener/firewall checks>'
+ssh root@92.118.85.117 '<read-only Asterisk OPENAI_API_KEY absence check>'
+```
+
+Sanitized pre-rotation state:
+
+```text
+gateway_ssh=ok
+gateway_hostname=ai-secretary-gateway-node023
+env_present=true
+env_owner_mode=root:gateway:640
+service_active=inactive
+service_enabled=disabled
+target_listeners_443_8080_8081=absent
+ufw_status=active
+ufw_default_incoming=deny
+ufw_8080_allow=92.118.85.117 only
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+asterisk_service_env_openai_api_key=SERVICE_ENV_OPENAI_API_KEY_ABSENT
+```
+
+Sanitized rotation result:
+
+```text
+gateway_token_rotated=true
+old_token_printed=false
+new_token_printed=false
+env_values_printed=false
+```
+
+Sanitized post-rotation state:
+
+```text
+env_owner_mode=root:gateway:640
+gateway_token_presence=GATEWAY_TOKEN_PRESENT_MASKED
+service_active=inactive
+service_enabled=disabled
+target_listeners_443_8080_8081=absent
+ufw_status=active
+ufw_default_incoming=deny
+ufw_8080_allow=92.118.85.117 only
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+asterisk_service_env_openai_api_key=SERVICE_ENV_OPENAI_API_KEY_ABSENT
+```
+
+Remaining before any retry:
+
+```text
+token_rotation_blocker=resolved
+temp_env_creation_path_blocker=still_open
+next_node=NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan
+smoke_retry=false
+systemctl_enable=false
+reboot=false
+firewall_changed=false
 ```
