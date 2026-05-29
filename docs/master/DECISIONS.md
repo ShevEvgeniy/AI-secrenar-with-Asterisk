@@ -975,3 +975,102 @@ node032k_exact_approval_phrase_provided=false
 provider_power_cycle=separately_scoped
 business_dialog_integration=out_of_scope
 ```
+
+## NODE-032K Phase A Enable/Reboot Smoke Readiness
+
+NODE-032K Phase A prepares the controlled Gateway service enablement and reboot smoke.
+
+Accepted decision:
+
+- Phase A is read-only readiness and command planning only.
+- Create a sanitized long-form handoff archive under `docs/handoffs/`.
+- Do not run live enablement, `systemctl enable`, reboot, provider power-cycle, service start/stop/restart/reload, firewall change, env edit, helper deploy, live smoke, or business dialog enablement during Phase A.
+- Phase B requires exact approval phrase `APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE`; no other phrase is approval.
+- Phase B must re-confirm all hard gates before any state change.
+- Phase B may manually start/check the service, enable it, reboot the Gateway server, verify auto-start, verify listener/firewall/log redaction, and run one Asterisk-side smoke.
+- Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, and firewall broadening remain out of scope unless separately approved.
+
+Phase A read-only gate result:
+
+```text
+asterisk_openai_api_key=absent_from_process_and_service_env
+business_dialog_gateway_transcript=not_enabled
+gateway_unit_present=true
+gateway_unit_valid=true
+gateway_service_active=inactive
+gateway_service_enabled=disabled
+gateway_user_group=gateway:gateway present
+gateway_env_owner_mode=root:gateway 640
+gateway_secret_presence=masked_pass
+gateway_target_listeners_443_8080_8081=absent
+gateway_ufw_8080=92.118.85.117 only
+rollback_commands_available=true
+```
+
+Phase B remains blocked because:
+
+```text
+exact_approval_phrase_absent=true
+```
+
+## NODE-032K Phase B Enable/Reboot Attempt Hard NO-GO
+
+NODE-032K Phase B received the exact approval phrase:
+
+```text
+APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE
+```
+
+Accepted result:
+
+- Hard gates passed before state change.
+- The staged gateway service manually started successfully.
+- `systemctl enable ai-secretary-gateway.service` ran.
+- Gateway-only reboot completed and SSH returned.
+- The service auto-started after reboot and was active/enabled.
+- Listener after reboot was `8080` only; no `443` or `8081`.
+- UFW remained active with `8080/tcp` allowed only from `92.118.85.117`.
+- No provider power-cycle, firewall broadening, TLS/proxy change, `443`, `8081`, Asterisk env change, or business dialog enablement occurred.
+
+Hard NO-GO:
+
+- A malformed temporary Asterisk smoke env caused a gateway token value to print during diagnostic inspection.
+- The value is not recorded in repo docs.
+- The controlled smoke did not run after the token-output failure.
+- Transcript text was not printed.
+
+Rollback decision:
+
+- Disable and stop `ai-secretary-gateway.service`.
+- Leave the staged unit installed.
+- Verify final service state disabled/inactive.
+- Verify no target listeners on `443`, `8080`, or `8081`.
+- Keep firewall unchanged.
+- Remove temporary Asterisk helper/env/audio.
+- Verify Asterisk still has `OPENAI_API_KEY_ABSENT`.
+
+Required before retry:
+
+- Rotate the exposed gateway token.
+- Replace the temporary Asterisk env creation/verification path with a newline-safe method that never prints values.
+- Re-confirm all hard gates before any further state change.
+
+## NODE-032K Security Remediation
+
+Accepted result:
+
+- The exposed Gateway token was rotated on the Gateway host only.
+- Old and new token values were not printed or recorded.
+- `/etc/ai-secretary/openai-realtime-gateway.env` remains `root:gateway 640`.
+- Masked `GATEWAY_TOKEN` presence passed after rotation.
+- `ai-secretary-gateway.service` remains disabled and inactive.
+- No target listeners exist on `443`, `8080`, or `8081`.
+- UFW remained unchanged and `8080/tcp` remains allowed only from `92.118.85.117`.
+- Asterisk still has `OPENAI_API_KEY_ABSENT`.
+- No smoke retry, service enablement, service start, reboot, provider power-cycle, firewall change, Asterisk env change, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation, GitHub push, or PR occurred.
+
+Remaining before retry:
+
+- Replace the temporary Asterisk env creation/verification path with a newline-safe method that never prints values.
+- Re-confirm all hard gates before any further state change.
+- Next node recommendation: `NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan`.

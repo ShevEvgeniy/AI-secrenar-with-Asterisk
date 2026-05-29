@@ -2035,3 +2035,124 @@ node032k_exact_approval_phrase_provided=false
 provider_power_cycle=separately_scoped
 business_dialog_integration=out_of_scope
 ```
+
+## NODE-032K Phase A Controlled Gateway Service Enable And Reboot Smoke Planning
+
+Result:
+
+```text
+phase_a_readiness_and_command_planning_complete=true
+handoff_archive=docs/handoffs/NODE-032K-phase-a-codex-handoff.md
+live_enablement=false
+systemctl_enable=false
+reboot=false
+provider_power_cycle=false
+service_started_stopped_restarted_reloaded=false
+firewall_changed=false
+env_files_edited=false
+helper_copied_or_deployed=false
+live_smoke=false
+business_dialog_enabled=false
+server_state_changed=false
+real_secrets_logged=false
+transcript_text_logged=false
+```
+
+Read-only gate findings:
+
+```text
+asterisk_ssh=ok
+asterisk_hostname=tula
+asterisk_service=active_enabled
+asterisk_process_openai_api_key=OPENAI_API_KEY_ABSENT
+asterisk_service_env_openai_api_key=SERVICE_ENV_OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+gateway_ssh=ok
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit=/etc/systemd/system/ai-secretary-gateway.service present
+gateway_unit_verify=ok
+gateway_service=inactive
+gateway_service_enabled=disabled
+gateway_user_group=gateway:gateway present
+gateway_env_owner_mode=root:gateway 640
+gateway_secret_presence=masked_pass
+gateway_deploy_path=/opt/ai-secretary-gateway present
+gateway_target_listeners_443_8080_8081=absent
+gateway_ufw=active
+gateway_ufw_8080=92.118.85.117 only
+rollback_tools=systemctl_ss_ufw_available
+```
+
+Phase B is conditionally GO only after exact approval and immediate hard-gate re-confirmation:
+
+```text
+APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE
+```
+
+Planned Phase B sequence:
+
+```text
+reconfirm_gates=true
+manual_start_and_health_check=true
+systemctl_enable=true_after_exact_approval
+gateway_reboot=true_after_exact_approval
+post_reboot_autostart_check=true
+listener_firewall_log_redaction_check=true
+one_asterisk_side_smoke=true
+provider_power_cycle=false
+business_dialog_enablement=false
+open_443=false
+open_8081=false
+tls_proxy_change=false
+firewall_broadening=false
+```
+
+## NODE-032K Phase B Enable/Reboot Attempt Hard NO-GO
+
+Result:
+
+```text
+approval_phrase_confirmed=true
+phase_b_result=NO-GO
+hard_gates_passed=true
+manual_start=true
+systemctl_enable=true
+gateway_only_reboot=true
+post_reboot_autostart_verified=true
+controlled_smoke=false
+rollback_performed=true
+final_service_active=false
+final_service_enabled=false
+target_listeners_443_8080_8081=absent
+firewall_changed=false
+provider_power_cycle=false
+business_dialog_enabled=false
+```
+
+Blocker:
+
+```text
+token_value_printed_during_temporary_env_diagnostic=true
+transcript_text_printed=false
+required_before_retry=rotate_gateway_token
+required_before_retry=fix_temp_env_creation_and_verification_path
+next_node=NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan
+```
+
+The Gateway service successfully enabled and auto-started after a Gateway-only reboot, but the Asterisk-side smoke was stopped before a gateway request after token-output safety failed. The exposed token value is not recorded in repo docs. Temporary helper/env/audio were removed from Asterisk, Asterisk still has no `OPENAI_API_KEY`, and the gateway service was disabled/stopped as rollback.
+
+Security remediation:
+
+```text
+gateway_token_rotated=true
+token_values_printed=false
+token_values_recorded=false
+env_owner_mode=root:gateway 640
+gateway_token_presence=masked_pass
+service_active=false
+service_enabled=false
+target_listeners_443_8080_8081=absent
+firewall_changed=false
+smoke_retry=false
+next_node=NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan
+```

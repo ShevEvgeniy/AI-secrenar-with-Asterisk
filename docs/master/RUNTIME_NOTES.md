@@ -1595,3 +1595,130 @@ APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE
 - Before enablement, NODE-032K must re-confirm Asterisk has no `OPENAI_API_KEY`, business dialog transcript use is disabled, gateway masked secret presence passes, the service unit is present/valid, manual start works, the service is disabled before enablement, no unexpected target listeners exist, UFW `8080/tcp` remains restricted to `92.118.85.117`, and rollback commands are accepted.
 - NODE-032K may prove controlled service enablement and Gateway reboot auto-start. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, and firewall broadening remain out of scope unless separately approved.
 - Rollback policy: disable and stop the service, remove or restore the unit only if rollback requires it, preserve historical env values, keep or restore env ownership/mode according to the selected rollback policy, verify no target listeners, verify firewall unchanged, verify Asterisk `OPENAI_API_KEY_ABSENT`, and rotate tokens if exposure occurs.
+
+## NODE-032K Phase A Runtime Notes
+
+- NODE-032K Phase A performed local inspection and read-only SSH gate checks only.
+- Long-form sanitized handoff archive:
+
+```text
+docs/handoffs/NODE-032K-phase-a-codex-handoff.md
+```
+
+- No live enablement, `systemctl enable`, reboot, provider power-cycle, service start/stop/restart/reload, firewall change, env edit, helper deploy, live smoke, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation loop, or server state change occurred.
+- Asterisk read-only result:
+
+```text
+hostname=tula
+ai-secretary-ari.service=active_enabled
+process_env_openai_api_key=OPENAI_API_KEY_ABSENT
+service_env_openai_api_key=SERVICE_ENV_OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+```
+
+- Gateway read-only result:
+
+```text
+hostname=ai-secretary-gateway-node023
+unit=/etc/systemd/system/ai-secretary-gateway.service present
+unit_verify=ok
+service_active=inactive
+service_enabled=disabled
+runtime_user_group=gateway:gateway
+env_owner_mode=root:gateway 640
+secret_presence=masked_pass
+working_directory=/opt/ai-secretary-gateway
+pythonpath=/opt/ai-secretary-gateway/src
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+rollback_tools=systemctl_ss_ufw_available
+```
+
+- Phase B remains conditional on exact approval phrase `APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE` and immediate hard-gate re-checks.
+
+## NODE-032K Phase B Runtime Notes
+
+- Exact approval phrase was confirmed:
+
+```text
+APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE
+```
+
+- Hard gates passed before state change:
+
+```text
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+gateway_unit_present=true
+gateway_unit_verify=ok
+gateway_service_active_before_phase_b=inactive
+gateway_service_enabled_before_phase_b=disabled
+gateway_env_owner_mode=root:gateway 640
+gateway_secret_presence=masked_pass
+target_listeners_before_phase_b=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+- Pre-enable and reboot proof reached:
+
+```text
+manual_start=true
+service_active_after_manual_start=true
+listener_after_manual_start=8080 only
+systemctl_enable=true
+gateway_only_reboot=true
+post_reboot_service_active=true
+post_reboot_service_enabled=true
+post_reboot_listener=8080 only
+post_reboot_listener_443=false
+post_reboot_listener_8081=false
+post_reboot_ufw_8080_allow=92.118.85.117 only
+```
+
+- Hard NO-GO occurred before the controlled smoke:
+
+```text
+controlled_smoke_run=false
+reason=token_value_printed_during_temporary_env_diagnostic
+transcript_text_printed=false
+business_dialog_enabled=false
+```
+
+- The exposed token value is not recorded in repo docs. Token rotation is required before any future gateway smoke or production use.
+- Rollback result:
+
+```text
+systemctl_disable=true
+systemctl_stop=true
+final_service_active=false
+final_service_enabled=false
+final_target_listeners_443_8080_8081=absent
+firewall_changed=false
+temporary_helper_bundle_removed=true
+temporary_runtime_env_removed=true
+temporary_audio_removed=true
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+```
+
+- No provider power-cycle, Asterisk reboot, firewall broadening, env file edit, TLS/proxy change, `443`, `8081`, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation loop, GitHub push, or PR occurred.
+
+## NODE-032K Security Remediation Runtime Notes
+
+- The exposed Gateway token was rotated on Gateway only.
+- Token values were not printed or recorded.
+- Sanitized post-rotation state:
+
+```text
+env_owner_mode=root:gateway 640
+gateway_token_presence=GATEWAY_TOKEN_PRESENT_MASKED
+service_active=inactive
+service_enabled=disabled
+target_listeners_443_8080_8081=absent
+ufw_status=active
+ufw_8080_allow=92.118.85.117 only
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+asterisk_service_env_openai_api_key=SERVICE_ENV_OPENAI_API_KEY_ABSENT
+```
+
+- No smoke retry, service enablement, service start, reboot, provider power-cycle, firewall change, Asterisk env change, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation, GitHub push, or PR occurred.
+- Next node recommendation: `NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan`.
