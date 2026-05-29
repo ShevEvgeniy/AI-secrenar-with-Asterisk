@@ -1595,3 +1595,43 @@ APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE
 - Before enablement, NODE-032K must re-confirm Asterisk has no `OPENAI_API_KEY`, business dialog transcript use is disabled, gateway masked secret presence passes, the service unit is present/valid, manual start works, the service is disabled before enablement, no unexpected target listeners exist, UFW `8080/tcp` remains restricted to `92.118.85.117`, and rollback commands are accepted.
 - NODE-032K may prove controlled service enablement and Gateway reboot auto-start. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, and firewall broadening remain out of scope unless separately approved.
 - Rollback policy: disable and stop the service, remove or restore the unit only if rollback requires it, preserve historical env values, keep or restore env ownership/mode according to the selected rollback policy, verify no target listeners, verify firewall unchanged, verify Asterisk `OPENAI_API_KEY_ABSENT`, and rotate tokens if exposure occurs.
+
+## NODE-032K Phase A Runtime Notes
+
+- NODE-032K Phase A performed local inspection and read-only SSH gate checks only.
+- Long-form sanitized handoff archive:
+
+```text
+docs/handoffs/NODE-032K-phase-a-codex-handoff.md
+```
+
+- No live enablement, `systemctl enable`, reboot, provider power-cycle, service start/stop/restart/reload, firewall change, env edit, helper deploy, live smoke, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation loop, or server state change occurred.
+- Asterisk read-only result:
+
+```text
+hostname=tula
+ai-secretary-ari.service=active_enabled
+process_env_openai_api_key=OPENAI_API_KEY_ABSENT
+service_env_openai_api_key=SERVICE_ENV_OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+```
+
+- Gateway read-only result:
+
+```text
+hostname=ai-secretary-gateway-node023
+unit=/etc/systemd/system/ai-secretary-gateway.service present
+unit_verify=ok
+service_active=inactive
+service_enabled=disabled
+runtime_user_group=gateway:gateway
+env_owner_mode=root:gateway 640
+secret_presence=masked_pass
+working_directory=/opt/ai-secretary-gateway
+pythonpath=/opt/ai-secretary-gateway/src
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+rollback_tools=systemctl_ss_ufw_available
+```
+
+- Phase B remains conditional on exact approval phrase `APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE` and immediate hard-gate re-checks.

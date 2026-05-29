@@ -424,14 +424,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 114. Preserve NODE-032J decision: keep the NODE-032I staged service artifact installed but stopped/disabled until a separate controlled enablement/reboot-smoke node receives exact approval.
 115. Preserve NODE-032J approval gate for the next live node: `APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE`; no other phrase is approval.
 116. Preserve NODE-032J scope boundary: NODE-032K may prove service enablement and reboot auto-start, but provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, and firewall broadening remain out of scope unless separately approved.
+117. Preserve NODE-032K Phase A boundary: readiness and command planning only, with read-only SSH gates and no live enablement, no service start/stop/restart/reload, no `systemctl enable`, no reboot, no provider power-cycle, no firewall/env change, no helper deploy, no live smoke, and no business dialog enablement.
+118. Preserve NODE-032K Phase A handoff archive: long-form sanitized handoff is stored at `docs/handoffs/NODE-032K-phase-a-codex-handoff.md`; short external playbooks should reference the repo archive.
+119. Preserve NODE-032K Phase A gate result: Asterisk gates passed, Gateway staged service is present/inactive/disabled, gateway env is `root:gateway 640`, masked secrets are present, unit verifies, no `443`/`8080`/`8081` listeners exist, and UFW restricts `8080/tcp` to `92.118.85.117`.
 
 ## Next Recommended Step
 
 ```text
-NODE-032J docs-only closeout / PR review, then NODE-032K only after exact approval
+NODE-032K Phase A closeout / PR review, then Phase B only after exact approval
 ```
 
-NODE-032J decides to proceed toward autostart only through a separate controlled enablement/reboot smoke node. NODE-032K must re-confirm gates, manually prove service readiness, enable the service, reboot the Gateway server, verify auto-start/listener/firewall/log redaction, run one Asterisk-side smoke, and keep business dialog integration out of scope.
+NODE-032K Phase A confirms readiness and records the exact Phase B command plan. Phase B remains blocked until `APPROVE NODE-032K SERVICE ENABLE/REBOOT/SMOKE`; provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, and firewall broadening remain out of scope.
 
 ## Node Completion Report Format
 
