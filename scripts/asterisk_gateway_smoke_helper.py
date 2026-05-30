@@ -41,6 +41,14 @@ def validate_runtime_env(environ: Mapping[str, str]) -> list[str]:
         missing.append("STT_GATEWAY_LOG_TRANSCRIPT must be false")
     if _env_present(environ, "OPENAI_API_KEY"):
         missing.append("OPENAI_API_KEY must be absent on Asterisk")
+    for name in (
+        "STT_GATEWAY_URL",
+        "REALTIME_GATEWAY_URL",
+        "STT_GATEWAY_TOKEN",
+        "REALTIME_GATEWAY_TOKEN",
+    ):
+        if _env_has_newline_material(environ, name):
+            missing.append(f"{name} must not contain newline material")
     return missing
 
 
@@ -82,6 +90,11 @@ def _env_present(environ: Mapping[str, str], name: str) -> bool:
 def _env_bool(environ: Mapping[str, str], name: str) -> bool:
     value = environ.get(name, "")
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_has_newline_material(environ: Mapping[str, str], name: str) -> bool:
+    value = environ.get(name, "")
+    return "\r" in value or "\n" in value or "\\r" in value or "\\n" in value
 
 
 if __name__ == "__main__":

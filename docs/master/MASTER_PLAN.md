@@ -441,14 +441,15 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 121. Preserve NODE-032K Phase B hard NO-GO: the controlled smoke stopped before a gateway request because a malformed temporary Asterisk env diagnostic printed a gateway token value. Do not record the value; rotate the gateway token before any retry.
 122. Preserve NODE-032K rollback state: `systemctl disable` and stop were run, final service state is disabled/inactive, no target listeners remain on `443`, `8080`, or `8081`, firewall was unchanged, temporary Asterisk helper/env/audio were removed, and Asterisk still has no `OPENAI_API_KEY`.
 123. Preserve NODE-032K security remediation: the exposed Gateway token was rotated on the Gateway host only, no token values were printed or recorded, Gateway env remains `root:gateway 640`, the service remains disabled/inactive, no target listeners exist, firewall is unchanged, and no smoke retry occurred.
+124. Preserve NODE-032L temp-env guard: future gateway smoke temp env creation must use a newline-safe, redaction-safe guard or equivalent, read token material from stdin, reject CR/LF and literal newline material, print only masked presence/status flags, require dialog transcript use and transcript logging to remain false, and clean up the temp env after use.
 
 ## Next Recommended Step
 
 ```text
-NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan
+NODE-032M / controlled-gateway-enable-reboot-smoke-retry-with-safe-temp-env
 ```
 
-NODE-032K Phase B is NO-GO for further retry until the temporary Asterisk env creation/verification path is corrected and all hard gates are re-confirmed. The exposed gateway token has been rotated. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, and firewall broadening remain out of scope.
+NODE-032L provides the newline-safe temp env guard locally. NODE-032M may retry the live enable/reboot/smoke only after exact approval and immediate hard-gate re-confirmation. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, and firewall broadening remain out of scope.
 
 ## Node Completion Report Format
 

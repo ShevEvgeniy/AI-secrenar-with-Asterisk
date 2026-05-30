@@ -1722,3 +1722,40 @@ asterisk_service_env_openai_api_key=SERVICE_ENV_OPENAI_API_KEY_ABSENT
 
 - No smoke retry, service enablement, service start, reboot, provider power-cycle, firewall change, Asterisk env change, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation, GitHub push, or PR occurred.
 - Next node recommendation: `NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan`.
+
+## NODE-032L Runtime Notes
+
+- NODE-032L is local implementation and documentation only.
+- New future helper-bundle guard:
+
+```text
+scripts/gateway_smoke_temp_env_guard.py
+```
+
+- The guard creates, validates, and cleans up temporary Asterisk-side gateway smoke env files without printing token values.
+- Safe future temp env workflow:
+
+```text
+create_from_token_stdin=true
+validate_without_values=true
+source_for_one_approved_smoke=true
+cleanup_after_smoke=true
+```
+
+- Safety properties:
+
+```text
+newline_safe=true
+cr_lf_token_rejected=true
+literal_newline_material_rejected=true
+missing_token_fails_closed=true
+dialog_transcript_use_required_false=true
+transcript_logging_required_false=true
+temp_env_mode=0600
+secret_values_printed=false
+transcript_text_logged=false
+```
+
+- `scripts/asterisk_gateway_smoke_helper.py` now rejects gateway URL/token env values containing newline material before delegating to the adapter smoke helper.
+- No live smoke, SSH, service action, reboot, provider power-cycle, firewall change, server env edit, Asterisk env change, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation, GitHub push, or PR occurred.
+- Next node recommendation: `NODE-032M / controlled-gateway-enable-reboot-smoke-retry-with-safe-temp-env`.

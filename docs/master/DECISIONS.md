@@ -1074,3 +1074,21 @@ Remaining before retry:
 - Replace the temporary Asterisk env creation/verification path with a newline-safe method that never prints values.
 - Re-confirm all hard gates before any further state change.
 - Next node recommendation: `NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan`.
+
+## NODE-032L Newline-Safe Temp Env Guard
+
+Accepted decision:
+
+- Use `scripts/gateway_smoke_temp_env_guard.py` as the repo-supported temporary env creation, validation, and cleanup mechanism for future Asterisk-side Gateway smoke helper bundles.
+- Token material must be read from stdin and never printed.
+- The guard must reject missing token material, CR/LF token material, literal newline material, malformed URL/env values, transcript-dialog use enabled, transcript logging enabled, and missing explicit adapter enablement.
+- The guard may print only masked/safe status such as `token_present_masked=true`, `secret_values_printed=false`, and `transcript_text_logged=false`.
+- Temporary env files are written atomically with mode `0600` and must be cleaned up after a future smoke.
+- `scripts/asterisk_gateway_smoke_helper.py` also rejects gateway URL/token env values containing newline material before any gateway request.
+- NODE-032L does not authorize a live retry.
+
+Next live node:
+
+```text
+NODE-032M / controlled-gateway-enable-reboot-smoke-retry-with-safe-temp-env
+```
