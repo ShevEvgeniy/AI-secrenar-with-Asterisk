@@ -2331,3 +2331,54 @@ temp_audio_removed=true
 asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
 business_dialog_gateway_transcript=not_enabled
 ```
+
+## NODE-032N Complete Safe Asterisk Helper Bundle
+
+Result:
+
+```text
+node_type=local_repo_implementation_docs
+live_retry=false
+ssh_used=false
+server_state_changed=false
+service_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+NODE-032M blocker addressed:
+
+```text
+previous_blocker=incomplete_temporary_helper_bundle_missing_ai_secretary.config
+root_cause=src/ai_secretary/__init__.py imports ai_secretary.config.settings
+selected_fix=explicit_minimal_bundle_manifest_and_preflight_validator
+```
+
+Added helper bundle support:
+
+```text
+script=scripts/asterisk_gateway_helper_bundle.py
+manifest_command=python scripts/asterisk_gateway_helper_bundle.py manifest
+create_command=python scripts/asterisk_gateway_helper_bundle.py create --output <bundle-root>
+validate_command=python scripts/asterisk_gateway_helper_bundle.py validate --bundle-root <bundle-root>
+handoff_archive=docs/handoffs/NODE-032N-codex-handoff.md
+```
+
+Bundle completeness behavior:
+
+```text
+includes_ai_secretary_config=true
+preflight_import_validates_gateway_adapter_smoke=true
+missing_ai_secretary_config_caught_before_live_retry=true
+safe_temp_env_guard_required=true
+secret_values_printed=false
+transcript_text_logged=false
+```
+
+Next recommendation:
+
+```text
+NODE-032O / controlled-gateway-smoke-retry-with-complete-helper-bundle
+```
