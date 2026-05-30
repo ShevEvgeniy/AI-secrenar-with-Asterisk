@@ -446,14 +446,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 126. Preserve NODE-032M Phase A gate result: Asterisk gates pass with `OPENAI_API_KEY_ABSENT`, Gateway staged service is present/inactive/disabled, gateway env is `root:gateway 640`, masked secrets are present, unit verifies, no `443`/`8080`/`8081` listeners exist, and UFW restricts `8080/tcp` to `92.118.85.117`.
 127. Preserve NODE-032M approval gate: Phase B requires exact phrase `APPROVE NODE-032M SAFE TEMP-ENV ENABLE/REBOOT/SMOKE RETRY`; no other phrase is approval.
 128. Preserve NODE-032M retry boundary: any future smoke retry must use the NODE-032L safe temp-env guard or equivalent, must never print token values or transcript text, and must clean up temporary helper/env/audio.
+129. Preserve NODE-032M Phase B partial proof and rollback: after exact approval, hard gates passed, the Gateway service manually started, `systemctl enable` ran, Gateway-only reboot returned, and the service auto-started active/enabled with listener on `8080` only and UFW still source-restricted.
+130. Preserve NODE-032M Phase B smoke blocker: exactly one Asterisk-side helper invocation was attempted, but it failed before Gateway request because the temporary helper bundle lacked `ai_secretary.config`; no token values or transcript text were printed.
+131. Preserve NODE-032M rollback state: `systemctl disable` and stop were run, final service state is disabled/inactive, no target listeners remain on `443`, `8080`, or `8081`, firewall was unchanged, temporary Asterisk helper/env/audio were removed, and Asterisk still has no `OPENAI_API_KEY`.
 
 ## Next Recommended Step
 
 ```text
-NODE-032M Phase B / controlled-gateway-enable-reboot-smoke-retry-with-safe-temp-env
+NODE-032N / complete-safe-asterisk-helper-bundle-and-retry-plan
 ```
 
-NODE-032M Phase A confirms local guard readiness and read-only server gates. Phase B may retry the live enable/reboot/smoke only after exact approval and immediate hard-gate re-confirmation. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, token output, transcript text logging, and firewall broadening remain out of scope.
+NODE-032M proved enable/reboot/autostart again but blocked before Gateway smoke because the temporary helper bundle was incomplete. NODE-032N should fix the helper-bundle completeness issue without live smoke unless separately approved. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, token output, transcript text logging, and firewall broadening remain out of scope.
 
 ## Node Completion Report Format
 

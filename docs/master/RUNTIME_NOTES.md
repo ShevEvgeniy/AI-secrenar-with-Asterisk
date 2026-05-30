@@ -1818,3 +1818,86 @@ APPROVE NODE-032M SAFE TEMP-ENV ENABLE/REBOOT/SMOKE RETRY
 ```
 
 - Recommendation: conditional GO only after exact approval and immediate hard-gate re-checks. The current blocker is approval phrase absent.
+
+## NODE-032M Phase B Runtime Notes
+
+- Exact approval phrase was confirmed:
+
+```text
+APPROVE NODE-032M SAFE TEMP-ENV ENABLE/REBOOT/SMOKE RETRY
+```
+
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032M-phase-b-codex-handoff.md
+```
+
+- Hard gates passed before state-changing commands.
+- Safe temp-env guard result:
+
+```text
+first_create_attempt=failed_closed_missing_stdin_token_due_command_quoting
+create_retry=ok
+validate=ok
+cleanup=ok
+token_input=stdin_pipeline_only
+temp_env_mode=600
+secret_values_printed=false
+transcript_text_logged=false
+```
+
+- Service enable/reboot proof:
+
+```text
+manual_start=ok
+systemctl_enable=true
+gateway_only_reboot=true
+ssh_returned=true
+post_reboot_service_active=active
+post_reboot_service_enabled=enabled
+post_reboot_listener=8080 only
+post_reboot_forbidden_listeners_443_8081=absent
+post_reboot_ufw_8080_allow=92.118.85.117 only
+post_reboot_log_sensitive_pattern=absent
+```
+
+- Smoke attempt:
+
+```text
+controlled_smoke_attempted=true
+gateway_request_reached=false
+openai_realtime_from_gateway=not_run
+transcript_present=not_run
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=not_run
+```
+
+- Blocker:
+
+```text
+smoke_blocker=incomplete_temporary_helper_bundle_missing_ai_secretary.config
+error_type=ModuleNotFoundError
+missing_module=ai_secretary.config
+```
+
+- Rollback result:
+
+```text
+systemctl_disable=true
+systemctl_stop=true
+final_service_active=inactive
+final_service_enabled=disabled
+final_target_listeners_443_8080_8081=absent
+firewall_changed=false
+env_owner_mode=root:gateway 640
+temporary_helper_bundle_removed=true
+temporary_runtime_env_removed=true
+temporary_audio_removed=true
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+```
+
+- No provider power-cycle, Asterisk reboot, firewall broadening, env file edit, TLS/proxy change, `443`, `8081`, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation loop, GitHub push, or PR occurred.
+- Next node recommendation: `NODE-032N / complete-safe-asterisk-helper-bundle-and-retry-plan`.

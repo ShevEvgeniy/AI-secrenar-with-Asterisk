@@ -2263,3 +2263,71 @@ Phase B recommendation:
 phase_b_go=conditional_after_exact_approval_and_immediate_hard_gate_recheck
 current_blocker=exact_approval_phrase_absent
 ```
+
+## NODE-032M Phase B Safe Temp-Env Enable/Reboot Retry Attempt
+
+Result:
+
+```text
+approval_phrase_confirmed=true
+systemctl_enable=true
+gateway_only_reboot=true
+post_reboot_autostart_verified=true
+controlled_smoke_attempted=true
+controlled_smoke_completed=false
+rollback_performed=true
+token_values_printed=false
+transcript_text_printed=false
+provider_power_cycle=false
+business_dialog_enabled=false
+firewall_changed=false
+```
+
+Service proof:
+
+```text
+manual_start=ok
+service_enabled_after_enable=enabled
+post_reboot_service_active=active
+post_reboot_service_enabled=enabled
+post_reboot_listener=8080 only
+post_reboot_forbidden_listeners_443_8081=absent
+post_reboot_ufw_8080_allow=92.118.85.117 only
+post_reboot_log_sensitive_pattern=absent
+```
+
+Safe temp-env:
+
+```text
+guard_create=ok_after_one_fail_closed_missing_stdin_attempt
+guard_validate=ok
+guard_cleanup=ok
+temp_env_mode=600
+token_input=stdin_pipeline_only
+secret_values_printed=false
+```
+
+Smoke blocker:
+
+```text
+gateway_request_reached=false
+smoke_blocker=incomplete_temporary_helper_bundle_missing_ai_secretary.config
+error_type=ModuleNotFoundError
+missing_module=ai_secretary.config
+next_node=NODE-032N / complete-safe-asterisk-helper-bundle-and-retry-plan
+```
+
+Final state:
+
+```text
+final_service_active=inactive
+final_service_enabled=disabled
+final_target_listeners_443_8080_8081=absent
+firewall_changed=false
+env_owner_mode=root:gateway 640
+temp_helper_bundle_removed=true
+temp_env_removed=true
+temp_audio_removed=true
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+```

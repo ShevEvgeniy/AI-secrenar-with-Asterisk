@@ -22,6 +22,12 @@ Long-form sanitized Phase A handoff:
 docs/handoffs/NODE-032M-phase-a-codex-handoff.md
 ```
 
+Long-form sanitized Phase B handoff:
+
+```text
+docs/handoffs/NODE-032M-phase-b-codex-handoff.md
+```
+
 The handoff must not contain real secrets, token values, bearer headers, private keys, raw secret env output, transcript text, logs, audio, or binary artifacts.
 
 ## Context
@@ -257,3 +263,128 @@ git status --short
 
 Results are recorded in the Phase A closeout.
 
+## Phase B Closeout
+
+Exact approval phrase was provided:
+
+```text
+APPROVE NODE-032M SAFE TEMP-ENV ENABLE/REBOOT/SMOKE RETRY
+```
+
+Hard gates were re-confirmed before state-changing commands.
+
+Asterisk:
+
+```text
+ssh_reachable=true
+hostname=tula
+ai-secretary-ari.service=active_enabled
+process_openai_api_key=OPENAI_API_KEY_ABSENT
+service_openai_api_key=OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+business_dialog_unchanged=true
+```
+
+Gateway:
+
+```text
+ssh_reachable=true
+hostname=ai-secretary-gateway-node023
+unit_present=true
+unit_verify=ok
+service_active_before=inactive
+service_enabled_before=disabled
+gateway_user_group=present
+env_owner_mode=root:gateway 640
+masked_secret_presence=pass
+workdir_present=true
+listener_8080_before=absent
+forbidden_listeners_443_8081=absent
+ufw_8080_allow=92.118.85.117 only
+rollback_tools=available
+```
+
+Safe temp-env result:
+
+```text
+guard_create=ok_after_one_fail_closed_missing_stdin_attempt
+guard_validate=ok
+temp_env_mode=600
+token_input=stdin_pipeline_only
+token_values_printed=false
+transcript_text_printed=false
+```
+
+The first guard create command was misquoted and supplied no token to stdin; it failed closed with safe JSON only. The corrected command piped the Gateway token directly into guard stdin and printed only masked JSON.
+
+Service enable/reboot proof:
+
+```text
+manual_start=ok
+service_active_after_start=active
+listener_after_start=8080 only
+forbidden_listeners_after_start=absent
+systemctl_enable=true
+service_enabled_after_enable=enabled
+gateway_only_reboot=true
+ssh_returned=true
+post_reboot_service_active=active
+post_reboot_service_enabled=enabled
+post_reboot_listener=8080 only
+post_reboot_forbidden_listeners_443_8081=absent
+post_reboot_ufw_8080_allow=92.118.85.117 only
+post_reboot_log_sensitive_pattern=absent
+```
+
+Controlled smoke result:
+
+```text
+controlled_smoke_attempted=true
+gateway_request_reached=false
+gateway_reachable_from_asterisk=not_run
+gateway_auth=not_run
+openai_realtime_from_gateway=not_run
+chunks_sent=not_run
+transcript_present=not_run
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=not_run
+```
+
+Blocker:
+
+```text
+smoke_blocker=incomplete_temporary_helper_bundle_missing_ai_secretary.config
+error_type=ModuleNotFoundError
+missing_module=ai_secretary.config
+```
+
+The helper failed before any Gateway request because the temporary helper bundle included `src/ai_secretary/__init__.py`, which imports `ai_secretary.config.settings`, but the bundle did not include `ai_secretary.config`. No token values or transcript text were printed.
+
+Rollback and cleanup:
+
+```text
+systemctl_disable=true
+systemctl_stop=true
+final_service_active=inactive
+final_service_enabled=disabled
+final_target_listeners_443_8080_8081=absent
+firewall_changed=false
+env_owner_mode=root:gateway 640
+temp_env_cleanup_guard=ok
+temp_env_removed=true
+helper_bundle_removed=true
+temp_audio_removed=true
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+token_rotation_required=false
+```
+
+Next recommendation:
+
+```text
+NODE-032N / complete-safe-asterisk-helper-bundle-and-retry-plan
+```
+
+NODE-032N should fix helper-bundle completeness locally before any future live retry. A later live retry must require a new exact approval phrase, immediate hard-gate re-confirmation, NODE-032L safe temp-env handling, no token output, and no transcript text output.
