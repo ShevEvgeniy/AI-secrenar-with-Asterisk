@@ -1171,3 +1171,38 @@ Next recommendation:
 ```text
 NODE-032N / complete-safe-asterisk-helper-bundle-and-retry-plan
 ```
+
+## NODE-032N Complete Safe Asterisk Helper Bundle
+
+NODE-032N fixes the NODE-032M local helper-bundle blocker without running a live retry.
+
+Decision:
+
+- Keep the existing package import behavior.
+- Add an explicit minimal helper-bundle manifest and local preflight validator.
+- Include `ai_secretary.config` in the future temporary bundle because `src/ai_secretary/__init__.py` imports `ai_secretary.config.settings`.
+- Require the NODE-032L safe temp-env guard for token material handling.
+- Print only safe JSON fields from bundle create/validate operations.
+
+Implementation:
+
+```text
+scripts/asterisk_gateway_helper_bundle.py
+tests/test_asterisk_gateway_helper_bundle.py
+docs/handoffs/NODE-032N-codex-handoff.md
+docs/nodes/NODE-032N-complete-safe-asterisk-helper-bundle-and-retry-plan.md
+```
+
+Safety:
+
+- The bundle helper does not read Gateway tokens.
+- The bundle helper does not print token values.
+- The bundle helper does not print transcript text.
+- Asterisk-side `OPENAI_API_KEY` refusal remains in the smoke helper.
+- `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false` remains required.
+
+Next recommendation:
+
+```text
+NODE-032O / controlled-gateway-smoke-retry-with-complete-helper-bundle
+```

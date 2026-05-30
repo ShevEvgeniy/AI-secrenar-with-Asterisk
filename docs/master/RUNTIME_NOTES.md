@@ -1901,3 +1901,39 @@ asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
 
 - No provider power-cycle, Asterisk reboot, firewall broadening, env file edit, TLS/proxy change, `443`, `8081`, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation loop, GitHub push, or PR occurred.
 - Next node recommendation: `NODE-032N / complete-safe-asterisk-helper-bundle-and-retry-plan`.
+
+## NODE-032N Runtime Notes
+
+- NODE-032N was local repo implementation and documentation only.
+- No SSH, live retry, live smoke, service action, `systemctl` action, reboot, provider power-cycle, firewall change, server env edit, server state change, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation, GitHub push, or PR occurred.
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032N-codex-handoff.md
+```
+
+- NODE-032M blocker:
+
+```text
+smoke_blocker=incomplete_temporary_helper_bundle_missing_ai_secretary.config
+root_cause=src/ai_secretary/__init__.py imports ai_secretary.config.settings
+```
+
+- NODE-032N implementation:
+
+```text
+script=scripts/asterisk_gateway_helper_bundle.py
+test=tests/test_asterisk_gateway_helper_bundle.py
+manifest_includes_ai_secretary_config=true
+preflight_import_validator=true
+safe_temp_env_guard_required=true
+secret_values_printed=false
+transcript_text_logged=false
+```
+
+- Future retry boundary:
+
+```text
+next_node=NODE-032O / controlled-gateway-smoke-retry-with-complete-helper-bundle
+live_retry_requires_separate_approval=true
+```
