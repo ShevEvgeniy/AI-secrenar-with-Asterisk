@@ -1759,3 +1759,145 @@ transcript_text_logged=false
 - `scripts/asterisk_gateway_smoke_helper.py` now rejects gateway URL/token env values containing newline material before delegating to the adapter smoke helper.
 - No live smoke, SSH, service action, reboot, provider power-cycle, firewall change, server env edit, Asterisk env change, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation, GitHub push, or PR occurred.
 - Next node recommendation: `NODE-032M / controlled-gateway-enable-reboot-smoke-retry-with-safe-temp-env`.
+
+## NODE-032M Phase A Runtime Notes
+
+- NODE-032M Phase A performed local guard/helper inspection and read-only SSH gate checks only.
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032M-phase-a-codex-handoff.md
+```
+
+- No live retry, service start/stop/restart/reload/enable, `systemctl` state-changing action, reboot, provider power-cycle, firewall change, server env edit, helper copy/deploy, live smoke, business dialog enablement, transcript text logging, token output, Notion write, Runtime/Evidence update, scheduler, webhook, automation, or server state change occurred.
+- Local safe temp-env guard readiness:
+
+```text
+guard=scripts/gateway_smoke_temp_env_guard.py
+commands=create_validate_cleanup
+token_input=stdin_only
+token_values_printed=false
+temp_env_mode=0600
+masked_json_reports=true
+newline_material_rejected=true
+cleanup_supported=true
+```
+
+- Asterisk read-only gate:
+
+```text
+hostname=tula
+ai-secretary-ari.service=active_enabled
+process_openai_api_key=OPENAI_API_KEY_ABSENT
+service_openai_api_key=OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+```
+
+- Gateway read-only gate:
+
+```text
+hostname=ai-secretary-gateway-node023
+unit_present=true
+unit_verify=ok
+service_active=inactive
+service_enabled=disabled
+gateway_user_group=present
+env_owner_mode=root:gateway 640
+gateway_secret_presence=masked_pass
+workdir_present=true
+target_listeners_443_8080_8081=absent
+ufw_status=active
+ufw_8080_allow=92.118.85.117 only
+rollback_tools=available
+```
+
+- Future Phase B requires exact approval:
+
+```text
+APPROVE NODE-032M SAFE TEMP-ENV ENABLE/REBOOT/SMOKE RETRY
+```
+
+- Recommendation: conditional GO only after exact approval and immediate hard-gate re-checks. The current blocker is approval phrase absent.
+
+## NODE-032M Phase B Runtime Notes
+
+- Exact approval phrase was confirmed:
+
+```text
+APPROVE NODE-032M SAFE TEMP-ENV ENABLE/REBOOT/SMOKE RETRY
+```
+
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032M-phase-b-codex-handoff.md
+```
+
+- Hard gates passed before state-changing commands.
+- Safe temp-env guard result:
+
+```text
+first_create_attempt=failed_closed_missing_stdin_token_due_command_quoting
+create_retry=ok
+validate=ok
+cleanup=ok
+token_input=stdin_pipeline_only
+temp_env_mode=600
+secret_values_printed=false
+transcript_text_logged=false
+```
+
+- Service enable/reboot proof:
+
+```text
+manual_start=ok
+systemctl_enable=true
+gateway_only_reboot=true
+ssh_returned=true
+post_reboot_service_active=active
+post_reboot_service_enabled=enabled
+post_reboot_listener=8080 only
+post_reboot_forbidden_listeners_443_8081=absent
+post_reboot_ufw_8080_allow=92.118.85.117 only
+post_reboot_log_sensitive_pattern=absent
+```
+
+- Smoke attempt:
+
+```text
+controlled_smoke_attempted=true
+gateway_request_reached=false
+openai_realtime_from_gateway=not_run
+transcript_present=not_run
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=not_run
+```
+
+- Blocker:
+
+```text
+smoke_blocker=incomplete_temporary_helper_bundle_missing_ai_secretary.config
+error_type=ModuleNotFoundError
+missing_module=ai_secretary.config
+```
+
+- Rollback result:
+
+```text
+systemctl_disable=true
+systemctl_stop=true
+final_service_active=inactive
+final_service_enabled=disabled
+final_target_listeners_443_8080_8081=absent
+firewall_changed=false
+env_owner_mode=root:gateway 640
+temporary_helper_bundle_removed=true
+temporary_runtime_env_removed=true
+temporary_audio_removed=true
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+```
+
+- No provider power-cycle, Asterisk reboot, firewall broadening, env file edit, TLS/proxy change, `443`, `8081`, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation loop, GitHub push, or PR occurred.
+- Next node recommendation: `NODE-032N / complete-safe-asterisk-helper-bundle-and-retry-plan`.

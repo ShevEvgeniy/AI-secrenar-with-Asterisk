@@ -1092,3 +1092,82 @@ Next live node:
 ```text
 NODE-032M / controlled-gateway-enable-reboot-smoke-retry-with-safe-temp-env
 ```
+
+## NODE-032M Safe Temp-Env Retry Phase A
+
+NODE-032M Phase A prepares the controlled retry of the Gateway enable/reboot/smoke path after NODE-032K and NODE-032L.
+
+Accepted Phase A result:
+
+- Local guard/helper inspection passed.
+- Read-only Asterisk gates passed.
+- Read-only Gateway gates passed.
+- No live retry, service action, `systemctl` state change, reboot, provider power-cycle, firewall/env/server state change, helper deploy, live smoke, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
+- No token values or transcript text were printed or recorded.
+
+Future Phase B requires exact approval phrase:
+
+```text
+APPROVE NODE-032M SAFE TEMP-ENV ENABLE/REBOOT/SMOKE RETRY
+```
+
+Phase B decision boundary:
+
+- Re-run all hard gates immediately before any state change.
+- Use `scripts/gateway_smoke_temp_env_guard.py` or equivalent for temp env create/validate/cleanup.
+- Supply Gateway token material through stdin only.
+- Print only masked/safe validation status.
+- Run at most one Asterisk-side smoke.
+- Clean up temporary helper/env/audio.
+- Do not provider power-cycle, enable business dialog, expose `443` or `8081`, change TLS/proxy, broaden firewall, print token values, or print transcript text.
+
+Current recommendation:
+
+```text
+phase_b_go=conditional_after_exact_approval_and_immediate_hard_gate_recheck
+current_blocker=exact_approval_phrase_absent
+```
+
+## NODE-032M Phase B Safe Temp-Env Retry Attempt
+
+NODE-032M Phase B received the exact approval phrase:
+
+```text
+APPROVE NODE-032M SAFE TEMP-ENV ENABLE/REBOOT/SMOKE RETRY
+```
+
+Accepted result:
+
+- Hard gates passed before state change.
+- NODE-032L guard created and validated a temporary Asterisk smoke env with token material supplied through stdin only.
+- The first guard create attempt failed closed because stdin token material was absent due command quoting; it printed safe JSON only.
+- Gateway service manually started successfully.
+- `systemctl enable ai-secretary-gateway.service` ran.
+- Gateway-only reboot completed and SSH returned.
+- Service auto-started after reboot and was active/enabled.
+- Listener after reboot was `8080` only; no `443` or `8081`.
+- UFW remained active with `8080/tcp` allowed only from `92.118.85.117`.
+- No provider power-cycle, firewall broadening, TLS/proxy change, `443`, `8081`, Asterisk env change, or business dialog enablement occurred.
+
+Hard blocker:
+
+- Exactly one Asterisk-side smoke helper invocation was attempted.
+- The helper failed before any Gateway request because the temporary helper bundle was incomplete.
+- Missing module: `ai_secretary.config`.
+- No token values or transcript text were printed.
+
+Rollback decision:
+
+- Disable and stop `ai-secretary-gateway.service`.
+- Leave the staged unit installed.
+- Verify final service state disabled/inactive.
+- Verify no target listeners on `443`, `8080`, or `8081`.
+- Keep firewall unchanged.
+- Remove temporary Asterisk helper/env/audio.
+- Verify Asterisk still has `OPENAI_API_KEY_ABSENT`.
+
+Next recommendation:
+
+```text
+NODE-032N / complete-safe-asterisk-helper-bundle-and-retry-plan
+```
