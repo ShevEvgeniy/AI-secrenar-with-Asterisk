@@ -1759,3 +1759,62 @@ transcript_text_logged=false
 - `scripts/asterisk_gateway_smoke_helper.py` now rejects gateway URL/token env values containing newline material before delegating to the adapter smoke helper.
 - No live smoke, SSH, service action, reboot, provider power-cycle, firewall change, server env edit, Asterisk env change, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation, GitHub push, or PR occurred.
 - Next node recommendation: `NODE-032M / controlled-gateway-enable-reboot-smoke-retry-with-safe-temp-env`.
+
+## NODE-032M Phase A Runtime Notes
+
+- NODE-032M Phase A performed local guard/helper inspection and read-only SSH gate checks only.
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032M-phase-a-codex-handoff.md
+```
+
+- No live retry, service start/stop/restart/reload/enable, `systemctl` state-changing action, reboot, provider power-cycle, firewall change, server env edit, helper copy/deploy, live smoke, business dialog enablement, transcript text logging, token output, Notion write, Runtime/Evidence update, scheduler, webhook, automation, or server state change occurred.
+- Local safe temp-env guard readiness:
+
+```text
+guard=scripts/gateway_smoke_temp_env_guard.py
+commands=create_validate_cleanup
+token_input=stdin_only
+token_values_printed=false
+temp_env_mode=0600
+masked_json_reports=true
+newline_material_rejected=true
+cleanup_supported=true
+```
+
+- Asterisk read-only gate:
+
+```text
+hostname=tula
+ai-secretary-ari.service=active_enabled
+process_openai_api_key=OPENAI_API_KEY_ABSENT
+service_openai_api_key=OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+```
+
+- Gateway read-only gate:
+
+```text
+hostname=ai-secretary-gateway-node023
+unit_present=true
+unit_verify=ok
+service_active=inactive
+service_enabled=disabled
+gateway_user_group=present
+env_owner_mode=root:gateway 640
+gateway_secret_presence=masked_pass
+workdir_present=true
+target_listeners_443_8080_8081=absent
+ufw_status=active
+ufw_8080_allow=92.118.85.117 only
+rollback_tools=available
+```
+
+- Future Phase B requires exact approval:
+
+```text
+APPROVE NODE-032M SAFE TEMP-ENV ENABLE/REBOOT/SMOKE RETRY
+```
+
+- Recommendation: conditional GO only after exact approval and immediate hard-gate re-checks. The current blocker is approval phrase absent.

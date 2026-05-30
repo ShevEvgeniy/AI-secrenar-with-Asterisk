@@ -1092,3 +1092,38 @@ Next live node:
 ```text
 NODE-032M / controlled-gateway-enable-reboot-smoke-retry-with-safe-temp-env
 ```
+
+## NODE-032M Safe Temp-Env Retry Phase A
+
+NODE-032M Phase A prepares the controlled retry of the Gateway enable/reboot/smoke path after NODE-032K and NODE-032L.
+
+Accepted Phase A result:
+
+- Local guard/helper inspection passed.
+- Read-only Asterisk gates passed.
+- Read-only Gateway gates passed.
+- No live retry, service action, `systemctl` state change, reboot, provider power-cycle, firewall/env/server state change, helper deploy, live smoke, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
+- No token values or transcript text were printed or recorded.
+
+Future Phase B requires exact approval phrase:
+
+```text
+APPROVE NODE-032M SAFE TEMP-ENV ENABLE/REBOOT/SMOKE RETRY
+```
+
+Phase B decision boundary:
+
+- Re-run all hard gates immediately before any state change.
+- Use `scripts/gateway_smoke_temp_env_guard.py` or equivalent for temp env create/validate/cleanup.
+- Supply Gateway token material through stdin only.
+- Print only masked/safe validation status.
+- Run at most one Asterisk-side smoke.
+- Clean up temporary helper/env/audio.
+- Do not provider power-cycle, enable business dialog, expose `443` or `8081`, change TLS/proxy, broaden firewall, print token values, or print transcript text.
+
+Current recommendation:
+
+```text
+phase_b_go=conditional_after_exact_approval_and_immediate_hard_gate_recheck
+current_blocker=exact_approval_phrase_absent
+```

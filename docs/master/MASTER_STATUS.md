@@ -2198,3 +2198,68 @@ Next recommendation:
 ```text
 NODE-032M / controlled-gateway-enable-reboot-smoke-retry-with-safe-temp-env
 ```
+
+## NODE-032M Phase A Safe Temp-Env Retry Readiness
+
+Result:
+
+```text
+phase_a_readiness_complete=true
+branch=feat/node-032m-controlled-gateway-enable-reboot-smoke-retry-with-safe-temp-env
+handoff_archive=docs/handoffs/NODE-032M-phase-a-codex-handoff.md
+live_retry=false
+service_action=false
+systemctl_state_change=false
+reboot=false
+provider_power_cycle=false
+firewall_changed=false
+server_env_edited=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Local readiness:
+
+```text
+guard=scripts/gateway_smoke_temp_env_guard.py
+guard_create_validate_cleanup=true
+guard_token_stdin_only=true
+guard_masked_json_only=true
+guard_cr_lf_rejected=true
+helper_newline_material_rejected=true
+helper_asterisk_openai_api_key_refused=true
+```
+
+Read-only gates:
+
+```text
+asterisk_ssh=true
+asterisk_hostname=tula
+asterisk_service=active_enabled
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=not_enabled
+gateway_ssh=true
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit=present_verify_ok
+gateway_service=inactive_disabled
+gateway_env_owner_mode=root:gateway 640
+gateway_secret_presence=masked_pass
+gateway_target_listeners_443_8080_8081=absent
+ufw_status=active
+ufw_8080_allow=92.118.85.117 only
+rollback_tools=available
+```
+
+Phase B approval gate:
+
+```text
+APPROVE NODE-032M SAFE TEMP-ENV ENABLE/REBOOT/SMOKE RETRY
+```
+
+Phase B recommendation:
+
+```text
+phase_b_go=conditional_after_exact_approval_and_immediate_hard_gate_recheck
+current_blocker=exact_approval_phrase_absent
+```
