@@ -67,6 +67,27 @@ def test_helper_refuses_asterisk_openai_key_without_printing_value(tmp_path: Pat
     assert "not-real-openai-key" not in output
 
 
+def test_helper_refuses_newline_material_without_printing_token(tmp_path: Path, monkeypatch, capsys) -> None:
+    helper = _load_helper()
+    audio_path = tmp_path / "smoke.wav"
+    audio_path.write_bytes(b"fake-wav")
+    bad_token = "fake-token\\nSTT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true"
+    monkeypatch.setenv("STT_GATEWAY_STT_ENABLED", "true")
+    monkeypatch.setenv("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG", "false")
+    monkeypatch.setenv("STT_GATEWAY_URL", "http://gateway.example.test:8080")
+    monkeypatch.setenv("STT_GATEWAY_TOKEN", bad_token)
+    monkeypatch.setenv("STT_GATEWAY_LOG_TRANSCRIPT", "false")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    code = helper.main(["--audio", str(audio_path)])
+
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+    assert code == 2
+    assert "STT_GATEWAY_TOKEN must not contain newline material" in payload["missing_required_flags"]
+    assert bad_token not in output
+
+
 def test_helper_requires_business_dialog_transcript_use_to_stay_false(
     tmp_path: Path,
     monkeypatch,

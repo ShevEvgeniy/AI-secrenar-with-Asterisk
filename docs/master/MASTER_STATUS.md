@@ -2156,3 +2156,45 @@ firewall_changed=false
 smoke_retry=false
 next_node=NODE-032L / newline-safe-gateway-smoke-temp-env-and-retry-plan
 ```
+
+## NODE-032L Newline-Safe Gateway Smoke Temp Env Guard
+
+Result:
+
+```text
+local_implementation_docs_complete=true
+new_guard=scripts/gateway_smoke_temp_env_guard.py
+helper_hardened=scripts/asterisk_gateway_smoke_helper.py
+handoff_archive=docs/handoffs/NODE-032L-codex-handoff.md
+live_smoke=false
+ssh=false
+service_action=false
+reboot=false
+provider_power_cycle=false
+firewall_changed=false
+server_env_edited=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Safe temp-env behavior:
+
+```text
+token_source=stdin_only
+newline_safe=true
+missing_token_fails_closed=true
+cr_lf_token_fails_closed=true
+literal_newline_material_fails_closed=true
+dialog_transcript_use_required_false=true
+transcript_logging_required_false=true
+asterisk_openai_api_key_refused=true
+temp_env_mode=0600
+cleanup_supported=true
+```
+
+Next recommendation:
+
+```text
+NODE-032M / controlled-gateway-enable-reboot-smoke-retry-with-safe-temp-env
+```
