@@ -1411,3 +1411,50 @@ Phase B expected action:
 verify_project_venv_readiness_and_stop
 gateway_smoke_retry=false
 ```
+
+## NODE-032S Phase B Runtime Dependency Readiness Decision
+
+NODE-032S Phase B was approved with the exact phrase:
+
+```text
+APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS
+```
+
+Decision:
+
+- Treat Asterisk runtime dependency readiness as confirmed for the selected deployed project venv.
+- Do not install dependencies because the immediate Phase B re-check passed.
+- Do not mutate system Python.
+- Do not combine dependency readiness with Gateway smoke retry.
+
+Readiness evidence:
+
+```text
+target_python=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+python_version=3.12.3
+pip_version=26.1.1
+imports_ok=true
+httpx=0.28.1
+fastapi=0.136.1
+websockets=16.0
+dependency_install_occurred=false
+```
+
+Safety boundary:
+
+```text
+gateway_smoke_retry=false
+helper_copy_deploy=false
+gateway_service_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_env_edit=false
+token_values_printed=false
+transcript_text_logged=false
+```
+
+Next node:
+
+```text
+NODE-032T / controlled-gateway-smoke-retry-after-asterisk-runtime-readiness
+```

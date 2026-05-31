@@ -472,14 +472,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 151. Preserve NODE-032S Phase A boundary: read-only readiness and command planning only; no dependency install, pip install, apt install, server file write, venv creation, helper deploy, live retry, service action, reboot, firewall/env/server change, token output, or transcript text output occurred.
 152. Preserve NODE-032S runtime finding: system Python lacks `httpx`, `fastapi`, and `websockets`, but the existing deployed project venv at `/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python` has all three modules.
 153. Preserve NODE-032S target recommendation: Phase B should use the deployed project venv, re-confirm readiness after exact approval, and stop without Gateway smoke; install is expected to be unnecessary unless immediate re-check finds a missing module.
+154. Preserve NODE-032S Phase B readiness: after exact approval, hard gates were re-confirmed and the selected project venv imported `httpx 0.28.1`, `fastapi 0.136.1`, and `websockets 16.0`.
+155. Preserve NODE-032S Phase B no-install result: no dependency install, pip install, apt install, system Python mutation, project venv mutation, helper deploy, Gateway smoke retry, Gateway service action, reboot, firewall/env/server change, token output, or transcript text output occurred.
+156. Preserve NODE-032S separation: runtime dependency readiness is complete, but Gateway smoke retry still requires a separate approved node with immediate hard-gate re-confirmation.
 
 ## Next Recommended Step
 
 ```text
-NODE-032S Phase B / controlled-asterisk-runtime-dependency-install-readiness
+NODE-032T / controlled-gateway-smoke-retry-after-asterisk-runtime-readiness
 ```
 
-NODE-032S Phase A found that the deployed project venv already has `httpx`, `fastapi`, and `websockets`. Phase B should require exact approval `APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS`, re-confirm hard gates, verify the project venv imports and versions, and stop without smoke. Install only into the project venv if immediate re-check shows a required module missing; do not mutate system Python or run Gateway smoke in NODE-032S.
+NODE-032S Phase B confirmed the deployed project venv already imports the required runtime modules and no install was needed. The next node should be a separate controlled Gateway smoke retry after runtime readiness, with its own exact approval phrase, immediate hard-gate re-confirmation, NODE-032L safe temp-env handling, NODE-032N complete helper bundle validation, NODE-032P runtime preflight, and exactly one controlled Asterisk-side non-business-dialog smoke.
 
 ## Node Completion Report Format
 

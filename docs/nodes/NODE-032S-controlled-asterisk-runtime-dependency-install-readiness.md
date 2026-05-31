@@ -327,3 +327,85 @@ Known full-suite environmental failures, if unchanged:
 missing src/scripts/make_demo_audio.py
 missing sentence_transformers
 ```
+
+## Phase B Result
+
+Phase B was approved with the exact phrase:
+
+```text
+APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS
+```
+
+This phase remained dependency readiness only. It did not include Gateway smoke retry, helper copy/deploy, Gateway service action, reboot, provider power-cycle, firewall change, server env edit, business dialog enablement, token output, or transcript text logging.
+
+Phase B handoff archive:
+
+```text
+docs/handoffs/NODE-032S-phase-b-codex-handoff.md
+```
+
+Hard gates were re-confirmed:
+
+```text
+asterisk_ssh=reachable
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+process_OPENAI_API_KEY=ABSENT
+service_OPENAI_API_KEY=ABSENT
+env_file_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+gateway_ssh=reachable
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit=present
+gateway_unit_verify=OK
+gateway_service=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+Selected target runtime readiness:
+
+```text
+target_python=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+python_version=3.12.3
+pip_version=26.1.1
+imports_ok=true
+httpx=0.28.1
+fastapi=0.136.1
+websockets=16.0
+```
+
+Install result:
+
+```text
+expected_dependency_install_needed=false
+dependency_install_occurred=false
+pip_install_occurred=false
+apt_install_occurred=false
+system_python_mutated=false
+project_venv_mutated=false
+```
+
+No packages were installed, removed, upgraded, or downgraded because the selected project venv already satisfied the runtime dependency readiness gate.
+
+Final safety state:
+
+```text
+gateway_smoke_retry=false
+helper_copy_deploy=false
+gateway_service_action=false
+systemctl_state_change=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_logged=false
+```
+
+Next recommendation:
+
+```text
+NODE-032T / controlled-gateway-smoke-retry-after-asterisk-runtime-readiness
+```

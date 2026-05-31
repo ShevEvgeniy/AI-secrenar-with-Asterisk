@@ -2742,3 +2742,60 @@ Future approval phrase:
 ```text
 APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS
 ```
+
+## NODE-032S Phase B Runtime Dependency Readiness
+
+Result:
+
+```text
+approval_phrase=APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS
+handoff_archive=docs/handoffs/NODE-032S-phase-b-codex-handoff.md
+dependency_readiness=confirmed
+dependency_install_occurred=false
+pip_install_occurred=false
+apt_install_occurred=false
+system_python_mutated=false
+project_venv_mutated=false
+gateway_smoke_retry=false
+helper_copy_deploy=false
+gateway_service_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_env_edit=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Hard gates:
+
+```text
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+Selected runtime:
+
+```text
+target_python=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+python_version=3.12.3
+pip_version=26.1.1
+imports_ok=true
+httpx=0.28.1
+fastapi=0.136.1
+websockets=16.0
+```
+
+Next recommendation:
+
+```text
+NODE-032T / controlled-gateway-smoke-retry-after-asterisk-runtime-readiness
+```
