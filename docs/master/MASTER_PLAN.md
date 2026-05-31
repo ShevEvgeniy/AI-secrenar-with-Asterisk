@@ -452,14 +452,20 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 132. Preserve NODE-032N helper-bundle fix: future Asterisk-side Gateway smoke retries must use an explicit minimal helper bundle manifest and preflight validator, including `ai_secretary.config`, before any helper invocation.
 133. Preserve NODE-032N safety boundary: the bundle helper must not read or print token values or transcript text; token handling remains owned by the NODE-032L safe temp-env guard.
 134. Preserve NODE-032N retry boundary: no live retry occurred; the next live retry requires a separate approved node, immediate hard-gate re-confirmation, complete helper bundle validation, safe temp-env create/validate/cleanup, and cleanup of temporary helper/env/audio.
+135. Preserve NODE-032O Phase A boundary: readiness and smoke retry command planning only, with local guard/helper inspection and read-only SSH gates; no live retry, service action, `systemctl` state change, reboot, provider power-cycle, firewall/env/server change, helper deploy, smoke, or business dialog enablement.
+136. Preserve NODE-032O Phase A gate result: Asterisk gates pass with `OPENAI_API_KEY_ABSENT`, Gateway staged service is present/inactive/disabled, gateway env is `root:gateway 640`, masked secrets are present, unit verifies, no `443`/`8080`/`8081` listeners exist, and UFW restricts `8080/tcp` to `92.118.85.117`.
+137. Preserve NODE-032O approval gate: Phase B requires exact phrase `APPROVE NODE-032O COMPLETE HELPER-BUNDLE SMOKE RETRY`; no other phrase is approval.
+138. Preserve NODE-032O retry boundary: Phase B may stage the complete helper bundle and run exactly one Asterisk-side non-business-dialog smoke only after approval and hard-gate re-confirmation; no `systemctl enable`, reboot, provider power-cycle, `443`, `8081`, TLS/proxy, firewall broadening, token output, transcript text logging, or business dialog enablement.
+139. Preserve NODE-032O Phase B blocked result: exact approval was provided and hard gates passed, but remote staged helper-bundle validation failed closed before token handling, service start, smoke, or Gateway request because preflight import missed runtime module `httpx`.
+140. Preserve NODE-032O cleanup/final state: temporary Asterisk helper/env/audio and local helper archive/bundle were removed, Gateway service remains inactive/disabled, no target listeners remain on `443`, `8080`, or `8081`, firewall is unchanged, and Asterisk still has `OPENAI_API_KEY_ABSENT`.
 
 ## Next Recommended Step
 
 ```text
-NODE-032O / controlled-gateway-smoke-retry-with-complete-helper-bundle
+NODE-032O Phase B / controlled-gateway-smoke-retry-with-complete-helper-bundle
 ```
 
-NODE-032N fixed the local helper-bundle completeness blocker by adding a minimal manifest and preflight validator. NODE-032O may retry the controlled Asterisk-side smoke only after separate exact approval, immediate hard-gate re-confirmation, NODE-032L safe temp-env handling, NODE-032N bundle validation, and explicit cleanup. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, token output, transcript text logging, and firewall broadening remain out of scope.
+NODE-032O Phase B was blocked before smoke by missing helper-bundle runtime dependency `httpx`. NODE-032P should make the temporary helper bundle preflight complete for runtime dependencies before any further live retry. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, token output, transcript text logging, firewall broadening, reboot, and `systemctl enable` remain out of scope unless a later node explicitly approves them.
 
 ## Node Completion Report Format
 

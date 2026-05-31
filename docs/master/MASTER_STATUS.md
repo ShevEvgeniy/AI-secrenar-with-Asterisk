@@ -2382,3 +2382,122 @@ Next recommendation:
 ```text
 NODE-032O / controlled-gateway-smoke-retry-with-complete-helper-bundle
 ```
+
+## NODE-032O Phase A Complete Helper-Bundle Smoke Retry Readiness
+
+Result:
+
+```text
+node_type=phase_a_readiness_command_planning
+live_retry=false
+service_action=false
+systemctl_state_change=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+helper_copy_deploy=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Handoff archive:
+
+```text
+docs/handoffs/NODE-032O-phase-a-codex-handoff.md
+```
+
+Local tooling readiness:
+
+```text
+safe_temp_env_guard=scripts/gateway_smoke_temp_env_guard.py
+safe_temp_env_commands=create,validate,cleanup
+helper_bundle_tool=scripts/asterisk_gateway_helper_bundle.py
+helper_bundle_commands=manifest,create,validate
+helper_bundle_includes_ai_secretary_config=true
+helper_bundle_preflight_validator=true
+```
+
+Asterisk read-only gate:
+
+```text
+ssh_reachable=true
+hostname=tula
+ari_service_active=active
+ari_service_enabled=enabled
+process_openai_api_key=OPENAI_API_KEY_ABSENT
+service_openai_api_key=SERVICE_ENV_OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+```
+
+Gateway read-only gate:
+
+```text
+ssh_reachable=true
+hostname=ai-secretary-gateway-node023
+unit_present=true
+unit_verify=ok
+gateway_service_active=inactive
+gateway_service_enabled=disabled
+gateway_user_group=present
+gateway_env_owner_mode=root:gateway 640
+masked_secret_presence=pass
+workdir_present=true
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+Phase B approval gate:
+
+```text
+APPROVE NODE-032O COMPLETE HELPER-BUNDLE SMOKE RETRY
+```
+
+Phase B recommendation:
+
+```text
+phase_b_go=conditional_after_exact_approval_and_immediate_hard_gate_recheck
+current_blocker=exact_approval_phrase_absent
+technical_readiness=pass
+```
+
+## NODE-032O Phase B Complete Helper-Bundle Smoke Retry Blocked
+
+Result:
+
+```text
+approval_phrase_confirmed=true
+phase_b_result=blocked_no_go
+handoff_archive=docs/handoffs/NODE-032O-phase-b-codex-handoff.md
+hard_gates_passed=true
+local_bundle_create_validate=passed_after_one_safe_local_path_failure
+remote_bundle_validate=false
+remote_bundle_missing_module=httpx
+safe_temp_env_created=false
+gateway_token_read=false
+service_action=false
+controlled_smoke_run=false
+gateway_request_reached=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Final state:
+
+```text
+gateway_service_active=inactive
+gateway_service_enabled=disabled
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+temporary_helper_bundle_removed=true
+temporary_env_removed=true
+temporary_audio_removed=true
+firewall_changed=false
+env_files_edited=false
+server_state_changed=false
+```
+
+Next recommendation:
+
+```text
+NODE-032P / helper-bundle-runtime-dependency-preflight-and-retry-plan
+```
