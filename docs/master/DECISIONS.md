@@ -1317,3 +1317,35 @@ NODE-032Q / controlled-gateway-smoke-retry-with-runtime-dependency-preflight
 ```
 
 If future remote preflight finds runtime dependencies missing on Asterisk, the retry must stop or move dependency installation into a separately approved node.
+
+## NODE-032Q Runtime-Preflight Smoke Retry Readiness
+
+NODE-032Q Phase A keeps the smoke retry blocked until exact approval and immediate hard-gate re-confirmation.
+
+Decision:
+
+- Use all three safety layers before any future smoke: NODE-032L safe temp-env guard, NODE-032N complete helper bundle, and NODE-032P runtime dependency preflight.
+- Require exact approval phrase `APPROVE NODE-032Q RUNTIME-PREFLIGHT SMOKE RETRY`.
+- Run remote helper-bundle validation before token handling, temp-env creation, service action, smoke, or Gateway request.
+- If remote validation reports missing `httpx`, `fastapi`, or `websockets`, stop as NO-GO.
+- Do not install dependencies in NODE-032Q; dependency installation requires a separately approved node.
+- Do not run `systemctl enable`, reboot, provider power-cycle, open `443`/`8081`, broaden firewall, enable business dialog transcript use, print token values, or print transcript text.
+
+Phase A gates:
+
+```text
+asterisk_openai_api_key=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+asterisk_runtime_modules_missing=httpx,fastapi,websockets
+gateway_service=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_masked_secret_presence=pass
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+Decision update:
+
+- NODE-032Q Phase B is NO-GO while Asterisk lacks `httpx`, `fastapi`, and `websockets`.
+- Dependency installation remains out of scope for NODE-032Q.
+- Next work should be separately approved dependency resolution or an alternate helper strategy.

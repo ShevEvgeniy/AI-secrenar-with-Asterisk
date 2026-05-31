@@ -2094,3 +2094,55 @@ next_node=NODE-032Q / controlled-gateway-smoke-retry-with-runtime-dependency-pre
 remote_preflight_before_token_handling=true
 stop_if_missing_runtime_modules=true
 ```
+
+## NODE-032Q Phase A Runtime Notes
+
+- NODE-032Q Phase A was read-only readiness and command planning only.
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032Q-phase-a-codex-handoff.md
+```
+
+- Local safety tooling:
+
+```text
+safe_temp_env_guard=scripts/gateway_smoke_temp_env_guard.py
+helper_bundle=scripts/asterisk_gateway_helper_bundle.py
+smoke_helper=scripts/asterisk_gateway_smoke_helper.py
+runtime_modules_required=httpx,fastapi,websockets
+local_runtime_modules_ok=true
+safe_json_only=true
+secret_values_printed=false
+transcript_text_logged=false
+```
+
+- Read-only live gates:
+
+```text
+asterisk_hostname=tula
+asterisk_openai_api_key=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+asterisk_runtime_module_httpx=missing
+asterisk_runtime_module_fastapi=missing
+asterisk_runtime_module_websockets=missing
+gateway_hostname=ai-secretary-gateway-node023
+gateway_service=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+- Future retry boundary:
+
+```text
+approval_phrase=APPROVE NODE-032Q RUNTIME-PREFLIGHT SMOKE RETRY
+remote_helper_bundle_validate_before_token_handling=true
+stop_if_missing_runtime_modules=true
+phase_b_recommendation=NO_GO
+dependency_install_in_NODE_032Q=false
+systemctl_enable=false
+reboot=false
+provider_power_cycle=false
+```
