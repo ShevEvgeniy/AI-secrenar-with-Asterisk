@@ -1498,6 +1498,52 @@ condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
 current_blocker=approval_phrase_absent
 ```
 
+## NODE-032U Phase B Valid Audio Smoke Decision
+
+NODE-032U Phase B was approved with:
+
+```text
+APPROVE NODE-032U 24KHZ AUDIO GATEWAY SMOKE RETRY
+```
+
+Decision and result:
+
+- Treat the NODE-032T invalid-audio blocker as resolved.
+- Keep `24000 Hz mono 16-bit PCM WAV` as the smoke audio contract.
+- Do not introduce `8 kHz`, stereo, or dual-channel architecture changes in this node.
+- Keep business dialog transcript use disabled.
+- Treat HTTP 200, Gateway auth OK, OpenAI Realtime OK, and chunks sent as successful transport/auth/Realtime proof for the valid-audio retry.
+- Do not treat `accepted=false` as a dialog failure because `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false` remained enforced.
+
+Evidence:
+
+```text
+audio_format=24000 Hz mono 16-bit PCM WAV
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+chunks_sent=5
+transcript_present=false
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged
+asterisk_OPENAI_API_KEY=ABSENT
+```
+
+Next node:
+
+```text
+NODE-032V / gateway-smoke-result-acceptance-and-next-boundary-decision
+```
+
 ## NODE-032T Phase B Gateway Smoke Retry Decision
 
 NODE-032T Phase B was approved with:
@@ -1546,4 +1592,49 @@ Next node:
 
 ```text
 NODE-032U / controlled-gateway-smoke-retry-with-valid-24khz-audio
+```
+
+## NODE-032U Phase A Valid Smoke Audio Decision
+
+NODE-032U Phase A is local implementation and command planning only. No live smoke retry, SSH, helper copy/deploy, token handling, server temp env creation, dependency install, service action, `systemctl` action, reboot, provider power-cycle, firewall/env/server change, token output, transcript text output, Notion write, Runtime/Evidence update, scheduler, webhook, automation, commit, or PR occurred.
+
+Decision:
+
+- Generate or validate future smoke WAV input through `scripts/asterisk_gateway_smoke_helper.py`.
+- Require `24000 Hz mono 16-bit PCM WAV` before any Gateway request.
+- Fail closed on `16000 Hz`, stereo, malformed, missing, empty, or non-PCM WAV input.
+- Do not change Gateway behavior or accept a different audio contract in this node.
+- Defer any `8 kHz`, stereo, or dual-channel caller/callee architecture decision to a separate future node.
+
+Commands added for future retry planning:
+
+```text
+python scripts/asterisk_gateway_smoke_helper.py --create-smoke-audio <path>
+python scripts/asterisk_gateway_smoke_helper.py --validate-smoke-audio <path>
+python scripts/asterisk_gateway_smoke_helper.py --audio <path>
+```
+
+Safety boundary:
+
+```text
+OPENAI_API_KEY_on_Asterisk=refused
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false required
+STT_GATEWAY_LOG_TRANSCRIPT=false required
+secret_values_printed=false
+transcript_text_logged=false
+business_dialog_unchanged=true
+```
+
+Future approval phrase:
+
+```text
+APPROVE NODE-032U 24KHZ AUDIO GATEWAY SMOKE RETRY
+```
+
+Current recommendation:
+
+```text
+phase_b_recommendation=CONDITIONAL_GO
+condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
+current_blocker=approval_phrase_absent
 ```

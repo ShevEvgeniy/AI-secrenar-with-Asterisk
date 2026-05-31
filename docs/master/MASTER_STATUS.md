@@ -2899,3 +2899,108 @@ Next recommendation:
 ```text
 NODE-032U / controlled-gateway-smoke-retry-with-valid-24khz-audio
 ```
+
+## NODE-032U Phase A Valid 24 kHz Smoke Audio Readiness
+
+Result:
+
+```text
+node_type=local_implementation_and_phase_a_command_planning
+branch=feat/node-032u-controlled-gateway-smoke-retry-with-valid-24khz-audio
+handoff_archive=docs/handoffs/NODE-032U-phase-a-codex-handoff.md
+live_smoke_retry=false
+ssh=false
+helper_copy_deploy=false
+token_handling=false
+server_temp_env_created=false
+dependency_install=false
+service_action=false
+systemctl_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Local implementation:
+
+```text
+smoke_helper_audio_create_validate=implemented
+create_command=python scripts/asterisk_gateway_smoke_helper.py --create-smoke-audio <path>
+validate_command=python scripts/asterisk_gateway_smoke_helper.py --validate-smoke-audio <path>
+required_audio=24000 Hz mono 16-bit PCM WAV
+invalid_audio_fails_before_gateway_request=true
+bad_audio_16000hz_rejected=true
+stereo_audio_rejected=true
+gateway_behavior_change=false
+```
+
+Retry boundary:
+
+```text
+phase_b_recommendation=CONDITIONAL_GO
+condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
+approval_phrase=APPROVE NODE-032U 24KHZ AUDIO GATEWAY SMOKE RETRY
+current_blocker=approval_phrase_absent
+```
+
+Next recommendation:
+
+```text
+NODE-032U Phase B after exact approval, or continue to a later retry node if operators prefer a separate live action branch.
+```
+
+## NODE-032U Phase B Valid 24 kHz Gateway Smoke Retry
+
+Result:
+
+```text
+phase_b_approval_phrase=APPROVE NODE-032U 24KHZ AUDIO GATEWAY SMOKE RETRY
+handoff_archive=docs/handoffs/NODE-032U-phase-b-codex-handoff.md
+hard_gates_reconfirmed=true
+selected_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+selected_runtime_imports=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+helper_bundle_local_validate=ok
+helper_bundle_remote_validate=ok
+valid_audio_create_validate=ok
+audio_format=24000 Hz mono 16-bit PCM WAV
+safe_temp_env_create_validate_cleanup=ok
+token_values_printed=false
+gateway_service_started_for_smoke=true
+gateway_service_enabled_state=disabled
+controlled_smoke_invocations=1
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+transcript_present=false
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted_to_92.118.85.117
+gateway_env_meta=root:gateway:640
+asterisk_OPENAI_API_KEY=ABSENT
+temporary_helper_env_audio_removed=true
+dependency_install=false
+systemctl_enable=false
+reboot_or_power_cycle=false
+business_dialog_enablement=false
+stereo_dual_channel_changes=false
+```
+
+Next recommendation:
+
+```text
+NODE-032V / gateway-smoke-result-acceptance-and-next-boundary-decision
+```
