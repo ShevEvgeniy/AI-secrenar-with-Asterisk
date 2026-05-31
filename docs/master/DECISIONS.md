@@ -1349,3 +1349,32 @@ Decision update:
 - NODE-032Q Phase B is NO-GO while Asterisk lacks `httpx`, `fastapi`, and `websockets`.
 - Dependency installation remains out of scope for NODE-032Q.
 - Next work should be separately approved dependency resolution or an alternate helper strategy.
+
+## NODE-032R Asterisk Runtime Dependency Resolution Decision
+
+NODE-032R is a local docs-only decision node. No SSH, live retry, helper deploy, dependency install, service action, `systemctl` action, reboot, provider power-cycle, firewall/env/server change, token output, transcript text output, Notion write, Runtime/Evidence update, scheduler, webhook, automation, GitHub push, or PR occurred.
+
+Decision:
+
+- Choose a separate controlled Asterisk runtime dependency install/readiness node before any Gateway smoke retry.
+- Preserve the existing NODE-032L safe temp-env guard, NODE-032N helper bundle, and NODE-032P runtime preflight path.
+- Do not switch to a reduced-evidence helper or non-Asterisk-origin smoke as the primary path.
+- Do not combine dependency install/readiness with Gateway smoke retry unless a later node explicitly re-scopes and approves it.
+
+Options rejected or deferred:
+
+- Existing Asterisk-side Python env: deferred unless a future read-only inspection identifies a specific safe env with the required modules.
+- Alternate stdlib/curl helper: deferred as fallback because it requires local implementation/tests and may weaken evidence parity.
+- Different smoke boundary: rejected as a replacement because non-Asterisk-origin smoke does not prove the source-restricted Asterisk-to-Gateway route.
+
+Next node:
+
+```text
+NODE-032S / controlled-asterisk-runtime-dependency-install-readiness
+```
+
+Suggested approval phrase:
+
+```text
+APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS
+```

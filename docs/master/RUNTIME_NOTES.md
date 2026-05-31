@@ -2146,3 +2146,54 @@ systemctl_enable=false
 reboot=false
 provider_power_cycle=false
 ```
+
+## NODE-032R Runtime Notes
+
+- NODE-032R was a local docs-only decision node.
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032R-codex-handoff.md
+```
+
+- Preserved blocker:
+
+```text
+asterisk_runtime_module_httpx=missing
+asterisk_runtime_module_fastapi=missing
+asterisk_runtime_module_websockets=missing
+```
+
+- Options considered:
+
+```text
+controlled_dependency_install_readiness=selected
+existing_asterisk_python_env=deferred
+alternate_no_third_party_helper=deferred_fallback
+non_asterisk_smoke_boundary=rejected_as_replacement
+```
+
+- Selected next path:
+
+```text
+next_node=NODE-032S / controlled-asterisk-runtime-dependency-install-readiness
+suggested_approval_phrase=APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS
+smoke_retry_in_next_node=false
+dependency_install_in_NODE_032R=false
+```
+
+- Safety boundary:
+
+```text
+ssh=false
+live_retry=false
+helper_deploy=false
+dependency_install=false
+service_action=false
+systemctl_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_logged=false
+```
