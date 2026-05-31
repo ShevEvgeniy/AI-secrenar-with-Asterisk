@@ -1378,3 +1378,36 @@ Suggested approval phrase:
 ```text
 APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS
 ```
+
+## NODE-032S Phase A Runtime Dependency Readiness
+
+NODE-032S Phase A is read-only readiness and command planning only. No dependency install, `pip install`, `apt install`, server package change, venv creation, server file write, helper deploy, live retry, Gateway service action, `systemctl` state-changing action, reboot, provider power-cycle, firewall/env/server change, token output, transcript text output, Notion write, Runtime/Evidence update, scheduler, webhook, automation, commit, or PR occurred.
+
+Decision:
+
+- Use `/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python` as the recommended target runtime for Phase B readiness.
+- Prefer readiness verification over installation because the project venv already has `httpx`, `fastapi`, and `websockets`.
+- Keep Gateway smoke retry separate from NODE-032S.
+- Do not modify system Python.
+- Install only into the project venv if exact approval is provided and immediate Phase B re-check finds a required module missing.
+
+Read-only finding:
+
+```text
+system_python3_modules=httpx:missing,fastapi:missing,websockets:missing
+project_venv_modules=httpx:present,fastapi:present,websockets:present
+project_venv_versions=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+```
+
+Future approval phrase:
+
+```text
+APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS
+```
+
+Phase B expected action:
+
+```text
+verify_project_venv_readiness_and_stop
+gateway_smoke_retry=false
+```

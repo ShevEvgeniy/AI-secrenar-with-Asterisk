@@ -469,14 +469,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 148. Preserve NODE-032R decision: choose a separate controlled Asterisk runtime dependency install/readiness node before any Gateway smoke retry, preserving the existing helper-bundle and adapter smoke evidence path.
 149. Preserve NODE-032R safety boundary: no dependency install, SSH, helper deploy, live retry, service action, `systemctl` action, reboot, provider power-cycle, firewall/env/server change, token output, transcript text output, Notion write, Runtime/Evidence update, scheduler, webhook, automation, push, or PR occurred.
 150. Preserve NODE-032R separation: dependency readiness and Gateway smoke retry must not be combined unless a later node explicitly re-scopes and approves that risk; the next node should resolve `httpx`, `fastapi`, and `websockets` only, then stop.
+151. Preserve NODE-032S Phase A boundary: read-only readiness and command planning only; no dependency install, pip install, apt install, server file write, venv creation, helper deploy, live retry, service action, reboot, firewall/env/server change, token output, or transcript text output occurred.
+152. Preserve NODE-032S runtime finding: system Python lacks `httpx`, `fastapi`, and `websockets`, but the existing deployed project venv at `/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python` has all three modules.
+153. Preserve NODE-032S target recommendation: Phase B should use the deployed project venv, re-confirm readiness after exact approval, and stop without Gateway smoke; install is expected to be unnecessary unless immediate re-check finds a missing module.
 
 ## Next Recommended Step
 
 ```text
-NODE-032S / controlled-asterisk-runtime-dependency-install-readiness
+NODE-032S Phase B / controlled-asterisk-runtime-dependency-install-readiness
 ```
 
-NODE-032R selected a conservative dependency-resolution path: run a separately approved Asterisk runtime dependency install/readiness node before any smoke retry. The next node should identify the target Python runtime or isolated helper venv, snapshot package state, install or otherwise resolve `httpx`, `fastapi`, and `websockets` only after exact approval, run dependency preflight, and stop without smoke. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, token output, transcript text logging, firewall broadening, reboot, `systemctl enable`, and Gateway smoke remain out of scope unless a later node explicitly approves them.
+NODE-032S Phase A found that the deployed project venv already has `httpx`, `fastapi`, and `websockets`. Phase B should require exact approval `APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS`, re-confirm hard gates, verify the project venv imports and versions, and stop without smoke. Install only into the project venv if immediate re-check shows a required module missing; do not mutate system Python or run Gateway smoke in NODE-032S.
 
 ## Node Completion Report Format
 

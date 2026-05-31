@@ -2677,3 +2677,68 @@ Next recommendation:
 ```text
 NODE-032S / controlled-asterisk-runtime-dependency-install-readiness
 ```
+
+## NODE-032S Phase A Runtime Dependency Install Readiness
+
+Result:
+
+```text
+node_type=phase_a_readiness_and_command_planning
+branch=feat/node-032s-controlled-asterisk-runtime-dependency-install-readiness
+handoff_archive=docs/handoffs/NODE-032S-phase-a-codex-handoff.md
+dependency_install=false
+pip_install=false
+apt_install=false
+server_file_write=false
+helper_deploy=false
+live_retry=false
+service_action=false
+systemctl_state_change=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Read-only gates:
+
+```text
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+gateway_hostname=ai-secretary-gateway-node023
+gateway_service=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+Python runtime candidate result:
+
+```text
+system_python3=/usr/bin/python3 python 3.12.3
+system_python3_modules=httpx:missing,fastapi:missing,websockets:missing
+project_venv=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+project_venv_modules=httpx:present,fastapi:present,websockets:present
+project_venv_versions=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+```
+
+Recommendation:
+
+```text
+phase_b_recommendation=CONDITIONAL_GO
+condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
+selected_target_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+expected_dependency_install_needed=false
+phase_b_action=verify_project_venv_readiness_and_stop
+gateway_smoke_retry=false
+```
+
+Future approval phrase:
+
+```text
+APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS
+```
