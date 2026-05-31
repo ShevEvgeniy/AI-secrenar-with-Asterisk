@@ -2501,3 +2501,52 @@ Next recommendation:
 ```text
 NODE-032P / helper-bundle-runtime-dependency-preflight-and-retry-plan
 ```
+
+## NODE-032P Helper Bundle Runtime Dependency Preflight
+
+Result:
+
+```text
+node_type=local_repo_implementation_docs
+script_updated=scripts/asterisk_gateway_helper_bundle.py
+tests_updated=tests/test_asterisk_gateway_helper_bundle.py
+handoff_archive=docs/handoffs/NODE-032P-codex-handoff.md
+live_retry=false
+ssh=false
+server_state_changed=false
+service_action=false
+systemctl_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_dependency_install=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+NODE-032O blocker addressed:
+
+```text
+previous_blocker=remote_helper_bundle_preflight_missing_httpx
+selected_fix=runtime_dependency_manifest_and_preflight
+runtime_modules_required=httpx,fastapi,websockets
+vendor_third_party_packages=false
+```
+
+Preflight behavior:
+
+```text
+runtime_modules_ok=<true_or_false>
+missing_runtime_modules=<safe_module_names_only>
+missing_runtime_dependency_fails_closed=true
+preflight_runs_before_token_handling=true
+safe_json_only=true
+gateway_token_read=false
+secret_values_printed=false
+transcript_text_logged=false
+```
+
+Next recommendation:
+
+```text
+NODE-032Q / controlled-gateway-smoke-retry-with-runtime-dependency-preflight
+```

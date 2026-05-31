@@ -8,6 +8,7 @@ write, or print runtime secret values.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -30,6 +31,12 @@ BUNDLE_FILES = (
     "src/ai_secretary/stt/gateway_adapter_smoke.py",
     "src/ai_secretary/stt/realtime_gateway.py",
     "src/ai_secretary/stt/realtime_measurement.py",
+)
+
+RUNTIME_MODULES = (
+    "httpx",
+    "fastapi",
+    "websockets",
 )
 
 SECRET_PATTERNS = (
@@ -66,12 +73,19 @@ def validate_bundle(bundle_root: Path) -> dict[str, object]:
     """Validate manifest files, import completeness, and secret hygiene."""
     missing = [relative for relative in BUNDLE_FILES if not (bundle_root / relative).is_file()]
     secret_hits = _scan_bundle_for_secret_patterns(bundle_root)
-    import_result = _preflight_import(bundle_root) if not missing else _blocked_import_result(missing)
+    runtime_result = _preflight_runtime_modules()
+    import_result = (
+        _preflight_import(bundle_root)
+        if not missing and runtime_result["ok"]
+        else _blocked_import_result(missing, runtime_result)
+    )
     errors: list[str] = []
     if missing:
         errors.append("manifest files missing")
     if secret_hits:
         errors.append("secret-like patterns found")
+    if not runtime_result["ok"]:
+        errors.append("runtime dependencies missing")
     if not import_result["ok"]:
         errors.append("preflight import failed")
     return {
@@ -79,6 +93,9 @@ def validate_bundle(bundle_root: Path) -> dict[str, object]:
         "action": "validate",
         "required_files_present": not missing,
         "missing_files": missing,
+        "runtime_modules_required": list(RUNTIME_MODULES),
+        "runtime_modules_ok": runtime_result["ok"],
+        "missing_runtime_modules": runtime_result["missing_modules"],
         "preflight_import_ok": import_result["ok"],
         "preflight_error_type": import_result["error_type"],
         "preflight_missing_module": import_result["missing_module"],
@@ -94,6 +111,7 @@ def manifest() -> dict[str, object]:
         "ok": True,
         "action": "manifest",
         "bundle_files": list(BUNDLE_FILES),
+        "runtime_modules": list(RUNTIME_MODULES),
         "secret_values_printed": False,
         "transcript_text_logged": False,
     }
@@ -143,8 +161,19 @@ def _preflight_import(bundle_root: Path) -> dict[str, object]:
     }
 
 
-def _blocked_import_result(missing: list[str]) -> dict[str, object]:
+def _preflight_runtime_modules() -> dict[str, object]:
+    missing = [module for module in RUNTIME_MODULES if importlib.util.find_spec(module) is None]
+    return {
+        "ok": not missing,
+        "missing_modules": missing,
+    }
+
+
+def _blocked_import_result(missing: list[str], runtime_result: dict[str, object]) -> dict[str, object]:
     missing_module = "ai_secretary.config" if any(item.startswith("src/ai_secretary/config/") for item in missing) else None
+    runtime_missing = runtime_result.get("missing_modules")
+    if missing_module is None and isinstance(runtime_missing, list) and runtime_missing:
+        missing_module = str(runtime_missing[0])
     return {
         "ok": False,
         "error_type": "ModuleNotFoundError" if missing_module else "ManifestIncomplete",
