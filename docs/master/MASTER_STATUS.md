@@ -2458,3 +2458,46 @@ phase_b_go=conditional_after_exact_approval_and_immediate_hard_gate_recheck
 current_blocker=exact_approval_phrase_absent
 technical_readiness=pass
 ```
+
+## NODE-032O Phase B Complete Helper-Bundle Smoke Retry Blocked
+
+Result:
+
+```text
+approval_phrase_confirmed=true
+phase_b_result=blocked_no_go
+handoff_archive=docs/handoffs/NODE-032O-phase-b-codex-handoff.md
+hard_gates_passed=true
+local_bundle_create_validate=passed_after_one_safe_local_path_failure
+remote_bundle_validate=false
+remote_bundle_missing_module=httpx
+safe_temp_env_created=false
+gateway_token_read=false
+service_action=false
+controlled_smoke_run=false
+gateway_request_reached=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Final state:
+
+```text
+gateway_service_active=inactive
+gateway_service_enabled=disabled
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+temporary_helper_bundle_removed=true
+temporary_env_removed=true
+temporary_audio_removed=true
+firewall_changed=false
+env_files_edited=false
+server_state_changed=false
+```
+
+Next recommendation:
+
+```text
+NODE-032P / helper-bundle-runtime-dependency-preflight-and-retry-plan
+```

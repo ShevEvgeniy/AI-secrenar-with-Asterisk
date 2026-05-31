@@ -1,6 +1,6 @@
 # NODE-032O / controlled-gateway-smoke-retry-with-complete-helper-bundle
 
-Status: Phase A readiness and smoke retry command planning complete
+Status: Phase B blocked before smoke; cleanup complete
 
 NODE-032O prepares a controlled Gateway smoke retry using both local safety fixes:
 
@@ -27,7 +27,13 @@ Long-form sanitized Phase A handoff:
 docs/handoffs/NODE-032O-phase-a-codex-handoff.md
 ```
 
-The handoff contains no real secrets, token values, bearer headers, private keys, raw secret env output, transcript text, logs, audio, or binary artifacts.
+Long-form sanitized Phase B handoff:
+
+```text
+docs/handoffs/NODE-032O-phase-b-codex-handoff.md
+```
+
+The handoffs contain no real secrets, token values, bearer headers, private keys, raw secret env output, transcript text, logs, audio, or binary artifacts.
 
 ## Context
 
@@ -287,7 +293,7 @@ firewall_broadening=false
 
 ## GO / NO-GO Recommendation
 
-Recommendation: conditional GO for Phase B only after the exact approval phrase is provided and all hard gates are re-confirmed immediately before any state-changing command.
+Phase A recommendation was conditional GO for Phase B only after the exact approval phrase is provided and all hard gates are re-confirmed immediately before any state-changing command.
 
 ```text
 phase_b_go=conditional_after_exact_approval_and_immediate_hard_gate_recheck
@@ -296,6 +302,91 @@ technical_readiness=pass
 ```
 
 Hard NO-GO if Asterisk contains `OPENAI_API_KEY`, business dialog Gateway transcript use is enabled, safe temp-env guard is unavailable or fails local validation, helper bundle preflight fails, any command would print token values or transcript text, Gateway env is missing or not `root:gateway 640`, masked secret presence fails, the service unit is missing/invalid, unexpected listener exists on `443` or `8081`, UFW `8080/tcp` is not source-restricted to `92.118.85.117`, rollback is unclear, or the exact approval phrase is absent.
+
+## Phase B Blocked Result
+
+Phase B received the exact approval phrase:
+
+```text
+APPROVE NODE-032O COMPLETE HELPER-BUNDLE SMOKE RETRY
+```
+
+Hard gates were re-confirmed before any state-changing command. Asterisk was reachable, `ai-secretary-ari.service` was active/enabled, Asterisk process/service env had `OPENAI_API_KEY_ABSENT`, the business dialog Gateway transcript flag was not enabled, Gateway was reachable, the Gateway unit verified OK, the Gateway service was inactive/disabled, Gateway env remained `root:gateway 640`, masked Gateway secret presence passed, no target listeners existed on `443`, `8080`, or `8081`, and UFW allowed `8080/tcp` only from `92.118.85.117`.
+
+Local helper bundle creation first failed closed when the selected `C:\tmp` output path could not be used. The retry using a workspace-local temporary directory succeeded. Local bundle validation passed with safe JSON only:
+
+```text
+required_files_present=true
+preflight_import_ok=true
+secret_pattern_hits=[]
+secret_values_printed=false
+transcript_text_logged=false
+```
+
+The complete bundle was copied to the Asterisk host by using the explicit Windows OpenSSH `scp.exe` path after the shell `scp` shim did not transfer the archive. The validator script was copied separately for remote staged preflight because the bundle manifest intentionally contains the smoke runtime files, not the bundle-builder script.
+
+Remote staged bundle validation failed closed before any token handling, service start, or Gateway request:
+
+```text
+remote_bundle_validate_ok=false
+required_files_present=true
+preflight_import_ok=false
+preflight_error_type=ModuleNotFoundError
+preflight_missing_module=httpx
+secret_pattern_hits=[]
+secret_values_printed=false
+transcript_text_logged=false
+```
+
+Result:
+
+```text
+phase_b_result=blocked_no_go
+safe_temp_env_created=false
+gateway_token_read=false
+service_started=false
+controlled_smoke_run=false
+gateway_request_reached=false
+openai_realtime_from_gateway=not_run
+chunks_sent=not_run
+transcript_present=not_run
+transcript_text_logged=false
+business_dialog_unchanged=true
+```
+
+Cleanup completed:
+
+```text
+remote_helper_bundle_removed=true
+remote_temp_env_removed=true
+remote_temp_audio_removed=true
+local_helper_bundle_removed=true
+local_helper_archive_removed=true
+```
+
+Final state:
+
+```text
+ai-secretary-gateway.service_active=inactive
+ai-secretary-gateway.service_enabled=disabled
+target_listeners_443_8080_8081=absent
+ufw_status=active
+ufw_8080_allow=92.118.85.117 only
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+firewall_changed=false
+env_files_edited=false
+server_state_changed=false
+```
+
+No `systemctl enable`, reboot, provider power-cycle, `443`, `8081`, TLS/proxy change, firewall broadening, Asterisk env change, business dialog enablement, token output, transcript text logging, Notion write, Runtime/Evidence update, GitHub push/PR, scheduler, webhook, or automation mode occurred.
+
+Next recommendation:
+
+```text
+NODE-032P / helper-bundle-runtime-dependency-preflight-and-retry-plan
+```
+
+NODE-032P should make the helper bundle preflight complete for runtime dependencies such as `httpx`, without printing token values or transcript text, before any further live retry.
 
 ## Validation
 
@@ -312,5 +403,15 @@ rg -n "<scoped token scan pattern>" docs/handoffs/NODE-032O-phase-a-codex-handof
 git status --short
 ```
 
-Results are recorded in the Phase A closeout.
+Phase B validation results:
 
+```text
+focused_tests=29 passed
+full_pytest=224 passed, 6 failed
+known_environmental_failures=missing src/scripts/make_demo_audio.py; missing sentence_transformers
+git_diff_check=pass
+source_runtime_diff_check=empty
+tracked_secret_scan=no_real_secret_values_found; existing placeholders/status-field/test-fixture hits only
+scoped_docs_handoff_token_scan=no_real_gateway_token_value_found; safe status-field hits only
+final_git_status=docs_only_changes_plus_historical_untracked_artifacts
+```

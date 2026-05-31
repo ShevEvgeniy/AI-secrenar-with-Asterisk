@@ -1242,3 +1242,39 @@ Current recommendation:
 phase_b_go=conditional_after_exact_approval_and_immediate_hard_gate_recheck
 current_blocker=exact_approval_phrase_absent
 ```
+
+## NODE-032O Phase B Complete Helper-Bundle Smoke Retry Blocked
+
+NODE-032O Phase B received the exact approval phrase:
+
+```text
+APPROVE NODE-032O COMPLETE HELPER-BUNDLE SMOKE RETRY
+```
+
+Accepted result:
+
+- Hard gates passed before any state-changing command.
+- Local helper bundle create/validate succeeded after one safe local path failure.
+- Remote staged helper bundle validation failed closed before token handling, service start, smoke, or any Gateway request.
+- The remote preflight missing module was `httpx`.
+- No Gateway token was read or printed.
+- No transcript text was printed.
+- No service action, `systemctl enable`, reboot, provider power-cycle, firewall change, env file edit, Asterisk env change, TLS/proxy change, `443`, `8081`, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation, GitHub push, or PR occurred.
+
+Final state:
+
+```text
+ai-secretary-gateway.service=inactive_disabled
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
+temporary_helper_bundle_removed=true
+temporary_env_removed=true
+temporary_audio_removed=true
+```
+
+Next recommendation:
+
+```text
+NODE-032P / helper-bundle-runtime-dependency-preflight-and-retry-plan
+```
