@@ -1937,3 +1937,57 @@ transcript_text_logged=false
 next_node=NODE-032O / controlled-gateway-smoke-retry-with-complete-helper-bundle
 live_retry_requires_separate_approval=true
 ```
+
+## NODE-032O Phase A Runtime Notes
+
+- NODE-032O Phase A performed local guard/helper-bundle inspection and read-only SSH gate checks only.
+- No live retry, service action, `systemctl` state-changing command, reboot, provider power-cycle, firewall/env/server change, helper copy/deploy, live smoke, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation, GitHub push, or PR occurred.
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032O-phase-a-codex-handoff.md
+```
+
+- Local tooling:
+
+```text
+safe_temp_env_guard=scripts/gateway_smoke_temp_env_guard.py
+safe_temp_env_commands=create,validate,cleanup
+helper_bundle_tool=scripts/asterisk_gateway_helper_bundle.py
+helper_bundle_commands=manifest,create,validate
+helper_bundle_includes_ai_secretary_config=true
+helper_bundle_preflight_validator=true
+```
+
+- Asterisk gate:
+
+```text
+ssh_reachable=true
+hostname=tula
+ari_service_active=active
+ari_service_enabled=enabled
+process_openai_api_key=OPENAI_API_KEY_ABSENT
+service_openai_api_key=SERVICE_ENV_OPENAI_API_KEY_ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+```
+
+- Gateway gate:
+
+```text
+ssh_reachable=true
+hostname=ai-secretary-gateway-node023
+unit_present=true
+unit_verify=ok
+gateway_service_active=inactive
+gateway_service_enabled=disabled
+gateway_env_owner_mode=root:gateway 640
+masked_secret_presence=pass
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+- Phase B exact approval phrase:
+
+```text
+APPROVE NODE-032O COMPLETE HELPER-BUNDLE SMOKE RETRY
+```

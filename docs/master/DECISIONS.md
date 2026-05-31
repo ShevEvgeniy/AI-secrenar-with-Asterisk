@@ -1206,3 +1206,39 @@ Next recommendation:
 ```text
 NODE-032O / controlled-gateway-smoke-retry-with-complete-helper-bundle
 ```
+
+## NODE-032O Phase A Complete Helper-Bundle Smoke Retry Readiness
+
+NODE-032O Phase A prepares the controlled Gateway smoke retry using both NODE-032L and NODE-032N safety fixes.
+
+Accepted Phase A result:
+
+- Local safe temp-env guard inspection passed.
+- Local helper bundle manifest/preflight inspection passed.
+- Read-only Asterisk gates passed.
+- Read-only Gateway gates passed.
+- No live retry, service action, `systemctl` state change, reboot, provider power-cycle, firewall/env/server state change, helper deploy, live smoke, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
+- No token values or transcript text were printed or recorded.
+
+Future Phase B requires exact approval phrase:
+
+```text
+APPROVE NODE-032O COMPLETE HELPER-BUNDLE SMOKE RETRY
+```
+
+Phase B decision boundary:
+
+- Re-run all hard gates immediately before any state-changing command.
+- Use `scripts/asterisk_gateway_helper_bundle.py` to create and validate the complete helper bundle.
+- Use `scripts/gateway_smoke_temp_env_guard.py` for temp env create/validate/cleanup.
+- Supply Gateway token material through stdin only.
+- Run at most one Asterisk-side non-business-dialog smoke.
+- Clean up temporary helper/env/audio.
+- Do not run `systemctl enable`, reboot, provider power-cycle, enable business dialog, expose `443` or `8081`, change TLS/proxy, broaden firewall, print token values, or print transcript text.
+
+Current recommendation:
+
+```text
+phase_b_go=conditional_after_exact_approval_and_immediate_hard_gate_recheck
+current_blocker=exact_approval_phrase_absent
+```
