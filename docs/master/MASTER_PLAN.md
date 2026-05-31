@@ -487,10 +487,10 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 ## Next Recommended Step
 
 ```text
-NODE-032U Phase B after exact approval and immediate hard-gate re-confirmation
+NODE-032V / gateway-smoke-result-acceptance-and-next-boundary-decision
 ```
 
-NODE-032U Phase A added repo-owned smoke audio creation/validation in `scripts/asterisk_gateway_smoke_helper.py`. Future live retry must use or validate a `24000 Hz mono 16-bit PCM WAV`, keep token handling through the NODE-032L safe temp-env guard, keep business dialog transcript use disabled, and run only after the exact approval phrase.
+NODE-032U Phase B resolved the NODE-032T invalid-audio blocker. The approved Asterisk-origin smoke used repo-created and repo-validated `24000 Hz mono 16-bit PCM WAV` audio, reached/authenticated with the Gateway, reached OpenAI Realtime from the Gateway, returned HTTP 200, and sent `5` chunks. Transcript remained absent and unused because business-dialog transcript use stayed disabled. Cleanup left the Gateway service inactive/disabled, no target listeners, firewall unchanged, Asterisk `OPENAI_API_KEY_ABSENT`, and temporary helper/env/audio removed. NODE-032V should decide whether this non-business-dialog transport result is accepted or whether a separate future node should prove transcript-bearing non-sensitive speech.
 
 ## Node Completion Report Format
 

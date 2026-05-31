@@ -12,6 +12,12 @@ Handoff archive:
 docs/handoffs/NODE-032U-phase-a-codex-handoff.md
 ```
 
+Phase B handoff archive:
+
+```text
+docs/handoffs/NODE-032U-phase-b-codex-handoff.md
+```
+
 ## Approval Gate
 
 Future Phase B requires the exact phrase:
@@ -269,4 +275,149 @@ Known full-suite environmental failures, if unchanged:
 ```text
 missing src/scripts/make_demo_audio.py
 missing sentence_transformers
+```
+
+## Phase B Controlled Smoke Retry
+
+Status: Phase B completed with transport/auth/OpenAI Realtime proof using valid 24 kHz audio; cleanup and rollback complete.
+
+Approval phrase recorded:
+
+```text
+APPROVE NODE-032U 24KHZ AUDIO GATEWAY SMOKE RETRY
+```
+
+Handoff archive:
+
+```text
+docs/handoffs/NODE-032U-phase-b-codex-handoff.md
+```
+
+Hard gate reconfirmation:
+
+```text
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+selected_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+selected_runtime_python=3.12.3
+selected_runtime_imports=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service_before=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081_before=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+Helper bundle result:
+
+```text
+local_bundle_first_path_result=failed_closed_PermissionError
+local_bundle_workspace_retry=ok
+local_bundle_validate=ok
+remote_bundle_validate=ok
+runtime_modules_ok=true
+missing_runtime_modules=[]
+secret_values_printed=false
+transcript_text_logged=false
+```
+
+Valid audio result:
+
+```text
+audio_create=ok
+audio_validate=ok
+sample_rate_hz=24000
+channels=1
+sample_width_bytes=2
+compression=NONE
+reject_16000hz_guard=implemented
+reject_8000hz_guard=covered_by_exact_sample_rate_guard
+reject_stereo_guard=implemented
+stereo_dual_channel_changes=false
+```
+
+Safe temp-env guard:
+
+```text
+token_source=Gateway env piped to guard stdin only
+token_values_printed=false
+temp_env_create=ok
+temp_env_validate=ok
+temp_env_mode=600
+temp_env_cleanup=ok
+```
+
+Gateway service readiness:
+
+```text
+service_started_for_smoke=true
+service_active_after_start=true
+service_enabled_state=disabled
+listener_8080_after_start=present
+listener_443_after_start=absent
+listener_8081_after_start=absent
+ufw_8080_allow=92.118.85.117 only
+log_secret_or_transcript_text_pattern=absent
+systemctl_enable=false
+reboot=false
+provider_power_cycle=false
+firewall_change=false
+```
+
+Controlled smoke result:
+
+```text
+controlled_smoke_invocations=1
+origin=Asterisk
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+transcript_present=false
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+accepted=false
+fallback_reason=gateway_stt_dialog_use_disabled
+```
+
+`accepted=false` is expected for this non-business-dialog smoke because dialog transcript use remains disabled. The NODE-032T invalid-audio blocker is resolved: Gateway accepted the 24 kHz WAV, reached OpenAI Realtime, and returned HTTP 200.
+
+Final state:
+
+```text
+ai-secretary-gateway.service=inactive
+ai-secretary-gateway.service_enabled=disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted_to_92.118.85.117
+gateway_env_meta=root:gateway:640
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+temporary_helper_env_audio_removed=true
+local_temp_bundle_removed=true
+```
+
+Phase B validation:
+
+```text
+focused_tests=35 passed
+full_pytest=230 passed, 6 failed
+known_environmental_failures=missing src/scripts/make_demo_audio.py; missing sentence_transformers
+git_diff_check=pass
+source_runtime_diff_check=empty
+tracked_secret_scan=no_real_secret_values_found; existing placeholders/status-field/test-fixture hits only
+scoped_docs_handoff_scan=no_real_secret_values_found; masked/status fields only
+```
+
+Next recommendation:
+
+```text
+NODE-032V / gateway-smoke-result-acceptance-and-next-boundary-decision
 ```

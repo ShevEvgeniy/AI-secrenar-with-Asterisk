@@ -1498,6 +1498,52 @@ condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
 current_blocker=approval_phrase_absent
 ```
 
+## NODE-032U Phase B Valid Audio Smoke Decision
+
+NODE-032U Phase B was approved with:
+
+```text
+APPROVE NODE-032U 24KHZ AUDIO GATEWAY SMOKE RETRY
+```
+
+Decision and result:
+
+- Treat the NODE-032T invalid-audio blocker as resolved.
+- Keep `24000 Hz mono 16-bit PCM WAV` as the smoke audio contract.
+- Do not introduce `8 kHz`, stereo, or dual-channel architecture changes in this node.
+- Keep business dialog transcript use disabled.
+- Treat HTTP 200, Gateway auth OK, OpenAI Realtime OK, and chunks sent as successful transport/auth/Realtime proof for the valid-audio retry.
+- Do not treat `accepted=false` as a dialog failure because `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false` remained enforced.
+
+Evidence:
+
+```text
+audio_format=24000 Hz mono 16-bit PCM WAV
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+chunks_sent=5
+transcript_present=false
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged
+asterisk_OPENAI_API_KEY=ABSENT
+```
+
+Next node:
+
+```text
+NODE-032V / gateway-smoke-result-acceptance-and-next-boundary-decision
+```
+
 ## NODE-032T Phase B Gateway Smoke Retry Decision
 
 NODE-032T Phase B was approved with:
