@@ -2054,3 +2054,43 @@ asterisk_openai_api_key=OPENAI_API_KEY_ABSENT
 
 - No `systemctl enable`, reboot, provider power-cycle, service action, firewall/env/server change, Asterisk env change, `443`, `8081`, TLS/proxy change, business dialog enablement, token output, transcript text output, Notion write, Runtime/Evidence update, scheduler, webhook, automation, GitHub push, or PR occurred.
 - Next node recommendation: `NODE-032P / helper-bundle-runtime-dependency-preflight-and-retry-plan`.
+
+## NODE-032P Runtime Notes
+
+- NODE-032P was local repo implementation and documentation only.
+- No SSH, live retry, live smoke, service action, `systemctl` action, reboot, provider power-cycle, firewall change, server env edit, server dependency install, server state change, business dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, automation, GitHub push, or PR occurred.
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032P-codex-handoff.md
+```
+
+- Helper bundle runtime dependency preflight:
+
+```text
+script=scripts/asterisk_gateway_helper_bundle.py
+runtime_modules_required=httpx,fastapi,websockets
+runtime_modules_ok=<true_or_false>
+missing_runtime_modules=<safe_module_names_only>
+missing_runtime_dependency_fails_closed=true
+safe_json_only=true
+```
+
+- Safety boundary:
+
+```text
+gateway_token_read=false
+token_values_printed=false
+transcript_text_logged=false
+safe_temp_env_guard_required=true
+third_party_vendoring=false
+server_dependency_install=false
+```
+
+- Future retry boundary:
+
+```text
+next_node=NODE-032Q / controlled-gateway-smoke-retry-with-runtime-dependency-preflight
+remote_preflight_before_token_handling=true
+stop_if_missing_runtime_modules=true
+```

@@ -458,6 +458,8 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 138. Preserve NODE-032O retry boundary: Phase B may stage the complete helper bundle and run exactly one Asterisk-side non-business-dialog smoke only after approval and hard-gate re-confirmation; no `systemctl enable`, reboot, provider power-cycle, `443`, `8081`, TLS/proxy, firewall broadening, token output, transcript text logging, or business dialog enablement.
 139. Preserve NODE-032O Phase B blocked result: exact approval was provided and hard gates passed, but remote staged helper-bundle validation failed closed before token handling, service start, smoke, or Gateway request because preflight import missed runtime module `httpx`.
 140. Preserve NODE-032O cleanup/final state: temporary Asterisk helper/env/audio and local helper archive/bundle were removed, Gateway service remains inactive/disabled, no target listeners remain on `443`, `8080`, or `8081`, firewall is unchanged, and Asterisk still has `OPENAI_API_KEY_ABSENT`.
+141. Preserve NODE-032P runtime dependency preflight: temporary helper bundle validation must check required third-party runtime modules before token handling, temp-env creation, service action, smoke, or Gateway request.
+142. Preserve NODE-032P dependency policy: runtime preflight requires `httpx`, `fastapi`, and `websockets`; missing runtime modules fail closed with safe module names only; no third-party vendoring or server dependency install occurred in NODE-032P.
 
 ## Next Recommended Step
 
@@ -465,7 +467,7 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 NODE-032O Phase B / controlled-gateway-smoke-retry-with-complete-helper-bundle
 ```
 
-NODE-032O Phase B was blocked before smoke by missing helper-bundle runtime dependency `httpx`. NODE-032P should make the temporary helper bundle preflight complete for runtime dependencies before any further live retry. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, token output, transcript text logging, firewall broadening, reboot, and `systemctl enable` remain out of scope unless a later node explicitly approves them.
+NODE-032P added runtime dependency preflight for the temporary helper bundle. NODE-032Q may attempt a controlled smoke retry only after exact approval, immediate hard-gate re-confirmation, local and remote helper-bundle validation, NODE-032L safe temp-env handling, and explicit cleanup. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, token output, transcript text logging, firewall broadening, reboot, and `systemctl enable` remain out of scope unless a later node explicitly approves them.
 
 ## Node Completion Report Format
 

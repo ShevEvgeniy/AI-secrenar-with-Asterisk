@@ -1278,3 +1278,42 @@ Next recommendation:
 ```text
 NODE-032P / helper-bundle-runtime-dependency-preflight-and-retry-plan
 ```
+
+## NODE-032P Helper Bundle Runtime Dependency Preflight
+
+NODE-032P fixes the NODE-032O local helper-bundle preflight gap without running a live retry.
+
+Decision:
+
+- Keep the explicit minimal helper-bundle manifest.
+- Add a runtime dependency manifest/preflight to `scripts/asterisk_gateway_helper_bundle.py`.
+- Do not vendor third-party packages into the helper bundle.
+- Do not install dependencies on servers in this node.
+- Validate runtime dependencies before future token handling, temp-env creation, service start, smoke, or Gateway request.
+
+Runtime modules:
+
+```text
+httpx
+fastapi
+websockets
+```
+
+Accepted behavior:
+
+```text
+missing_runtime_dependency_fails_closed=true
+missing_runtime_modules_reported_as_safe_names_only=true
+safe_json_only=true
+gateway_token_read=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Next recommendation:
+
+```text
+NODE-032Q / controlled-gateway-smoke-retry-with-runtime-dependency-preflight
+```
+
+If future remote preflight finds runtime dependencies missing on Asterisk, the retry must stop or move dependency installation into a separately approved node.
