@@ -2197,3 +2197,149 @@ server_state_changed=false
 token_values_printed=false
 transcript_text_logged=false
 ```
+
+## NODE-032S Phase A Runtime Notes
+
+- NODE-032S Phase A was read-only readiness and dependency-install planning only.
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032S-phase-a-codex-handoff.md
+```
+
+- Local dependency requirements:
+
+```text
+runtime_modules_required=httpx,fastapi,websockets
+gateway_smoke_retry_in_NODE_032S=false
+```
+
+- Asterisk read-only gates:
+
+```text
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+asterisk_openai_api_key=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+```
+
+- Runtime candidates:
+
+```text
+system_python3=/usr/bin/python3
+system_python3_version=3.12.3
+system_python3_modules=httpx:missing,fastapi:missing,websockets:missing
+project_venv=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+project_venv_version=3.12.3
+project_venv_pip=26.1.1
+project_venv_modules=httpx:present,fastapi:present,websockets:present
+project_venv_versions=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+```
+
+- Gateway read-only gates:
+
+```text
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+- Phase B planning:
+
+```text
+approval_phrase=APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS
+phase_b_recommendation=CONDITIONAL_GO
+selected_target_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+expected_dependency_install_needed=false
+phase_b_action=verify_project_venv_readiness_and_stop
+gateway_smoke_retry=false
+system_python_mutation=false
+```
+
+- Safety boundary:
+
+```text
+dependency_install=false
+pip_install=false
+apt_install=false
+server_file_write=false
+helper_deploy=false
+live_retry=false
+service_action=false
+systemctl_state_change=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_logged=false
+```
+
+## NODE-032S Phase B Runtime Notes
+
+- NODE-032S Phase B was approved dependency readiness only.
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032S-phase-b-codex-handoff.md
+```
+
+- Approval phrase:
+
+```text
+APPROVE NODE-032S ASTERISK RUNTIME DEPENDENCY INSTALL/READINESS
+```
+
+- Re-confirmed gates:
+
+```text
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+asterisk_openai_api_key=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+- Selected runtime readiness:
+
+```text
+target_python=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+python_version=3.12.3
+pip_version=26.1.1
+imports_ok=true
+httpx=0.28.1
+fastapi=0.136.1
+websockets=16.0
+expected_dependency_install_needed=false
+dependency_install_occurred=false
+```
+
+- Safety boundary:
+
+```text
+gateway_smoke_retry=false
+helper_copy_deploy=false
+gateway_service_action=false
+systemctl_state_change=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_env_edit=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_logged=false
+```
+
+- Next node:
+
+```text
+NODE-032T / controlled-gateway-smoke-retry-after-asterisk-runtime-readiness
+```
