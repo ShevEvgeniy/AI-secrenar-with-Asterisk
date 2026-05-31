@@ -2632,3 +2632,48 @@ reason=asterisk_runtime_modules_missing
 missing_runtime_modules=httpx,fastapi,websockets
 dependency_install_in_NODE_032Q=false
 ```
+
+## NODE-032R Runtime Dependency Resolution Decision
+
+Result:
+
+```text
+node_type=local_docs_decision
+branch=feat/node-032r-controlled-asterisk-runtime-dependency-resolution-or-alternate-helper-strategy
+handoff_archive=docs/handoffs/NODE-032R-codex-handoff.md
+ssh=false
+live_retry=false
+helper_deploy=false
+dependency_install=false
+service_action=false
+systemctl_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Decision:
+
+```text
+selected_strategy=controlled_asterisk_runtime_dependency_install_readiness
+reason=preserve_existing_helper_and_adapter_smoke_evidence
+smoke_retry_in_dependency_node=false
+alternate_helper_strategy=deferred_fallback
+non_asterisk_smoke_replacement=rejected
+```
+
+Known blocker:
+
+```text
+asterisk_runtime_modules_missing=httpx,fastapi,websockets
+gateway_smoke_retry_blocked=true
+dependency_install_requires_separate_approval=true
+```
+
+Next recommendation:
+
+```text
+NODE-032S / controlled-asterisk-runtime-dependency-install-readiness
+```

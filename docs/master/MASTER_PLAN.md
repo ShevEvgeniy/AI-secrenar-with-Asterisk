@@ -466,14 +466,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 145. Preserve NODE-032Q approval gate: Phase B requires exact phrase `APPROVE NODE-032Q RUNTIME-PREFLIGHT SMOKE RETRY`; no other phrase is approval.
 146. Preserve NODE-032Q runtime dependency policy: remote helper-bundle validation must run before token handling, temp-env creation, service action, smoke, or Gateway request; if `httpx`, `fastapi`, or `websockets` is missing, stop as NO-GO and do not install dependencies in NODE-032Q.
 147. Preserve NODE-032Q Phase A NO-GO: read-only Asterisk import probes confirmed `httpx`, `fastapi`, and `websockets` are missing, so NODE-032Q Phase B must not run until a separately approved dependency-resolution or alternate-helper-strategy node resolves the blocker.
+148. Preserve NODE-032R decision: choose a separate controlled Asterisk runtime dependency install/readiness node before any Gateway smoke retry, preserving the existing helper-bundle and adapter smoke evidence path.
+149. Preserve NODE-032R safety boundary: no dependency install, SSH, helper deploy, live retry, service action, `systemctl` action, reboot, provider power-cycle, firewall/env/server change, token output, transcript text output, Notion write, Runtime/Evidence update, scheduler, webhook, automation, push, or PR occurred.
+150. Preserve NODE-032R separation: dependency readiness and Gateway smoke retry must not be combined unless a later node explicitly re-scopes and approves that risk; the next node should resolve `httpx`, `fastapi`, and `websockets` only, then stop.
 
 ## Next Recommended Step
 
 ```text
-NODE-032R / controlled-asterisk-runtime-dependency-resolution-or-alternate-helper-strategy
+NODE-032S / controlled-asterisk-runtime-dependency-install-readiness
 ```
 
-NODE-032Q confirmed the retry remains blocked because Asterisk lacks `httpx`, `fastapi`, and `websockets`. A separately approved node should either install the missing dependencies or choose an alternate helper strategy. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, token output, transcript text logging, firewall broadening, reboot, and `systemctl enable` remain out of scope unless a later node explicitly approves them.
+NODE-032R selected a conservative dependency-resolution path: run a separately approved Asterisk runtime dependency install/readiness node before any smoke retry. The next node should identify the target Python runtime or isolated helper venv, snapshot package state, install or otherwise resolve `httpx`, `fastapi`, and `websockets` only after exact approval, run dependency preflight, and stop without smoke. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, token output, transcript text logging, firewall broadening, reboot, `systemctl enable`, and Gateway smoke remain out of scope unless a later node explicitly approves them.
 
 ## Node Completion Report Format
 
