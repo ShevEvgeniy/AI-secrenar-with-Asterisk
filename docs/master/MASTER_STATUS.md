@@ -2899,3 +2899,54 @@ Next recommendation:
 ```text
 NODE-032U / controlled-gateway-smoke-retry-with-valid-24khz-audio
 ```
+
+## NODE-032U Phase A Valid 24 kHz Smoke Audio Readiness
+
+Result:
+
+```text
+node_type=local_implementation_and_phase_a_command_planning
+branch=feat/node-032u-controlled-gateway-smoke-retry-with-valid-24khz-audio
+handoff_archive=docs/handoffs/NODE-032U-phase-a-codex-handoff.md
+live_smoke_retry=false
+ssh=false
+helper_copy_deploy=false
+token_handling=false
+server_temp_env_created=false
+dependency_install=false
+service_action=false
+systemctl_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Local implementation:
+
+```text
+smoke_helper_audio_create_validate=implemented
+create_command=python scripts/asterisk_gateway_smoke_helper.py --create-smoke-audio <path>
+validate_command=python scripts/asterisk_gateway_smoke_helper.py --validate-smoke-audio <path>
+required_audio=24000 Hz mono 16-bit PCM WAV
+invalid_audio_fails_before_gateway_request=true
+bad_audio_16000hz_rejected=true
+stereo_audio_rejected=true
+gateway_behavior_change=false
+```
+
+Retry boundary:
+
+```text
+phase_b_recommendation=CONDITIONAL_GO
+condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
+approval_phrase=APPROVE NODE-032U 24KHZ AUDIO GATEWAY SMOKE RETRY
+current_blocker=approval_phrase_absent
+```
+
+Next recommendation:
+
+```text
+NODE-032U Phase B after exact approval, or continue to a later retry node if operators prefer a separate live action branch.
+```

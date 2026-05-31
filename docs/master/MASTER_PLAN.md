@@ -479,14 +479,18 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 158. Preserve NODE-032T Phase A gate result: Asterisk gates pass with `OPENAI_API_KEY_ABSENT`, selected project venv imports `httpx 0.28.1`, `fastapi 0.136.1`, and `websockets 16.0`, Gateway unit verifies, Gateway service is inactive/disabled, no target listeners exist, and UFW restricts `8080/tcp` to `92.118.85.117`.
 159. Preserve NODE-032T approval gate: Phase B requires exact phrase `APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS`; no other phrase is approval.
 160. Preserve NODE-032T retry plan: Phase B must use NODE-032L safe temp-env handling, NODE-032N complete helper bundle validation, NODE-032P runtime preflight, NODE-032S selected runtime, and exactly one Asterisk-side non-business-dialog Gateway smoke only after hard-gate re-confirmation.
+161. Preserve NODE-032T smoke blocker: the single Asterisk-origin smoke reached and authenticated with the Gateway, but the generated synthetic WAV was `16000 Hz`; the Gateway requires `24000 Hz mono 16-bit PCM`.
+162. Preserve NODE-032U audio decision: future smoke retry audio must be repo-created or repo-validated as `24000 Hz mono 16-bit PCM WAV` before the Gateway request; `16000 Hz`, stereo, and malformed WAV inputs fail closed.
+163. Preserve NODE-032U architecture boundary: no `8 kHz`, stereo, dual-channel, Gateway behavior, business dialog, service, firewall, env, dependency, reboot, or provider power-cycle change is included in Phase A.
+164. Preserve NODE-032U approval gate: Phase B requires exact phrase `APPROVE NODE-032U 24KHZ AUDIO GATEWAY SMOKE RETRY`; no other phrase is approval.
 
 ## Next Recommended Step
 
 ```text
-NODE-032U / controlled-gateway-smoke-retry-with-valid-24khz-audio
+NODE-032U Phase B after exact approval and immediate hard-gate re-confirmation
 ```
 
-NODE-032T Phase B received exact approval, re-confirmed stale live gates after server stop/start, validated the complete helper bundle locally and remotely, used the safe temp-env guard without token output, started the Gateway service only for smoke readiness, and ran exactly one Asterisk-origin smoke. The smoke reached and authenticated with the Gateway, but was blocked by invalid synthetic audio: mono 16-bit PCM at 16000 Hz while the Gateway requires 24000 Hz. Cleanup and rollback left the Gateway service inactive/disabled, no target listeners, firewall unchanged, Asterisk `OPENAI_API_KEY_ABSENT`, and temporary helper/env/audio removed. NODE-032U should prepare/select a known-valid non-sensitive 24 kHz mono 16-bit PCM smoke WAV before any further retry.
+NODE-032U Phase A added repo-owned smoke audio creation/validation in `scripts/asterisk_gateway_smoke_helper.py`. Future live retry must use or validate a `24000 Hz mono 16-bit PCM WAV`, keep token handling through the NODE-032L safe temp-env guard, keep business dialog transcript use disabled, and run only after the exact approval phrase.
 
 ## Node Completion Report Format
 

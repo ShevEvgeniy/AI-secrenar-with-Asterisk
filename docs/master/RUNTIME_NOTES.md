@@ -2515,3 +2515,71 @@ scoped_docs_handoff_scan=no_real_secret_values_found
 ```text
 NODE-032U / controlled-gateway-smoke-retry-with-valid-24khz-audio
 ```
+
+## NODE-032U Phase A Runtime Notes
+
+- NODE-032U Phase A was local implementation and retry planning only.
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032U-phase-a-codex-handoff.md
+```
+
+- NODE-032T blocker:
+
+```text
+gateway_http_status=400
+smoke_blocker=invalid_wav_sample_rate_16000_expected_24000
+```
+
+- Local helper change:
+
+```text
+script=scripts/asterisk_gateway_smoke_helper.py
+create_smoke_audio_supported=true
+validate_smoke_audio_supported=true
+required_sample_rate_hz=24000
+required_channels=1
+required_sample_width=16-bit PCM
+invalid_audio_fails_before_gateway_request=true
+```
+
+- Safety boundary:
+
+```text
+live_smoke_retry=false
+ssh=false
+helper_copy_deploy=false
+token_handling=false
+server_temp_env_created=false
+service_action=false
+systemctl_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_logged=false
+business_dialog_enablement=false
+```
+
+- Phase B planning:
+
+```text
+approval_phrase=APPROVE NODE-032U 24KHZ AUDIO GATEWAY SMOKE RETRY
+phase_b_recommendation=CONDITIONAL_GO
+condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
+audio_hard_gate=24000 Hz mono 16-bit PCM WAV
+current_blocker=approval_phrase_absent
+```
+
+- Validation:
+
+```text
+focused_tests=35 passed
+full_pytest=230 passed, 6 failed
+known_environmental_failures=missing src/scripts/make_demo_audio.py; missing sentence_transformers
+git_diff_check=pass
+source_runtime_diff_check=scripts/asterisk_gateway_smoke_helper.py; tests/test_asterisk_gateway_smoke_helper.py
+tracked_secret_scan=no_real_secret_values_found
+scoped_docs_handoff_source_test_scan=no_real_secret_values_found
+```
