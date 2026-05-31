@@ -2550,3 +2550,85 @@ Next recommendation:
 ```text
 NODE-032Q / controlled-gateway-smoke-retry-with-runtime-dependency-preflight
 ```
+
+## NODE-032Q Phase A Runtime-Preflight Smoke Retry Readiness
+
+Result:
+
+```text
+node_type=phase_a_readiness_and_command_planning
+branch=feat/node-032q-controlled-gateway-smoke-retry-with-runtime-dependency-preflight
+base_commit=e2fb600785534ad6df088bbdfb055a82341d92cc
+handoff_archive=docs/handoffs/NODE-032Q-phase-a-codex-handoff.md
+live_retry=false
+dependency_install=false
+service_action=false
+systemctl_enable=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Local readiness:
+
+```text
+safe_temp_env_guard=available
+helper_bundle_manifest_create_validate=available
+runtime_modules_required=httpx,fastapi,websockets
+local_runtime_modules_ok=true
+local_missing_runtime_modules=[]
+safe_json_only=true
+third_party_vendoring=false
+```
+
+Asterisk read-only gates:
+
+```text
+ssh_reachable=true
+hostname=tula
+ai-secretary-ari.service=active_enabled
+process_OPENAI_API_KEY=ABSENT
+service_OPENAI_API_KEY=ABSENT
+env_file_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+business_dialog=UNCHANGED_BY_READONLY_GATE
+runtime_module_httpx=missing
+runtime_module_fastapi=missing
+runtime_module_websockets=missing
+```
+
+Gateway read-only gates:
+
+```text
+ssh_reachable=true
+hostname=ai-secretary-gateway-node023
+unit_file_present=true
+unit_verify=OK
+ai-secretary-gateway.service=inactive_disabled
+gateway_user_group=PRESENT
+gateway_env_meta=root:gateway:640
+gateway_OPENAI_API_KEY=MASKED_PRESENT
+gateway_GATEWAY_TOKEN=MASKED_PRESENT
+gateway_workdir_present=true
+target_listeners_443_8080_8081=NONE
+ufw_status=active
+ufw_8080_source=92.118.85.117 only
+rollback_commands=AVAILABLE
+```
+
+Future approval phrase:
+
+```text
+APPROVE NODE-032Q RUNTIME-PREFLIGHT SMOKE RETRY
+```
+
+GO/NO-GO:
+
+```text
+phase_b_recommendation=NO_GO
+reason=asterisk_runtime_modules_missing
+missing_runtime_modules=httpx,fastapi,websockets
+dependency_install_in_NODE_032Q=false
+```

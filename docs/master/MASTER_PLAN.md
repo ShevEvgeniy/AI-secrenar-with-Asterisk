@@ -461,13 +461,19 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 141. Preserve NODE-032P runtime dependency preflight: temporary helper bundle validation must check required third-party runtime modules before token handling, temp-env creation, service action, smoke, or Gateway request.
 142. Preserve NODE-032P dependency policy: runtime preflight requires `httpx`, `fastapi`, and `websockets`; missing runtime modules fail closed with safe module names only; no third-party vendoring or server dependency install occurred in NODE-032P.
 
+143. Preserve NODE-032Q Phase A boundary: readiness and smoke retry command planning only, with local guard/helper/runtime-preflight inspection and read-only SSH gates; no live retry, dependency install, service action, `systemctl` state change, reboot, provider power-cycle, firewall/env/server change, helper deploy, smoke, or business dialog enablement.
+144. Preserve NODE-032Q Phase A gate result: Asterisk gates pass with `OPENAI_API_KEY_ABSENT`, Gateway staged service is present/inactive/disabled, gateway env is `root:gateway 640`, masked secrets are present, unit verifies, no `443`/`8080`/`8081` listeners exist, and UFW restricts `8080/tcp` to `92.118.85.117`.
+145. Preserve NODE-032Q approval gate: Phase B requires exact phrase `APPROVE NODE-032Q RUNTIME-PREFLIGHT SMOKE RETRY`; no other phrase is approval.
+146. Preserve NODE-032Q runtime dependency policy: remote helper-bundle validation must run before token handling, temp-env creation, service action, smoke, or Gateway request; if `httpx`, `fastapi`, or `websockets` is missing, stop as NO-GO and do not install dependencies in NODE-032Q.
+147. Preserve NODE-032Q Phase A NO-GO: read-only Asterisk import probes confirmed `httpx`, `fastapi`, and `websockets` are missing, so NODE-032Q Phase B must not run until a separately approved dependency-resolution or alternate-helper-strategy node resolves the blocker.
+
 ## Next Recommended Step
 
 ```text
-NODE-032O Phase B / controlled-gateway-smoke-retry-with-complete-helper-bundle
+NODE-032R / controlled-asterisk-runtime-dependency-resolution-or-alternate-helper-strategy
 ```
 
-NODE-032P added runtime dependency preflight for the temporary helper bundle. NODE-032Q may attempt a controlled smoke retry only after exact approval, immediate hard-gate re-confirmation, local and remote helper-bundle validation, NODE-032L safe temp-env handling, and explicit cleanup. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, token output, transcript text logging, firewall broadening, reboot, and `systemctl enable` remain out of scope unless a later node explicitly approves them.
+NODE-032Q confirmed the retry remains blocked because Asterisk lacks `httpx`, `fastapi`, and `websockets`. A separately approved node should either install the missing dependencies or choose an alternate helper strategy. Provider power-cycle, business dialog enablement, TLS/proxy, `443`, `8081`, token output, transcript text logging, firewall broadening, reboot, and `systemctl enable` remain out of scope unless a later node explicitly approves them.
 
 ## Node Completion Report Format
 
