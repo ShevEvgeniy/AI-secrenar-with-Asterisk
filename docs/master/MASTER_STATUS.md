@@ -2848,3 +2848,54 @@ condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
 approval_phrase=APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS
 current_blocker=approval_phrase_absent
 ```
+
+## NODE-032T Phase B Gateway Smoke Retry Result
+
+Result:
+
+```text
+phase_b_approval_phrase=APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS
+stale_gates_due_server_stop_start=true
+hard_gates_reconfirmed=true
+selected_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+selected_runtime_imports=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+helper_bundle_local_validate=ok
+helper_bundle_remote_validate=ok
+safe_temp_env_create_validate_cleanup=ok
+token_values_printed=false
+gateway_service_started_for_smoke=true
+gateway_service_enabled_state=disabled
+controlled_smoke_invocations=1
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=400
+smoke_result=blocked_invalid_wav_sample_rate_16000_expected_24000
+openai_realtime_from_gateway=failed
+chunks_sent=0
+transcript_present=false
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted_to_92.118.85.117
+gateway_env_meta=root:gateway:640
+asterisk_OPENAI_API_KEY=ABSENT
+temporary_helper_env_audio_removed=true
+dependency_install=false
+systemctl_enable=false
+reboot_or_power_cycle=false
+business_dialog_enablement=false
+```
+
+Next recommendation:
+
+```text
+NODE-032U / controlled-gateway-smoke-retry-with-valid-24khz-audio
+```

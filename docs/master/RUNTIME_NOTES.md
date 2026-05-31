@@ -2414,3 +2414,104 @@ server_state_changed=false
 token_values_printed=false
 transcript_text_logged=false
 ```
+
+## NODE-032T Phase B Runtime Notes
+
+- Approval phrase:
+
+```text
+APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS
+```
+
+- Stale-gates note:
+
+```text
+servers_stopped_after_phase_a=true
+all_live_gates_rerun_before_state_change=true
+```
+
+- Hard gates:
+
+```text
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+selected_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+selected_runtime_imports=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service_before=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081_before=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+- Helper/temp-env:
+
+```text
+local_helper_bundle_validate=ok
+remote_helper_bundle_validate=ok
+safe_temp_env_create=ok
+safe_temp_env_validate=ok
+safe_temp_env_mode=600
+safe_temp_env_cleanup=ok
+token_values_printed=false
+```
+
+- Service/smoke:
+
+```text
+gateway_service_started_for_smoke=true
+gateway_service_active=true
+gateway_service_enabled_state=disabled
+listener_8080_present=true
+listener_443_absent=true
+listener_8081_absent=true
+controlled_smoke_invocations=1
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=400
+smoke_blocker=invalid_wav_sample_rate_16000_expected_24000
+openai_realtime_from_gateway=failed
+chunks_sent=0
+transcript_present=false
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+- Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted
+gateway_env_meta=root:gateway:640
+asterisk_OPENAI_API_KEY=ABSENT
+temporary_helper_env_audio_removed=true
+dependency_install=false
+systemctl_enable=false
+reboot_or_power_cycle=false
+business_dialog_enablement=false
+```
+
+- Validation:
+
+```text
+focused_tests=31 passed
+full_pytest=226 passed, 6 failed
+known_environmental_failures=missing src/scripts/make_demo_audio.py; missing sentence_transformers
+git_diff_check=pass
+source_runtime_diff_check=empty
+tracked_secret_scan=no_real_secret_values_found
+scoped_docs_handoff_scan=no_real_secret_values_found
+```
+
+- Next node:
+
+```text
+NODE-032U / controlled-gateway-smoke-retry-with-valid-24khz-audio
+```

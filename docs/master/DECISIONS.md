@@ -1497,3 +1497,53 @@ phase_b_recommendation=CONDITIONAL_GO
 condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
 current_blocker=approval_phrase_absent
 ```
+
+## NODE-032T Phase B Gateway Smoke Retry Decision
+
+NODE-032T Phase B was approved with:
+
+```text
+APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS
+```
+
+Decision and result:
+
+- Treat Phase A live gates as stale because the servers were stopped and later made reachable again.
+- Re-run Asterisk and Gateway hard gates before staging helpers, handling token material, creating temp env, starting the Gateway service, or smoking.
+- Use the NODE-032S selected runtime, NODE-032N complete helper bundle, NODE-032P runtime preflight, and NODE-032L safe temp-env guard.
+- Run exactly one Asterisk-side non-business-dialog smoke.
+- Do not retry inside NODE-032T after the single smoke invocation.
+
+Outcome:
+
+```text
+hard_gates_reconfirmed=true
+helper_bundle_validate=ok
+safe_temp_env_create_validate_cleanup=ok
+token_values_printed=false
+gateway_service_started_for_smoke=true
+systemctl_enable=false
+controlled_smoke_invocations=1
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=400
+blocker=invalid_wav_sample_rate_16000_expected_24000
+transcript_text_logged=false
+business_dialog_unchanged=true
+```
+
+Final safety state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged
+asterisk_OPENAI_API_KEY=ABSENT
+temporary_helper_env_audio_removed=true
+```
+
+Next node:
+
+```text
+NODE-032U / controlled-gateway-smoke-retry-with-valid-24khz-audio
+```

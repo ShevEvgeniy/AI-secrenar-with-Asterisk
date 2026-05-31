@@ -303,3 +303,169 @@ missing src/scripts/make_demo_audio.py
 missing sentence_transformers
 ```
 
+## Phase B Controlled Smoke Retry
+
+Status: Phase B blocked after exactly one Asterisk-side smoke invocation; cleanup and rollback complete.
+
+Approval phrase recorded:
+
+```text
+APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS
+```
+
+Servers were stopped after Phase A and later made reachable again, so all Phase A live gates were stale. Phase B re-ran every Asterisk and Gateway hard gate before helper staging, token handling, temp env creation, service action, or smoke.
+
+Handoff archive:
+
+```text
+docs/handoffs/NODE-032T-phase-b-codex-handoff.md
+```
+
+Hard gate reconfirmation:
+
+```text
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+selected_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+selected_runtime_python=3.12.3
+selected_runtime_pip=26.1.1
+selected_runtime_imports=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service_before=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081_before=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+Helper bundle result:
+
+```text
+local_helper_bundle_create=ok
+local_helper_bundle_validate=ok
+remote_helper_bundle_staged=true
+remote_helper_bundle_validate=ok
+runtime_modules_ok=true
+missing_runtime_modules=[]
+preflight_import_ok=true
+secret_pattern_hits=[]
+secret_values_printed=false
+transcript_text_logged=false
+```
+
+Safe temp-env guard result:
+
+```text
+token_source=Gateway env piped to guard stdin only
+token_values_printed=false
+temp_env_create=ok
+temp_env_validate=ok
+temp_env_mode=600
+token_present_masked=true
+temp_env_cleanup=ok
+temp_env_absent_after_cleanup=true
+```
+
+Gateway service readiness:
+
+```text
+service_started_for_smoke=true
+service_active_after_start=true
+service_enabled_state=disabled
+listener_8080_after_start=present
+listener_443_after_start=absent
+listener_8081_after_start=absent
+ufw_8080_allow=92.118.85.117 only
+log_secret_literal_checks=absent
+log_transcript_text_literal=absent
+systemctl_enable=false
+reboot=false
+provider_power_cycle=false
+firewall_change=false
+```
+
+Controlled smoke result:
+
+```text
+controlled_smoke_invocations=1
+origin=Asterisk
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=400
+error_type=gateway_audio_invalid
+error_code=invalid_wav
+blocker=synthetic_smoke_wav_sample_rate_16000_but_gateway_requires_24000_mono_16bit_pcm
+openai_realtime_from_gateway=failed
+chunks_sent=0
+transcript_present=false
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+accepted=false
+```
+
+The Gateway request was reached and authenticated, but the Gateway rejected the generated smoke WAV before audio send because it was mono 16-bit PCM at 16000 Hz instead of the required 24000 Hz. No second smoke was attempted because NODE-032T allowed exactly one controlled smoke invocation.
+
+Final rollback state:
+
+```text
+ai-secretary-gateway.service=inactive
+ai-secretary-gateway.service_enabled=disabled
+listener_443=absent
+listener_8080=absent
+listener_8081=absent
+firewall=unchanged
+ufw_8080_allow=92.118.85.117 only
+gateway_env_meta=root:gateway:640
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+temporary_helper_bundle_removed=true
+temporary_env_removed=true
+temporary_audio_removed=true
+local_temp_bundle_removed=true
+```
+
+Blocked next step:
+
+```text
+phase_b_result=BLOCKED_AFTER_SINGLE_SMOKE
+remaining_blocker=valid_24khz_mono_16bit_pcm_smoke_audio_needed
+next_node=NODE-032U / controlled-gateway-smoke-retry-with-valid-24khz-audio
+```
+
+Phase B validation:
+
+```text
+focused_tests=31 passed
+full_pytest=226 passed, 6 failed
+known_environmental_failures=missing src/scripts/make_demo_audio.py; missing sentence_transformers
+git_diff_check=pass
+source_runtime_diff_check=empty
+tracked_secret_scan=no_real_secret_values_found; existing placeholders/status-field/test-fixture hits only
+scoped_docs_handoff_scan=no_real_secret_values_found; masked/status/placeholders only
+```
+
+Safety confirmations:
+
+```text
+dependency_install=false
+systemctl_enable=false
+reboot=false
+provider_power_cycle=false
+business_dialog_enablement=false
+token_values_printed=false
+transcript_text_printed=false
+port_443=false
+port_8081=false
+tls_proxy=false
+firewall_broadening=false
+server_env_edit=false
+notion_write=false
+runtime_evidence_update=false
+github_push_pr=false
+scheduler_webhook_automation=false
+```
