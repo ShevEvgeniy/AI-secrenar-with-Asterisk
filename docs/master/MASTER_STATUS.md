@@ -2799,3 +2799,52 @@ Next recommendation:
 ```text
 NODE-032T / controlled-gateway-smoke-retry-after-asterisk-runtime-readiness
 ```
+
+## NODE-032T Phase A Gateway Smoke Retry Readiness
+
+Result:
+
+```text
+node_type=phase_a_readiness_and_command_planning
+branch=feat/node-032t-controlled-gateway-smoke-retry-after-asterisk-runtime-readiness
+handoff_archive=docs/handoffs/NODE-032T-phase-a-codex-handoff.md
+live_smoke_retry=false
+helper_copy_deploy=false
+token_handling=false
+server_temp_env_created=false
+dependency_install=false
+service_action=false
+systemctl_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Read-only gates:
+
+```text
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+selected_venv=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+selected_venv_imports=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+Recommendation:
+
+```text
+phase_b_recommendation=CONDITIONAL_GO
+condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
+approval_phrase=APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS
+current_blocker=approval_phrase_absent
+```

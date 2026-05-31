@@ -475,14 +475,18 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 154. Preserve NODE-032S Phase B readiness: after exact approval, hard gates were re-confirmed and the selected project venv imported `httpx 0.28.1`, `fastapi 0.136.1`, and `websockets 16.0`.
 155. Preserve NODE-032S Phase B no-install result: no dependency install, pip install, apt install, system Python mutation, project venv mutation, helper deploy, Gateway smoke retry, Gateway service action, reboot, firewall/env/server change, token output, or transcript text output occurred.
 156. Preserve NODE-032S separation: runtime dependency readiness is complete, but Gateway smoke retry still requires a separate approved node with immediate hard-gate re-confirmation.
+157. Preserve NODE-032T Phase A boundary: readiness and Gateway smoke retry planning only; no live smoke retry, helper copy/deploy, token handling, server temp env creation, dependency install, service action, `systemctl` action, reboot, firewall/env/server change, token output, or transcript text output occurred.
+158. Preserve NODE-032T Phase A gate result: Asterisk gates pass with `OPENAI_API_KEY_ABSENT`, selected project venv imports `httpx 0.28.1`, `fastapi 0.136.1`, and `websockets 16.0`, Gateway unit verifies, Gateway service is inactive/disabled, no target listeners exist, and UFW restricts `8080/tcp` to `92.118.85.117`.
+159. Preserve NODE-032T approval gate: Phase B requires exact phrase `APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS`; no other phrase is approval.
+160. Preserve NODE-032T retry plan: Phase B must use NODE-032L safe temp-env handling, NODE-032N complete helper bundle validation, NODE-032P runtime preflight, NODE-032S selected runtime, and exactly one Asterisk-side non-business-dialog Gateway smoke only after hard-gate re-confirmation.
 
 ## Next Recommended Step
 
 ```text
-NODE-032T / controlled-gateway-smoke-retry-after-asterisk-runtime-readiness
+NODE-032T Phase B / controlled-gateway-smoke-retry-after-asterisk-runtime-readiness
 ```
 
-NODE-032S Phase B confirmed the deployed project venv already imports the required runtime modules and no install was needed. The next node should be a separate controlled Gateway smoke retry after runtime readiness, with its own exact approval phrase, immediate hard-gate re-confirmation, NODE-032L safe temp-env handling, NODE-032N complete helper bundle validation, NODE-032P runtime preflight, and exactly one controlled Asterisk-side non-business-dialog smoke.
+NODE-032T Phase A confirmed local guard/helper readiness, Asterisk selected-runtime readiness, and Gateway read-only safety. Phase B should require exact approval `APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS`, immediate hard-gate re-confirmation, safe temp-env handling, complete helper-bundle validation, runtime dependency preflight, controlled Gateway service start for smoke if needed, exactly one Asterisk-side non-business-dialog smoke, cleanup, and rollback to disabled/inactive Gateway service state.
 
 ## Node Completion Report Format
 

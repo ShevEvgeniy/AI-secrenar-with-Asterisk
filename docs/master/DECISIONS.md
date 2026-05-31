@@ -1458,3 +1458,42 @@ Next node:
 ```text
 NODE-032T / controlled-gateway-smoke-retry-after-asterisk-runtime-readiness
 ```
+
+## NODE-032T Phase A Gateway Smoke Retry Readiness Decision
+
+NODE-032T Phase A is read-only readiness and smoke retry command planning only. No live smoke retry, helper copy/deploy, token handling, server temp env creation, dependency install, Gateway service action, `systemctl` action, reboot, provider power-cycle, firewall/env/server change, token output, transcript text output, Notion write, Runtime/Evidence update, scheduler, webhook, automation, commit, or PR occurred.
+
+Decision:
+
+- Proceed toward Gateway smoke retry only through Phase B with exact approval.
+- Use NODE-032S selected runtime for remote validation and helper execution.
+- Preserve NODE-032L safe temp-env guard, NODE-032N helper-bundle validation, and NODE-032P runtime dependency preflight.
+- Keep Gateway smoke retry separate from dependency readiness and service enablement/reboot work.
+
+Read-only finding:
+
+```text
+selected_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+selected_runtime_imports=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+gateway_unit_verify=OK
+gateway_service=inactive_disabled
+gateway_env_meta=root:gateway:640
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+Future approval phrase:
+
+```text
+APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS
+```
+
+Current recommendation:
+
+```text
+phase_b_recommendation=CONDITIONAL_GO
+condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
+current_blocker=approval_phrase_absent
+```

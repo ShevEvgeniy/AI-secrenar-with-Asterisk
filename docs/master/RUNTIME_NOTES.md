@@ -2343,3 +2343,74 @@ transcript_text_logged=false
 ```text
 NODE-032T / controlled-gateway-smoke-retry-after-asterisk-runtime-readiness
 ```
+
+## NODE-032T Phase A Runtime Notes
+
+- NODE-032T Phase A was read-only readiness and Gateway smoke retry planning only.
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032T-phase-a-codex-handoff.md
+```
+
+- Local guard/helper/runtime findings:
+
+```text
+safe_temp_env_guard=create_validate_cleanup
+helper_bundle_manifest=present
+runtime_modules_required=httpx,fastapi,websockets
+runtime_dependency_preflight=present
+selected_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+```
+
+- Asterisk read-only gates:
+
+```text
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+asterisk_openai_api_key=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+selected_runtime_imports=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+```
+
+- Gateway read-only gates:
+
+```text
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service=inactive_disabled
+gateway_user_group=present
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+- Phase B planning:
+
+```text
+approval_phrase=APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS
+phase_b_recommendation=CONDITIONAL_GO
+condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
+current_blocker=approval_phrase_absent
+smoke_count=1
+origin=Asterisk
+business_dialog_enablement=false
+```
+
+- Safety boundary:
+
+```text
+live_smoke_retry=false
+helper_copy_deploy=false
+token_handling=false
+server_temp_env_created=false
+dependency_install=false
+service_action=false
+systemctl_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_logged=false
+```
