@@ -1510,6 +1510,12 @@ current_blocker=approval_phrase_absent
 175. Preserve NODE-032W final state: Gateway service is inactive/disabled, no target listeners exist on `443`, `8080`, or `8081`, firewall remains source-restricted, Asterisk still has `OPENAI_API_KEY_ABSENT`, business dialog Gateway transcript use remains not enabled, and temporary helper/env/audio were removed.
 176. Preserve NODE-032W next boundary: `NODE-032X / transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan`.
 
+177. Preserve NODE-032X local-only boundary: no live smoke, SSH, helper deploy, token handling, server temp env creation, service action, dependency install, reboot, provider power-cycle, firewall/env/server change, transcript text logging, business-dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, or automation is allowed in NODE-032X.
+178. Preserve NODE-032X diagnostic decision: NODE-032W transport/auth/OpenAI Realtime success (`gateway_http_status=200`, `chunks_sent=5`) is not transcript-presence success because `transcript_present=false`, `transcript_event_seen=null`, and `transcript_bearing_event_seen=null`.
+179. Preserve NODE-032X hypothesis ranking: insufficient redacted diagnostics is the primary next failure mode; speech-like audio stimulus length/content is secondary; event parser alias coverage and session settings remain possible but unproven.
+180. Preserve NODE-032X selected next boundary: `NODE-032Y / safe-transcript-event-diagnostics-with-redacted-event-counts`.
+181. Preserve NODE-032X evidence policy: the next node may collect event type counts, boolean transcript-event flags, audio diagnostics, timing, chunks, and HTTP status, but must not collect raw transcript text, transcript deltas, token values, raw secret env output, large logs, audio files, binary artifacts, or business-dialog profile changes.
+
 ## NODE-032U Phase B Valid Audio Smoke Decision
 
 NODE-032U Phase B was approved with:
