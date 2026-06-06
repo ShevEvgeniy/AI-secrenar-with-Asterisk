@@ -1498,6 +1498,43 @@ condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
 current_blocker=approval_phrase_absent
 ```
 
+## NODE-032Y Redacted Diagnostic Model Decision
+
+Decision:
+
+- Keep transcript text suppressed by default.
+- Add event-count and transcript-event booleans at the Gateway response boundary.
+- Convert any transcript text observation into safe booleans and `transcript_text_length_bucket`.
+- Treat missing Asterisk-side event diagnostics as `diagnostic_propagation_gap` instead of leaving transcript-event fields ambiguous.
+- Do not change business-dialog behavior, Gateway default enablement, production service state, or autostart.
+
+Safe classifications:
+
+```text
+no_event_counts_available
+no_transcript_event_observed
+transcript_event_observed_empty_or_no_text
+transcript_bearing_event_observed_text_redacted
+timeout_after_audio_commit
+openai_error_event_observed
+diagnostic_propagation_gap
+unknown
+```
+
+Rejected in NODE-032Y:
+
+- logging transcript text or transcript deltas;
+- using transcript text for dialog;
+- changing Gateway session settings for live smoke;
+- changing audio stimulus strategy;
+- running live smoke or touching servers.
+
+Next node:
+
+```text
+NODE-032Z / controlled-transcript-event-diagnostics-smoke-with-redacted-counts
+```
+
 ## NODE-032W Transcript-Presence Smoke Readiness Decision
 
 168. Preserve NODE-032W Phase A boundary: readiness and transcript-presence smoke planning only; no live smoke retry, helper copy/deploy, token handling, server temp env creation, dependency install, service action, `systemctl` state action, reboot, provider power-cycle, firewall/env/server change, business dialog enablement, transcript text logging, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.

@@ -217,12 +217,16 @@ def _safe_gateway_payload(payload: Any, *, log_transcript: bool) -> dict[str, An
     safe = dict(redact_secrets(payload))
     transcript = safe.pop("transcript_text", None)
     if isinstance(transcript, str):
-        safe["transcript_text_present"] = bool(transcript.strip()) or bool(safe.get("transcript_text_present"))
-        safe["transcript_text_length"] = len(transcript.strip())
+        stripped = transcript.strip()
+        safe["transcript_text_present"] = bool(stripped) or bool(safe.get("transcript_text_present"))
+        safe["transcript_text_length"] = len(stripped)
+        safe["transcript_text_length_bucket"] = "nonzero_redacted" if stripped else "zero"
         safe["transcript_text_logged"] = log_transcript
         if log_transcript:
             safe["transcript_text"] = transcript
     else:
+        if "transcript_text_length_bucket" not in safe:
+            safe["transcript_text_length_bucket"] = "unknown"
         safe["transcript_text_logged"] = False
     return safe
 

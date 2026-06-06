@@ -181,9 +181,16 @@ def test_gateway_response_includes_audio_and_event_diagnostics(tmp_path: Path) -
     assert payload["openai_event_type_counts"]["session.created"] == 1
     assert payload["openai_event_type_counts"]["session.updated"] == 1
     assert payload["openai_event_type_counts"]["conversation.item.input_audio_transcription.completed"] == 1
+    assert payload["openai_event_type_counts_present"] is True
     assert payload["transcript_event_seen"] is True
+    assert payload["transcript_bearing_event_seen"] is True
+    assert payload["transcript_text_present"] is True
+    assert payload["transcript_text_length_bucket"] == "nonzero_redacted"
     assert payload["input_audio_buffer_commit_sent"] is True
     assert payload["timeout_observed"] is False
+    assert payload["error_event_seen"] is False
+    assert payload["diagnostic_propagation_gap"] is False
+    assert payload["diagnostic_classification"] == "transcript_bearing_event_observed_text_redacted"
 
 
 def test_gateway_audio_diagnostics_classify_silence(tmp_path: Path) -> None:
@@ -210,7 +217,10 @@ def test_gateway_audio_diagnostics_classify_silence(tmp_path: Path) -> None:
     assert payload["audio_non_silent_ratio"] == 0
     assert payload["audio_quality_classification"] == "near_silent"
     assert payload["transcript_event_seen"] is True
+    assert payload["transcript_bearing_event_seen"] is True
     assert payload["transcript_text_present"] is False
+    assert payload["transcript_text_length_bucket"] == "zero"
+    assert payload["diagnostic_classification"] == "transcript_event_observed_empty_or_no_text"
 
 
 def test_gateway_request_schema_rejects_invalid_wav() -> None:
@@ -255,6 +265,9 @@ def test_openai_failure_maps_to_structured_gateway_error(tmp_path: Path) -> None
     assert payload["error_code"] == "openai_region_rejected"
     assert payload["openai_realtime_connection_ok"] is True
     assert payload["openai_session_created"] is False
+    assert payload["openai_event_type_counts"]["error"] == 1
+    assert payload["error_event_seen"] is True
+    assert payload["diagnostic_classification"] == "openai_error_event_observed"
     assert fake_key not in json.dumps(payload)
 
 
