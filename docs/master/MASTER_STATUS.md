@@ -3249,3 +3249,63 @@ firewall_env_server_change=false
 business_dialog_enablement=false
 transcript_text_logging=false
 ```
+
+## NODE-032Y Safe Transcript-Event Diagnostics
+
+Result:
+
+```text
+node=NODE-032Y / safe-transcript-event-diagnostics-with-redacted-event-counts
+branch=feat/node-032y-safe-transcript-event-diagnostics-with-redacted-event-counts
+handoff_archive=docs/handoffs/NODE-032Y-safe-transcript-event-diagnostics-with-redacted-event-counts-codex-handoff.md
+local_only=true
+live_smoke=false
+ssh=false
+server_state_changed=false
+```
+
+Diagnostics hardened:
+
+```text
+openai_event_type_counts=propagated
+openai_event_type_counts_present=added
+transcript_event_seen=propagated
+transcript_bearing_event_seen=propagated
+transcript_text_present=propagated_without_text
+transcript_text_length_bucket=zero|nonzero_redacted|unknown
+input_audio_buffer_commit_sent=propagated
+timeout_observed=propagated
+error_event_seen=propagated
+diagnostic_propagation_gap=added
+diagnostic_classification=added
+```
+
+Supported classifications:
+
+```text
+no_event_counts_available
+no_transcript_event_observed
+transcript_event_observed_empty_or_no_text
+transcript_bearing_event_observed_text_redacted
+timeout_after_audio_commit
+openai_error_event_observed
+diagnostic_propagation_gap
+unknown
+```
+
+Safety:
+
+```text
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_enablement=false
+gateway_stt_default_enabled=false
+token_values_printed=false
+audio_artifacts_committed=false
+```
+
+Next recommendation:
+
+```text
+NODE-032Z / controlled-transcript-event-diagnostics-smoke-with-redacted-counts
+```

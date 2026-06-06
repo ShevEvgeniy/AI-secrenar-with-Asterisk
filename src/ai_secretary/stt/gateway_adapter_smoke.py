@@ -19,6 +19,7 @@ def build_report(result_details: dict[str, Any], *, accepted: bool, attempted: b
     safe_details = redact_secrets(result_details)
     transcript_present = bool(safe_details.get("transcript_text_present"))
     chunks_sent = safe_details.get("chunks_sent")
+    diagnostics = _diagnostics_for_report(safe_details)
     return {
         "adapter_enabled_temporarily": bool(safe_details.get("stt_gateway_adapter_enabled")),
         "adapter_default_enabled_after_smoke": config_from_env({}).enabled,
@@ -41,12 +42,17 @@ def build_report(result_details: dict[str, Any], *, accepted: bool, attempted: b
         "audio_peak": safe_details.get("audio_peak"),
         "audio_non_silent_ratio": safe_details.get("audio_non_silent_ratio"),
         "audio_quality_classification": safe_details.get("audio_quality_classification"),
-        "openai_event_type_counts": safe_details.get("openai_event_type_counts", {}),
-        "transcript_event_seen": safe_details.get("transcript_event_seen"),
-        "transcript_bearing_event_seen": safe_details.get("transcript_bearing_event_seen"),
-        "error_event_seen": safe_details.get("error_event_seen"),
-        "input_audio_buffer_commit_sent": safe_details.get("input_audio_buffer_commit_sent"),
-        "timeout_observed": safe_details.get("timeout_observed"),
+        "openai_event_type_counts": diagnostics["openai_event_type_counts"],
+        "openai_event_type_counts_present": diagnostics["openai_event_type_counts_present"],
+        "transcript_event_seen": diagnostics["transcript_event_seen"],
+        "transcript_bearing_event_seen": diagnostics["transcript_bearing_event_seen"],
+        "transcript_text_present": diagnostics["transcript_text_present"],
+        "transcript_text_length_bucket": diagnostics["transcript_text_length_bucket"],
+        "error_event_seen": diagnostics["error_event_seen"],
+        "input_audio_buffer_commit_sent": diagnostics["input_audio_buffer_commit_sent"],
+        "timeout_observed": diagnostics["timeout_observed"],
+        "diagnostic_propagation_gap": diagnostics["diagnostic_propagation_gap"],
+        "diagnostic_classification": diagnostics["diagnostic_classification"],
         "close_status": safe_details.get("close_status"),
         "transcript_present": transcript_present,
         "transcript_used_for_dialog": bool(safe_details.get("dialog_transcript_used")),
@@ -141,6 +147,85 @@ def _openai_status(details: dict[str, Any]) -> str:
     if details.get("gateway_reachable") is True:
         return "failed"
     return "not_run"
+
+
+def _diagnostics_for_report(details: dict[str, Any]) -> dict[str, Any]:
+    counts = details.get("openai_event_type_counts")
+    counts_available = isinstance(counts, dict)
+    event_counts = counts if counts_available else {}
+    transcript_event_seen = _bool_or_none(details.get("transcript_event_seen"))
+    transcript_bearing_event_seen = _bool_or_none(details.get("transcript_bearing_event_seen"))
+    transcript_text_present = bool(details.get("transcript_text_present"))
+    input_audio_buffer_commit_sent = _bool_or_none(details.get("input_audio_buffer_commit_sent"))
+    timeout_observed = _bool_or_none(details.get("timeout_observed"))
+    error_event_seen = _bool_or_none(details.get("error_event_seen"))
+    diagnostic_propagation_gap = bool(details.get("diagnostic_propagation_gap")) or not counts_available
+    return {
+        "openai_event_type_counts": event_counts,
+        "openai_event_type_counts_present": bool(details.get("openai_event_type_counts_present")) or bool(event_counts),
+        "transcript_event_seen": transcript_event_seen,
+        "transcript_bearing_event_seen": transcript_bearing_event_seen,
+        "transcript_text_present": transcript_text_present,
+        "transcript_text_length_bucket": _text_length_bucket(details, transcript_text_present),
+        "error_event_seen": error_event_seen,
+        "input_audio_buffer_commit_sent": input_audio_buffer_commit_sent,
+        "timeout_observed": timeout_observed,
+        "diagnostic_propagation_gap": diagnostic_propagation_gap,
+        "diagnostic_classification": details.get("diagnostic_classification")
+        or _classify_diagnostics(
+            counts_available=counts_available,
+            transcript_event_seen=transcript_event_seen,
+            transcript_bearing_event_seen=transcript_bearing_event_seen,
+            transcript_text_present=transcript_text_present,
+            input_audio_buffer_commit_sent=input_audio_buffer_commit_sent,
+            timeout_observed=timeout_observed,
+            error_event_seen=error_event_seen,
+            diagnostic_propagation_gap=diagnostic_propagation_gap,
+        ),
+    }
+
+
+def _bool_or_none(value: Any) -> bool | None:
+    return value if isinstance(value, bool) else None
+
+
+def _text_length_bucket(details: dict[str, Any], transcript_text_present: bool) -> str:
+    bucket = details.get("transcript_text_length_bucket")
+    if bucket in {"zero", "nonzero_redacted", "unknown"}:
+        return bucket
+    if transcript_text_present:
+        return "nonzero_redacted"
+    if details.get("transcript_bearing_event_seen") is True:
+        return "zero"
+    return "unknown"
+
+
+def _classify_diagnostics(
+    *,
+    counts_available: bool,
+    transcript_event_seen: bool | None,
+    transcript_bearing_event_seen: bool | None,
+    transcript_text_present: bool,
+    input_audio_buffer_commit_sent: bool | None,
+    timeout_observed: bool | None,
+    error_event_seen: bool | None,
+    diagnostic_propagation_gap: bool,
+) -> str:
+    if diagnostic_propagation_gap:
+        return "diagnostic_propagation_gap"
+    if not counts_available:
+        return "no_event_counts_available"
+    if error_event_seen is True:
+        return "openai_error_event_observed"
+    if timeout_observed is True and input_audio_buffer_commit_sent is True:
+        return "timeout_after_audio_commit"
+    if transcript_event_seen is False:
+        return "no_transcript_event_observed"
+    if transcript_bearing_event_seen is True and transcript_text_present:
+        return "transcript_bearing_event_observed_text_redacted"
+    if transcript_bearing_event_seen is True:
+        return "transcript_event_observed_empty_or_no_text"
+    return "unknown"
 
 
 if __name__ == "__main__":

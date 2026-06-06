@@ -194,6 +194,7 @@ async def run_gateway_realtime_measurement(
         event_type_counts,
         input_audio_buffer_commit_sent=input_audio_buffer_commit_sent,
         timeout_observed=timeout_observed,
+        transcript_text_present=transcript_text_present,
     )
 
     try:
@@ -272,6 +273,7 @@ async def run_gateway_realtime_measurement(
                 event_type_counts,
                 input_audio_buffer_commit_sent=input_audio_buffer_commit_sent,
                 timeout_observed=timeout_observed,
+                transcript_text_present=transcript_text_present,
             )
             if final_ms is None:
                 raise TimeoutError("realtime transcription final event was not received")
@@ -308,6 +310,7 @@ async def run_gateway_realtime_measurement(
             event_type_counts,
             input_audio_buffer_commit_sent=input_audio_buffer_commit_sent,
             timeout_observed=timeout_observed or error_code == "gateway_timeout",
+            transcript_text_present=transcript_text_present,
         )
         return 502, build_gateway_response(
             request_id=gateway_request_id,
@@ -373,23 +376,82 @@ def _build_response_diagnostics(
     *,
     input_audio_buffer_commit_sent: bool,
     timeout_observed: bool,
+    transcript_text_present: bool,
 ) -> dict[str, Any]:
+    event_counts = dict(sorted(event_type_counts.items()))
+    event_counts_present = bool(event_counts)
     transcript_event_seen = any(
         event_type.startswith("conversation.item.input_audio_transcription.")
         for event_type in event_type_counts
     )
+    transcript_bearing_event_seen = bool(
+        event_type_counts.get("conversation.item.input_audio_transcription.delta")
+        or event_type_counts.get("conversation.item.input_audio_transcription.completed")
+    )
+    error_event_seen = bool(event_type_counts.get("error"))
+    transcript_text_length_bucket = _transcript_text_length_bucket(
+        transcript_text_present=transcript_text_present,
+        transcript_bearing_event_seen=transcript_bearing_event_seen,
+    )
     return {
-        "openai_event_type_counts": dict(sorted(event_type_counts.items())),
+        "openai_event_type_counts": event_counts,
+        "openai_event_type_counts_present": event_counts_present,
         "transcript_event_seen": transcript_event_seen,
-        "transcript_bearing_event_seen": bool(
-            event_type_counts.get("conversation.item.input_audio_transcription.delta")
-            or event_type_counts.get("conversation.item.input_audio_transcription.completed")
-        ),
-        "error_event_seen": bool(event_type_counts.get("error")),
+        "transcript_bearing_event_seen": transcript_bearing_event_seen,
+        "transcript_text_present": transcript_text_present,
+        "transcript_text_length_bucket": transcript_text_length_bucket,
+        "error_event_seen": error_event_seen,
         "input_audio_buffer_commit_sent": input_audio_buffer_commit_sent,
         "timeout_observed": timeout_observed,
+        "diagnostic_propagation_gap": False,
+        "diagnostic_classification": _diagnostic_classification(
+            event_counts_present=event_counts_present,
+            transcript_event_seen=transcript_event_seen,
+            transcript_bearing_event_seen=transcript_bearing_event_seen,
+            transcript_text_present=transcript_text_present,
+            input_audio_buffer_commit_sent=input_audio_buffer_commit_sent,
+            timeout_observed=timeout_observed,
+            error_event_seen=error_event_seen,
+        ),
         "close_status": "not_observed",
     }
+
+
+def _transcript_text_length_bucket(
+    *,
+    transcript_text_present: bool,
+    transcript_bearing_event_seen: bool,
+) -> str:
+    if transcript_text_present:
+        return "nonzero_redacted"
+    if transcript_bearing_event_seen:
+        return "zero"
+    return "unknown"
+
+
+def _diagnostic_classification(
+    *,
+    event_counts_present: bool,
+    transcript_event_seen: bool,
+    transcript_bearing_event_seen: bool,
+    transcript_text_present: bool,
+    input_audio_buffer_commit_sent: bool,
+    timeout_observed: bool,
+    error_event_seen: bool,
+) -> str:
+    if not event_counts_present:
+        return "no_event_counts_available"
+    if error_event_seen:
+        return "openai_error_event_observed"
+    if timeout_observed and input_audio_buffer_commit_sent:
+        return "timeout_after_audio_commit"
+    if not transcript_event_seen:
+        return "no_transcript_event_observed"
+    if transcript_bearing_event_seen and transcript_text_present:
+        return "transcript_bearing_event_observed_text_redacted"
+    if transcript_bearing_event_seen:
+        return "transcript_event_observed_empty_or_no_text"
+    return "unknown"
 
 
 async def _wait_for_session_created(ws: Any, *, event_type_counts: Counter[str]) -> None:

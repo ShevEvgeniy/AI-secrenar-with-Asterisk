@@ -486,14 +486,16 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 165. Preserve NODE-032V acceptance decision: NODE-032U is accepted as successful controlled Gateway transport/auth/OpenAI Realtime smoke with valid 24 kHz audio, Gateway HTTP 200, OpenAI Realtime OK, and `chunks_sent=5`.
 166. Preserve NODE-032V non-acceptance boundary: NODE-032U is not transcript-quality success, transcript-present success, transcript text correctness proof, business-dialog integration proof, production autostart proof, or dual-channel caller/bot separation proof.
 167. Preserve NODE-032V separation decision: the next boundary should prove transcript event/presence behavior while keeping `transcript_text_logged=false`, `transcript_used_for_dialog=false`, and business dialog unchanged.
+168. Preserve NODE-032X decision: NODE-032W remains transport/auth/OpenAI Realtime success only; transcript presence remains unproven and the next safe work must improve redacted event diagnostics before another smoke.
+169. Preserve NODE-032Y diagnostic model: future smoke evidence must use safe event counts, booleans, transcript text buckets, and diagnostic classifications only; transcript text, token values, raw env output, large logs, audio artifacts, and business-dialog transcript use remain forbidden.
 
 ## Next Recommended Step
 
 ```text
-NODE-032W / controlled-gateway-transcript-presence-smoke
+NODE-032Z / controlled-transcript-event-diagnostics-smoke-with-redacted-counts
 ```
 
-NODE-032V accepts NODE-032U as successful transport/auth/OpenAI Realtime proof with valid 24 kHz audio, but not as transcript-quality, transcript-present, business-dialog integration, autostart, or dual-channel proof. NODE-032W should run one controlled Asterisk-side Gateway smoke to prove transcript event/presence behavior without logging transcript text and without enabling business-dialog transcript use.
+NODE-032Y hardens local redacted diagnostics but does not prove live transcript presence. NODE-032Z should run one controlled Asterisk-side Gateway smoke to classify transcript-event behavior with redacted counts and booleans only, without logging transcript text and without enabling business-dialog transcript use.
 
 ## NODE-032W Phase A Plan
 
@@ -564,6 +566,36 @@ NODE-032Y / safe-transcript-event-diagnostics-with-redacted-event-counts
 ```
 
 NODE-032Y should harden local redacted diagnostics before any new live smoke. It should make event-count and transcript-event flags explicit enough to distinguish no transcript event, empty transcript event, transcript-bearing event with text redacted, timeout after audio commit, and missing diagnostic propagation. Known-speech stimulus and session setting changes remain deferred until diagnostics can classify the result without transcript text.
+
+## NODE-032Y Diagnostics Hardening Result
+
+NODE-032Y is local/repo-only and adds deterministic redacted diagnostics before another live smoke.
+
+Future smoke reports can now distinguish:
+
+```text
+no_event_counts_available
+openai_event_type_counts_present
+transcript_event_seen=false
+transcript_event_seen=true
+transcript_bearing_event_seen=false
+transcript_bearing_event_seen=true
+transcript_text_present=false
+transcript_text_present=true
+transcript_text_length_bucket=zero|nonzero_redacted|unknown
+input_audio_buffer_commit_sent=true|false
+timeout_observed=true|false
+error_event_seen=true|false
+diagnostic_propagation_gap=true|false
+```
+
+The selected next boundary is:
+
+```text
+NODE-032Z / controlled-transcript-event-diagnostics-smoke-with-redacted-counts
+```
+
+NODE-032Z should run one controlled Asterisk-side non-business-dialog smoke only after exact approval and immediate hard-gate re-confirmation. It must not log transcript text, expose tokens, enable business-dialog transcript use, or change production service/autostart state.
 
 ## Node Completion Report Format
 

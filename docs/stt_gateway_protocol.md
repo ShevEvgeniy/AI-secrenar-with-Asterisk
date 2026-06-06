@@ -109,6 +109,49 @@ Legacy/expanded protocol shape retained for later gateway versions:
 
 If `return_transcript=true` is explicitly enabled by gateway policy, the gateway may add `transcript.text`. This must remain disabled for default measurement and default logging.
 
+## Redacted Transcript-Event Diagnostics
+
+Gateway and Asterisk-side smoke reports may include redacted transcript-event diagnostics. These fields are safe for logs and node closeouts because they do not include transcript text, token values, raw secret env output, audio, or large raw logs.
+
+Preferred flat fields:
+
+```text
+openai_event_type_counts
+openai_event_type_counts_present
+transcript_event_seen
+transcript_bearing_event_seen
+transcript_text_present
+transcript_text_length_bucket
+input_audio_buffer_commit_sent
+timeout_observed
+error_event_seen
+diagnostic_propagation_gap
+diagnostic_classification
+```
+
+`transcript_text_length_bucket` must be one of:
+
+```text
+zero
+nonzero_redacted
+unknown
+```
+
+`diagnostic_classification` may be one of:
+
+```text
+no_event_counts_available
+no_transcript_event_observed
+transcript_event_observed_empty_or_no_text
+transcript_bearing_event_observed_text_redacted
+timeout_after_audio_commit
+openai_error_event_observed
+diagnostic_propagation_gap
+unknown
+```
+
+Default Gateway and smoke-helper behavior must not return or log transcript text. If a transcript-bearing OpenAI event contains text, reports may set `transcript_text_present=true` and `transcript_text_length_bucket=nonzero_redacted` only.
+
 ## One-Shot Error Response
 
 NODE-021 implementation error response:

@@ -2911,3 +2911,43 @@ firewall_env_server_change=false
 business_dialog_enablement=false
 transcript_text_logging=false
 ```
+
+## NODE-032Y Runtime Notes
+
+NODE-032Y performed local diagnostics hardening only.
+
+Fields added or hardened:
+
+```text
+openai_event_type_counts
+openai_event_type_counts_present
+transcript_event_seen
+transcript_bearing_event_seen
+transcript_text_present
+transcript_text_length_bucket
+input_audio_buffer_commit_sent
+timeout_observed
+error_event_seen
+diagnostic_propagation_gap
+diagnostic_classification
+```
+
+Behavior:
+
+```text
+transcript_text_bucket_values=zero,nonzero_redacted,unknown
+transcript_text_logged=false
+transcript_delta_logged=false
+token_values_printed=false
+business_dialog_unchanged=true
+gateway_stt_default_enabled=false
+live_smoke=false
+ssh=false
+server_state_changed=false
+```
+
+Next recommendation:
+
+```text
+NODE-032Z / controlled-transcript-event-diagnostics-smoke-with-redacted-counts
+```

@@ -441,6 +441,19 @@ def test_gateway_adapter_smoke_reports_redacted_metadata(tmp_path: Path, monkeyp
             "ok": True,
             "openai_realtime_connection_ok": True,
             "chunks_sent": 6,
+            "openai_event_type_counts": {
+                "session.created": 1,
+                "conversation.item.input_audio_transcription.completed": 1,
+            },
+            "openai_event_type_counts_present": True,
+            "transcript_event_seen": True,
+            "transcript_bearing_event_seen": True,
+            "transcript_text_length_bucket": "nonzero_redacted",
+            "input_audio_buffer_commit_sent": True,
+            "timeout_observed": False,
+            "error_event_seen": False,
+            "diagnostic_propagation_gap": False,
+            "diagnostic_classification": "transcript_bearing_event_observed_text_redacted",
             "transcript_text_present": True,
             "transcript_text": transcript,
         }
@@ -466,10 +479,61 @@ def test_gateway_adapter_smoke_reports_redacted_metadata(tmp_path: Path, monkeyp
     assert payload["gateway_auth"] == "ok"
     assert payload["openai_realtime_from_gateway"] == "ok"
     assert payload["chunks_sent"] == 6
+    assert payload["openai_event_type_counts_present"] is True
+    assert payload["openai_event_type_counts"]["session.created"] == 1
+    assert payload["transcript_event_seen"] is True
+    assert payload["transcript_bearing_event_seen"] is True
     assert payload["transcript_present"] is True
+    assert payload["transcript_text_present"] is True
+    assert payload["transcript_text_length_bucket"] == "nonzero_redacted"
     assert payload["transcript_text_logged"] is False
+    assert payload["input_audio_buffer_commit_sent"] is True
+    assert payload["timeout_observed"] is False
+    assert payload["error_event_seen"] is False
+    assert payload["diagnostic_propagation_gap"] is False
+    assert payload["diagnostic_classification"] == "transcript_bearing_event_observed_text_redacted"
     assert transcript not in serialized
     assert "fake-token" not in serialized
+
+
+def test_gateway_adapter_smoke_marks_missing_event_diagnostics_as_gap(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    audio_path = _write_audio(tmp_path / "audio.wav")
+
+    with _FakeGatewayServer(
+        {
+            "ok": True,
+            "openai_realtime_connection_ok": True,
+            "chunks_sent": 5,
+            "transcript_text_present": False,
+        }
+    ) as gateway:
+        monkeypatch.setenv("STT_GATEWAY_STT_ENABLED", "true")
+        monkeypatch.setenv("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG", "true")
+        monkeypatch.setenv("STT_GATEWAY_URL", gateway.url)
+        monkeypatch.setenv("STT_GATEWAY_TOKEN", "fake-token")
+        monkeypatch.setenv("STT_GATEWAY_TIMEOUT_MS", "1000")
+        monkeypatch.setenv("STT_GATEWAY_LOG_TRANSCRIPT", "false")
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        code = gateway_adapter_smoke_main(["--audio", str(audio_path), "--require-explicit-flags"])
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["gateway_reachable_from_asterisk"] is True
+    assert payload["openai_realtime_from_gateway"] == "ok"
+    assert payload["chunks_sent"] == 5
+    assert payload["openai_event_type_counts"] == {}
+    assert payload["openai_event_type_counts_present"] is False
+    assert payload["transcript_event_seen"] is None
+    assert payload["transcript_bearing_event_seen"] is None
+    assert payload["transcript_text_present"] is False
+    assert payload["transcript_text_length_bucket"] == "unknown"
+    assert payload["diagnostic_propagation_gap"] is True
+    assert payload["diagnostic_classification"] == "diagnostic_propagation_gap"
 
 
 def test_gateway_adapter_smoke_requires_explicit_safe_flags(tmp_path: Path, monkeypatch, capsys) -> None:
