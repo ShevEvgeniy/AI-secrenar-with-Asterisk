@@ -541,6 +541,30 @@ NODE-032X / transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan
 
 NODE-032X should decide whether the next attempt needs a different approved audio stimulus, additional redacted Gateway event diagnostics, or another no-text transcript-presence strategy.
 
+## NODE-032X Diagnostics Decision
+
+NODE-032X is local-only and preserves NODE-032W accurately:
+
+```text
+transport_auth_openai_realtime_success=true
+gateway_http_status=200
+chunks_sent=5
+transcript_presence_success=false
+transcript_present=false
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+```
+
+NODE-032W transport/auth/OpenAI success is not enough because it proves only reachability, auth, audio format acceptance, session creation, and chunk send. It does not prove that OpenAI emitted transcript events, that Gateway event parsing recognized them, that redacted diagnostics propagated to the Asterisk-side report, or that the stimulus was speech-like enough.
+
+Selected next boundary:
+
+```text
+NODE-032Y / safe-transcript-event-diagnostics-with-redacted-event-counts
+```
+
+NODE-032Y should harden local redacted diagnostics before any new live smoke. It should make event-count and transcript-event flags explicit enough to distinguish no transcript event, empty transcript event, transcript-bearing event with text redacted, timeout after audio commit, and missing diagnostic propagation. Known-speech stimulus and session setting changes remain deferred until diagnostics can classify the result without transcript text.
+
 ## Node Completion Report Format
 
 After each node, return:

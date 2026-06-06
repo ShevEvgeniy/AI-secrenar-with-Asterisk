@@ -2859,3 +2859,55 @@ Next recommendation:
 ```text
 NODE-032X / transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan
 ```
+
+## NODE-032X Runtime Notes
+
+NODE-032X performed local diagnostics and planning only.
+
+Preserved NODE-032W result:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+transcript_present=false
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+```
+
+Local diagnostic conclusion:
+
+```text
+transport_auth_openai_realtime_success=true
+transcript_presence_success=false
+primary_likely_next_failure_mode=insufficient_redacted_diagnostics
+secondary_likely_failure_mode=audio_stimulus_not_speech_like_or_too_short
+possible_failure_mode=event_parser_misses_current_realtime_event_alias
+possible_failure_mode=session_settings_do_not_elicit_transcript_events
+```
+
+Selected next node:
+
+```text
+NODE-032Y / safe-transcript-event-diagnostics-with-redacted-event-counts
+```
+
+Safety:
+
+```text
+live_smoke=false
+ssh=false
+helper_deploy=false
+token_handling=false
+server_temp_env=false
+service_action=false
+dependency_install=false
+reboot_or_power_cycle=false
+firewall_env_server_change=false
+business_dialog_enablement=false
+transcript_text_logging=false
+```

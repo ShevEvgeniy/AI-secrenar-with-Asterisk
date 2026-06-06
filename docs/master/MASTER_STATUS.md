@@ -3199,3 +3199,53 @@ Next recommendation:
 ```text
 NODE-032X / transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan
 ```
+
+## NODE-032X Transcript-Presence Diagnostics Plan
+
+Result:
+
+```text
+node=NODE-032X / transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan
+branch=feat/node-032x-transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan
+handoff_archive=docs/handoffs/NODE-032X-transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan-codex-handoff.md
+local_only=true
+latest_closed_node=NODE-032W
+node032w_transport_auth_openai_realtime_success=true
+node032w_transcript_presence_success=false
+node032w_gateway_http_status=200
+node032w_chunks_sent=5
+node032w_transcript_present=false
+node032w_transcript_event_seen=null
+node032w_transcript_bearing_event_seen=null
+```
+
+Local diagnostic classification:
+
+```text
+primary_likely_next_failure_mode=insufficient_redacted_diagnostics
+secondary_likely_failure_mode=audio_stimulus_not_speech_like_or_too_short
+possible_failure_mode=event_parser_misses_current_realtime_event_alias
+possible_failure_mode=session_settings_do_not_elicit_transcript_events
+```
+
+Selected next boundary:
+
+```text
+NODE-032Y / safe-transcript-event-diagnostics-with-redacted-event-counts
+```
+
+Safety:
+
+```text
+live_smoke=false
+ssh=false
+helper_deploy=false
+token_handling=false
+server_temp_env=false
+service_action=false
+dependency_install=false
+reboot_or_power_cycle=false
+firewall_env_server_change=false
+business_dialog_enablement=false
+transcript_text_logging=false
+```
