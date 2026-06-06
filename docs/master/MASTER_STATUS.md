@@ -3059,3 +3059,79 @@ Next recommendation:
 ```text
 NODE-032W / controlled-gateway-transcript-presence-smoke
 ```
+
+## NODE-032W Phase A Transcript-Presence Smoke Readiness
+
+Result:
+
+```text
+node=NODE-032W / controlled-gateway-transcript-presence-smoke
+branch=feat/node-032w-controlled-gateway-transcript-presence-smoke
+handoff_archive=docs/handoffs/NODE-032W-phase-a-codex-handoff.md
+phase=Phase A readiness and command planning only
+live_smoke_retry=false
+helper_copy_deploy=false
+token_handling=false
+server_temp_env_created=false
+dependency_install=false
+service_action=false
+systemctl_state_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+business_dialog_enablement=false
+transcript_text_logging=false
+```
+
+Local helper finding:
+
+```text
+transcript_presence_safe_flags_available=true
+safe_flags=transcript_present,transcript_event_seen,transcript_bearing_event_seen
+transcript_text_logged_required=false
+transcript_used_for_dialog_required=false
+business_dialog_unchanged_required=true
+valid_audio_guard=24000 Hz mono 16-bit PCM WAV
+safe_temp_env_guard=create_validate_cleanup_available
+helper_bundle_preflight_available=true
+```
+
+Read-only gate result:
+
+```text
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+selected_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+selected_runtime_python=3.12.3
+selected_runtime_imports=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+Phase B recommendation:
+
+```text
+phase_b_recommendation=CONDITIONAL_GO
+condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
+approval_phrase=APPROVE NODE-032W TRANSCRIPT PRESENCE SMOKE
+current_blocker=approval_phrase_absent
+```
+
+Validation:
+
+```text
+focused_tests=35 passed
+full_pytest=230 passed, 6 failed
+known_environmental_failures=missing src/scripts/make_demo_audio.py; missing sentence_transformers
+git_diff_check=pass
+source_runtime_diff_check=empty
+tracked_secret_scan=no_real_secret_values_found
+scoped_docs_handoff_source_test_scan=no_real_secret_values_found
+```

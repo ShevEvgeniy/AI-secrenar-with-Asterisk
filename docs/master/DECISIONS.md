@@ -1498,6 +1498,14 @@ condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
 current_blocker=approval_phrase_absent
 ```
 
+## NODE-032W Transcript-Presence Smoke Readiness Decision
+
+168. Preserve NODE-032W Phase A boundary: readiness and transcript-presence smoke planning only; no live smoke retry, helper copy/deploy, token handling, server temp env creation, dependency install, service action, `systemctl` state action, reboot, provider power-cycle, firewall/env/server change, business dialog enablement, transcript text logging, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
+169. Preserve NODE-032W helper finding: existing Gateway adapter smoke reports include safe redacted transcript event/presence flags (`transcript_present`, `transcript_event_seen`, `transcript_bearing_event_seen`) while keeping transcript text unprinted when transcript logging remains disabled.
+170. Preserve NODE-032W Phase A gate result: Asterisk gates pass with `OPENAI_API_KEY_ABSENT`, business-dialog Gateway transcript use not enabled, selected project venv imports `httpx 0.28.1`, `fastapi 0.136.1`, and `websockets 16.0`; Gateway unit verifies, service is inactive/disabled, env is `root:gateway 640`, masked secrets are present, no target listeners exist, and UFW restricts `8080/tcp` to `92.118.85.117`.
+171. Preserve NODE-032W approval gate: Phase B requires exact phrase `APPROVE NODE-032W TRANSCRIPT PRESENCE SMOKE`; no other phrase is approval.
+172. Preserve NODE-032W acceptance boundary: Phase B may prove transcript event/presence flags only and must keep transcript text logging disabled, business-dialog transcript use disabled, token output absent, and business dialog unchanged.
+
 ## NODE-032U Phase B Valid Audio Smoke Decision
 
 NODE-032U Phase B was approved with:
