@@ -2738,3 +2738,124 @@ source_runtime_diff_check=empty
 tracked_secret_scan=no_real_secret_values_found; existing placeholders/status-field/test-fixture hits only
 scoped_docs_handoff_scan=no_real_secret_values_found; status-field/placeholders only
 ```
+
+## NODE-032W Phase A Runtime Notes
+
+NODE-032W Phase A performed read-only readiness and command planning only. No live smoke retry, helper deploy, token handling, server temp env creation, dependency install, service action, reboot, provider power-cycle, firewall/env/server change, business-dialog enablement, transcript text logging, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
+
+Handoff archive:
+
+```text
+docs/handoffs/NODE-032W-phase-a-codex-handoff.md
+```
+
+Local transcript-presence finding:
+
+```text
+adapter_safe_transcript_flags=transcript_present,transcript_event_seen,transcript_bearing_event_seen
+transcript_text_logged=false_required
+transcript_used_for_dialog=false_required
+business_dialog_unchanged=true_required
+helper_audio_guard=24000 Hz mono 16-bit PCM WAV
+```
+
+Read-only live gates:
+
+```text
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+selected_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+selected_runtime_imports=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+Future approval phrase:
+
+```text
+APPROVE NODE-032W TRANSCRIPT PRESENCE SMOKE
+```
+
+Phase B recommendation:
+
+```text
+CONDITIONAL_GO after exact approval and immediate hard-gate re-confirmation
+```
+
+Validation:
+
+```text
+focused_tests=35 passed
+full_pytest=230 passed, 6 failed
+known_environmental_failures=missing src/scripts/make_demo_audio.py; missing sentence_transformers
+git_diff_check=pass
+source_runtime_diff_check=empty
+tracked_secret_scan=no_real_secret_values_found
+scoped_docs_handoff_source_test_scan=no_real_secret_values_found
+```
+
+## NODE-032W Phase B Runtime Notes
+
+NODE-032W Phase B was approved with:
+
+```text
+APPROVE NODE-032W TRANSCRIPT PRESENCE SMOKE
+```
+
+Operational result:
+
+```text
+hard_gates_reconfirmed=true
+helper_bundle_remote_validate=ok
+audio_create_validate=ok
+audio_format=24000 Hz mono 16-bit PCM WAV
+safe_temp_env_create_validate_cleanup=ok
+token_values_printed=false
+gateway_service_started_for_smoke=true
+service_enabled_state=disabled
+controlled_smoke_invocations=1
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+transcript_present=false
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted_to_92.118.85.117
+gateway_env_meta=root:gateway:640
+asterisk_OPENAI_API_KEY=ABSENT
+temporary_helper_env_audio_removed=true
+local_temp_bundle_removed=true
+dependency_install=false
+systemctl_enable=false
+reboot_or_power_cycle=false
+business_dialog_enablement=false
+business_dialog_transcript_use=false
+transcript_text_printed=false
+```
+
+Next recommendation:
+
+```text
+NODE-032X / transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan
+```

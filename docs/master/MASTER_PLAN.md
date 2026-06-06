@@ -495,6 +495,52 @@ NODE-032W / controlled-gateway-transcript-presence-smoke
 
 NODE-032V accepts NODE-032U as successful transport/auth/OpenAI Realtime proof with valid 24 kHz audio, but not as transcript-quality, transcript-present, business-dialog integration, autostart, or dual-channel proof. NODE-032W should run one controlled Asterisk-side Gateway smoke to prove transcript event/presence behavior without logging transcript text and without enabling business-dialog transcript use.
 
+## NODE-032W Phase A Plan
+
+NODE-032W prepares the transcript-presence proof boundary without running live smoke. Phase A confirms:
+
+- existing helper and adapter reports can expose redacted transcript event/presence flags;
+- transcript text logging and business-dialog transcript use remain disabled;
+- Asterisk and Gateway read-only gates pass;
+- the selected Asterisk project venv remains ready;
+- the Gateway service is installed but inactive/disabled, with no target listeners and UFW still restricted.
+
+Future Phase B requires:
+
+```text
+APPROVE NODE-032W TRANSCRIPT PRESENCE SMOKE
+```
+
+Phase B must run exactly one Asterisk-side non-business-dialog smoke and accept only safe transcript event/presence flags, not transcript text or business-dialog use.
+
+## NODE-032W Phase B Result
+
+NODE-032W Phase B ran exactly one controlled Asterisk-side non-business-dialog smoke after exact approval and hard-gate re-confirmation.
+
+The Gateway transport/auth/OpenAI Realtime path remained good:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+chunks_sent=5
+```
+
+However, transcript-presence proof did not close:
+
+```text
+transcript_present=false
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+```
+
+Next plan:
+
+```text
+NODE-032X / transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan
+```
+
+NODE-032X should decide whether the next attempt needs a different approved audio stimulus, additional redacted Gateway event diagnostics, or another no-text transcript-presence strategy.
+
 ## Node Completion Report Format
 
 After each node, return:
