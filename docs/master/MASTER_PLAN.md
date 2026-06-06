@@ -483,14 +483,17 @@ sales_real -> PJSIP/78007074193@thermo-trunk-endpoint -> DTMF ww52144
 162. Preserve NODE-032U audio decision: future smoke retry audio must be repo-created or repo-validated as `24000 Hz mono 16-bit PCM WAV` before the Gateway request; `16000 Hz`, stereo, and malformed WAV inputs fail closed.
 163. Preserve NODE-032U architecture boundary: no `8 kHz`, stereo, dual-channel, Gateway behavior, business dialog, service, firewall, env, dependency, reboot, or provider power-cycle change is included in Phase A.
 164. Preserve NODE-032U approval gate: Phase B requires exact phrase `APPROVE NODE-032U 24KHZ AUDIO GATEWAY SMOKE RETRY`; no other phrase is approval.
+165. Preserve NODE-032V acceptance decision: NODE-032U is accepted as successful controlled Gateway transport/auth/OpenAI Realtime smoke with valid 24 kHz audio, Gateway HTTP 200, OpenAI Realtime OK, and `chunks_sent=5`.
+166. Preserve NODE-032V non-acceptance boundary: NODE-032U is not transcript-quality success, transcript-present success, transcript text correctness proof, business-dialog integration proof, production autostart proof, or dual-channel caller/bot separation proof.
+167. Preserve NODE-032V separation decision: the next boundary should prove transcript event/presence behavior while keeping `transcript_text_logged=false`, `transcript_used_for_dialog=false`, and business dialog unchanged.
 
 ## Next Recommended Step
 
 ```text
-NODE-032V / gateway-smoke-result-acceptance-and-next-boundary-decision
+NODE-032W / controlled-gateway-transcript-presence-smoke
 ```
 
-NODE-032U Phase B resolved the NODE-032T invalid-audio blocker. The approved Asterisk-origin smoke used repo-created and repo-validated `24000 Hz mono 16-bit PCM WAV` audio, reached/authenticated with the Gateway, reached OpenAI Realtime from the Gateway, returned HTTP 200, and sent `5` chunks. Transcript remained absent and unused because business-dialog transcript use stayed disabled. Cleanup left the Gateway service inactive/disabled, no target listeners, firewall unchanged, Asterisk `OPENAI_API_KEY_ABSENT`, and temporary helper/env/audio removed. NODE-032V should decide whether this non-business-dialog transport result is accepted or whether a separate future node should prove transcript-bearing non-sensitive speech.
+NODE-032V accepts NODE-032U as successful transport/auth/OpenAI Realtime proof with valid 24 kHz audio, but not as transcript-quality, transcript-present, business-dialog integration, autostart, or dual-channel proof. NODE-032W should run one controlled Asterisk-side Gateway smoke to prove transcript event/presence behavior without logging transcript text and without enabling business-dialog transcript use.
 
 ## Node Completion Report Format
 
