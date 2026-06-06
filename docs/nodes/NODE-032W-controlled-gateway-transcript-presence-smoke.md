@@ -14,6 +14,12 @@ Handoff archive:
 docs/handoffs/NODE-032W-phase-a-codex-handoff.md
 ```
 
+Phase B handoff archive:
+
+```text
+docs/handoffs/NODE-032W-phase-b-codex-handoff.md
+```
+
 ## Goal
 
 Prepare a controlled Gateway transcript-presence smoke after NODE-032U proved the Asterisk-origin Gateway transport/auth/OpenAI Realtime path with valid `24000 Hz mono 16-bit PCM` audio.
@@ -337,4 +343,155 @@ git diff --name-only -- src tests deploy scripts pyproject.toml
 git grep -n -E "<tracked secret scan pattern>" -- .
 rg -n "<scoped token scan pattern>" docs/handoffs/NODE-032W-phase-a-codex-handoff.md docs/nodes/NODE-032W-controlled-gateway-transcript-presence-smoke.md docs/master scripts tests
 git status --short
+```
+
+## Phase B Controlled Transcript-Presence Smoke
+
+Phase B was approved with the exact phrase:
+
+```text
+APPROVE NODE-032W TRANSCRIPT PRESENCE SMOKE
+```
+
+Hard gates were re-confirmed before helper staging, token handling, temp env creation, service action, or smoke.
+
+### Gate Reconfirmation
+
+```text
+asterisk_hostname=tula
+asterisk_ari_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+selected_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+selected_runtime_python=3.12.3
+selected_runtime_imports=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service_before=inactive_disabled
+gateway_env_meta=root:gateway:640
+gateway_secret_presence=masked_pass
+target_listeners_443_8080_8081_before=absent
+ufw_8080_allow=92.118.85.117 only
+```
+
+### Helper Bundle
+
+```text
+local_bundle_create=ok
+local_bundle_validate=ok
+remote_validate_first_attempt=failed_closed_missing_validator_script
+remote_validate_fix=staged_validator_script_into_temp_bundle
+remote_bundle_validate=ok
+remote_runtime_modules_ok=true
+missing_runtime_modules=[]
+secret_values_printed=false
+transcript_text_logged=false
+```
+
+The first remote preflight failed closed before token handling, service action, smoke, or Gateway request because the temporary bundle did not include `scripts/asterisk_gateway_helper_bundle.py`. The validator script was staged into the temporary bundle and remote preflight then passed.
+
+### Valid Audio
+
+```text
+audio_create=ok
+audio_validate=ok
+sample_rate_hz=24000
+channels=1
+sample_width_bytes=2
+compression=NONE
+frame_count=24000
+audio_format_errors=[]
+```
+
+### Safe Temp Env
+
+```text
+first_create_attempt=failed_closed_missing_token_due_command_quoting
+retry_create=ok
+token_source=Gateway env piped to guard stdin only
+token_values_printed=false
+validate=ok
+required_keys_present=true
+token_present_masked=true
+temp_env_mode=600
+cleanup=ok
+```
+
+No token value was printed, committed, logged, or recorded.
+
+### Gateway Service Readiness
+
+```text
+service_started_for_smoke=true
+service_active=true
+service_enabled_state=disabled
+listener_8080=present
+listener_443=absent
+listener_8081=absent
+ufw_8080_allow=92.118.85.117 only
+log_secret_or_transcript_pattern=absent
+systemctl_enable=false
+reboot=false
+provider_power_cycle=false
+```
+
+### Smoke Result
+
+Exactly one controlled Asterisk-side non-business-dialog smoke ran.
+
+```text
+controlled_smoke_invocations=1
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+transcript_present=false
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+accepted=false
+fallback_reason=gateway_stt_dialog_use_disabled
+```
+
+Result classification:
+
+```text
+node032w_transcript_presence_success=false
+node032w_transport_auth_openai_realtime_success=true
+blocker=transcript_event_or_presence_not_confirmed
+retry_within_node=false
+```
+
+Transport/auth/OpenAI Realtime succeeded again, but transcript-presence evidence was not confirmed. NODE-032W therefore closes as a safe blocker, not a transcript-presence success.
+
+### Final State
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted_to_92.118.85.117
+gateway_env_meta=root:gateway:640
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+temporary_asterisk_helper_env_audio_removed=true
+local_temp_bundle_removed=true
+log_secret_or_transcript_pattern=absent
+dependency_install=false
+systemctl_enable=false
+reboot_or_power_cycle=false
+business_dialog_enablement=false
+business_dialog_transcript_use=false
+transcript_text_printed=false
+token_values_printed=false
+```
+
+Next recommendation:
+
+```text
+NODE-032X / transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan
 ```

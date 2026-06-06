@@ -3135,3 +3135,67 @@ source_runtime_diff_check=empty
 tracked_secret_scan=no_real_secret_values_found
 scoped_docs_handoff_source_test_scan=no_real_secret_values_found
 ```
+
+## NODE-032W Phase B Transcript-Presence Smoke Blocked
+
+Result:
+
+```text
+phase_b_approval_phrase=APPROVE NODE-032W TRANSCRIPT PRESENCE SMOKE
+handoff_archive=docs/handoffs/NODE-032W-phase-b-codex-handoff.md
+hard_gates_reconfirmed=true
+selected_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+selected_runtime_imports=httpx:0.28.1,fastapi:0.136.1,websockets:16.0
+helper_bundle_remote_validate=ok
+valid_audio_create_validate=ok
+safe_temp_env_create_validate_cleanup=ok
+gateway_service_started_for_smoke=true
+gateway_service_enabled_state=disabled
+controlled_smoke_invocations=1
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+transcript_present=false
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Classification:
+
+```text
+transport_auth_openai_realtime_success=true
+transcript_presence_success=false
+blocker=transcript_event_or_presence_not_confirmed
+retry_within_node=false
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted_to_92.118.85.117
+gateway_env_meta=root:gateway:640
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+temporary_helper_env_audio_removed=true
+local_temp_bundle_removed=true
+dependency_install=false
+systemctl_enable=false
+reboot_or_power_cycle=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Next recommendation:
+
+```text
+NODE-032X / transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan
+```

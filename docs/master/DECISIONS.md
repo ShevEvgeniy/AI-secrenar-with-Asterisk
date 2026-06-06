@@ -1505,6 +1505,10 @@ current_blocker=approval_phrase_absent
 170. Preserve NODE-032W Phase A gate result: Asterisk gates pass with `OPENAI_API_KEY_ABSENT`, business-dialog Gateway transcript use not enabled, selected project venv imports `httpx 0.28.1`, `fastapi 0.136.1`, and `websockets 16.0`; Gateway unit verifies, service is inactive/disabled, env is `root:gateway 640`, masked secrets are present, no target listeners exist, and UFW restricts `8080/tcp` to `92.118.85.117`.
 171. Preserve NODE-032W approval gate: Phase B requires exact phrase `APPROVE NODE-032W TRANSCRIPT PRESENCE SMOKE`; no other phrase is approval.
 172. Preserve NODE-032W acceptance boundary: Phase B may prove transcript event/presence flags only and must keep transcript text logging disabled, business-dialog transcript use disabled, token output absent, and business dialog unchanged.
+173. Preserve NODE-032W Phase B result: after exact approval and hard-gate re-confirmation, exactly one Asterisk-side non-business-dialog smoke ran with valid 24 kHz mono PCM audio and safe temp-env handling. Gateway transport/auth/OpenAI Realtime succeeded (`gateway_http_status=200`, `openai_realtime_from_gateway=ok`, `chunks_sent=5`), but transcript presence was not confirmed (`transcript_present=false`, `transcript_event_seen=null`, `transcript_bearing_event_seen=null`).
+174. Preserve NODE-032W blocker: close NODE-032W as blocked for transcript-presence proof; do not retry inside NODE-032W. No token values or transcript text were printed, committed, or logged.
+175. Preserve NODE-032W final state: Gateway service is inactive/disabled, no target listeners exist on `443`, `8080`, or `8081`, firewall remains source-restricted, Asterisk still has `OPENAI_API_KEY_ABSENT`, business dialog Gateway transcript use remains not enabled, and temporary helper/env/audio were removed.
+176. Preserve NODE-032W next boundary: `NODE-032X / transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan`.
 
 ## NODE-032U Phase B Valid Audio Smoke Decision
 

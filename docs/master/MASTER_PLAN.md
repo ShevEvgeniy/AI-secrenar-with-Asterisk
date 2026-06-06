@@ -513,6 +513,34 @@ APPROVE NODE-032W TRANSCRIPT PRESENCE SMOKE
 
 Phase B must run exactly one Asterisk-side non-business-dialog smoke and accept only safe transcript event/presence flags, not transcript text or business-dialog use.
 
+## NODE-032W Phase B Result
+
+NODE-032W Phase B ran exactly one controlled Asterisk-side non-business-dialog smoke after exact approval and hard-gate re-confirmation.
+
+The Gateway transport/auth/OpenAI Realtime path remained good:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+chunks_sent=5
+```
+
+However, transcript-presence proof did not close:
+
+```text
+transcript_present=false
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+```
+
+Next plan:
+
+```text
+NODE-032X / transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan
+```
+
+NODE-032X should decide whether the next attempt needs a different approved audio stimulus, additional redacted Gateway event diagnostics, or another no-text transcript-presence strategy.
+
 ## Node Completion Report Format
 
 After each node, return:

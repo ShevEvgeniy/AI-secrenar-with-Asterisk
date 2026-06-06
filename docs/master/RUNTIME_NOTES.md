@@ -2800,3 +2800,62 @@ source_runtime_diff_check=empty
 tracked_secret_scan=no_real_secret_values_found
 scoped_docs_handoff_source_test_scan=no_real_secret_values_found
 ```
+
+## NODE-032W Phase B Runtime Notes
+
+NODE-032W Phase B was approved with:
+
+```text
+APPROVE NODE-032W TRANSCRIPT PRESENCE SMOKE
+```
+
+Operational result:
+
+```text
+hard_gates_reconfirmed=true
+helper_bundle_remote_validate=ok
+audio_create_validate=ok
+audio_format=24000 Hz mono 16-bit PCM WAV
+safe_temp_env_create_validate_cleanup=ok
+token_values_printed=false
+gateway_service_started_for_smoke=true
+service_enabled_state=disabled
+controlled_smoke_invocations=1
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+transcript_present=false
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted_to_92.118.85.117
+gateway_env_meta=root:gateway:640
+asterisk_OPENAI_API_KEY=ABSENT
+temporary_helper_env_audio_removed=true
+local_temp_bundle_removed=true
+dependency_install=false
+systemctl_enable=false
+reboot_or_power_cycle=false
+business_dialog_enablement=false
+business_dialog_transcript_use=false
+transcript_text_printed=false
+```
+
+Next recommendation:
+
+```text
+NODE-032X / transcript-presence-audio-stimulus-or-gateway-event-diagnostics-plan
+```
