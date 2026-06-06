@@ -3004,3 +3004,58 @@ Next recommendation:
 ```text
 NODE-032V / gateway-smoke-result-acceptance-and-next-boundary-decision
 ```
+
+## NODE-032V Gateway Smoke Acceptance Decision
+
+Result:
+
+```text
+node_type=local_repo_docs_decision
+branch=feat/node-032v-gateway-smoke-result-acceptance-and-next-boundary-decision
+handoff_archive=docs/handoffs/NODE-032V-codex-handoff.md
+live_smoke_retry=false
+ssh=false
+helper_copy_deploy=false
+token_handling=false
+server_temp_env_created=false
+dependency_install=false
+service_action=false
+systemctl_action=false
+reboot_or_power_cycle=false
+firewall_or_env_changed=false
+server_state_changed=false
+token_values_printed=false
+transcript_text_printed=false
+```
+
+Acceptance:
+
+```text
+node032u_acceptance=successful_transport_auth_openai_realtime_smoke_with_valid_24khz_audio
+node032u_gateway_http_status=200
+node032u_openai_realtime_from_gateway=ok
+node032u_chunks_sent=5
+node032u_transcript_present=false
+node032u_transcript_text_logged=false
+node032u_transcript_used_for_dialog=false
+node032u_business_dialog_unchanged=true
+node032u_adapter_default_enabled_after_smoke=false
+node032u_accepted_field=false_due_gateway_stt_dialog_use_disabled
+```
+
+Non-accepted boundaries:
+
+```text
+transcript_quality_success=false
+transcript_present_success=false
+transcript_text_correctness=false
+business_dialog_integration=false
+production_autostart=false
+dual_channel_recording=false
+```
+
+Next recommendation:
+
+```text
+NODE-032W / controlled-gateway-transcript-presence-smoke
+```

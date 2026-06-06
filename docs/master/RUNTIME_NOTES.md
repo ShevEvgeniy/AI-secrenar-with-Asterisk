@@ -2680,3 +2680,61 @@ scoped_docs_handoff_scan=no_real_secret_values_found
 ```text
 NODE-032V / gateway-smoke-result-acceptance-and-next-boundary-decision
 ```
+
+## NODE-032V Runtime Notes
+
+NODE-032V is a local docs-only decision node. It performed no SSH, live smoke retry, helper deploy, token handling, temp env creation, service action, dependency install, reboot, provider power-cycle, firewall/env/server change, business-dialog enablement, transcript text logging, Notion write, Runtime/Evidence update, scheduler, webhook, automation, push, or PR.
+
+- Handoff archive:
+
+```text
+docs/handoffs/NODE-032V-codex-handoff.md
+```
+
+- NODE-032U accepted boundary:
+
+```text
+acceptance=transport_auth_openai_realtime_smoke
+audio_format=24000 Hz mono 16-bit PCM WAV
+gateway_http_status=200
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+token_values_printed=false
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+- NODE-032U not accepted as:
+
+```text
+transcript_present_success=false
+transcript_quality_success=false
+transcript_text_correctness=false
+business_dialog_integration=false
+production_autostart=false
+dual_channel_recording=false
+```
+
+- Selected next boundary:
+
+```text
+NODE-032W / controlled-gateway-transcript-presence-smoke
+```
+
+NODE-032W should prove transcript event/presence behavior without enabling business-dialog transcript use and without logging transcript text.
+
+- Validation:
+
+```text
+focused_tests=35 passed
+full_pytest=230 passed, 6 failed
+known_environmental_failures=missing src/scripts/make_demo_audio.py; missing sentence_transformers
+git_diff_check=pass
+source_runtime_diff_check=empty
+tracked_secret_scan=no_real_secret_values_found; existing placeholders/status-field/test-fixture hits only
+scoped_docs_handoff_scan=no_real_secret_values_found; status-field/placeholders only
+```

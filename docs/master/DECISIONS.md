@@ -1544,6 +1544,46 @@ Next node:
 NODE-032V / gateway-smoke-result-acceptance-and-next-boundary-decision
 ```
 
+## NODE-032V Gateway Smoke Acceptance Decision
+
+NODE-032V is a local repo/docs decision node. No SSH, live smoke retry, helper deploy, token handling, temp env creation, service action, dependency install, `systemctl` action, reboot, provider power-cycle, firewall/env/server change, business-dialog enablement, transcript text logging, token output, Notion write, Runtime/Evidence update, scheduler, webhook, automation, commit, or PR occurred.
+
+Decision:
+
+- Accept NODE-032U as successful controlled Gateway transport/auth/OpenAI Realtime smoke with valid `24000 Hz mono 16-bit PCM WAV` audio.
+- Do not accept NODE-032U as transcript-quality success, transcript-present success, transcript text correctness proof, business-dialog integration proof, production autostart proof, or dual-channel caller/bot separation proof.
+- Treat `accepted=false` with `gateway_stt_dialog_use_disabled` as expected for this non-business-dialog smoke because `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=false` remained enforced.
+- Keep smoke retry, transcript-present proof, business-dialog integration, production autostart, and dual-channel architecture as separate boundaries.
+
+Accepted evidence:
+
+```text
+gateway_http_status=200
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+transcript_present=false
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Options considered:
+
+- Final Gateway transport/auth/OpenAI Realtime acceptance: accepted for this boundary.
+- Controlled transcript-presence smoke: selected as next boundary.
+- Direct business-dialog integration design: deferred until transcript-present behavior is proven separately.
+- Production persistence/autostart: deferred because service autostart is useful but not the immediate STT acceptance blocker.
+- Dual-channel recording/caller-bot separation: deferred to a separate architecture node.
+
+Next node:
+
+```text
+NODE-032W / controlled-gateway-transcript-presence-smoke
+```
+
 ## NODE-032T Phase B Gateway Smoke Retry Decision
 
 NODE-032T Phase B was approved with:
