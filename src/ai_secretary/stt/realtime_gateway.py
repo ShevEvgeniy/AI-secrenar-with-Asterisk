@@ -395,6 +395,7 @@ def _build_response_diagnostics(
     )
     return {
         "openai_event_type_counts": event_counts,
+        "openai_event_type_counts_available": True,
         "openai_event_type_counts_present": event_counts_present,
         "transcript_event_seen": transcript_event_seen,
         "transcript_bearing_event_seen": transcript_bearing_event_seen,

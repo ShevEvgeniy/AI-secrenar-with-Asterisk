@@ -1511,6 +1511,17 @@ current_blocker=approval_phrase_absent
 9. Preserve final safety state: Gateway service inactive/disabled, no target listeners on `443`, `8080`, or `8081`, firewall unchanged/source-restricted, Asterisk still has no `OPENAI_API_KEY`, and temporary helper/env/audio artifacts were removed.
 10. Select next boundary: `NODE-032AA / gateway-event-diagnostics-propagation-gap-fix`.
 
+## NODE-032AA Diagnostics Availability Marker Decision
+
+1. Preserve NODE-032Z as a blocked diagnostic-propagation closeout, not a transcript-event success.
+2. Add `openai_event_type_counts_available` as the safe field-availability marker.
+3. Keep `openai_event_type_counts_present` as a value/content marker indicating whether event-count entries exist.
+4. Treat `openai_event_type_counts_available=true` with `openai_event_type_counts={}` as propagated-but-empty diagnostics, not as a propagation gap.
+5. Treat missing event-count diagnostics as `diagnostic_propagation_gap=true`.
+6. Defensively strip `transcript_text` from Asterisk-side smoke reports whenever transcript logging is disabled.
+7. Preserve business-dialog boundaries: `transcript_used_for_dialog=false`, transcript logging disabled, and business dialog unchanged.
+8. Select next boundary: `NODE-032AB / controlled-transcript-event-diagnostics-smoke-after-propagation-fix`.
+
 ## NODE-032Z Phase A Readiness Decision
 
 Decision:

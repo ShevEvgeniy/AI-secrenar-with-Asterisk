@@ -3450,3 +3450,54 @@ Next recommendation:
 ```text
 NODE-032AA / gateway-event-diagnostics-propagation-gap-fix
 ```
+
+## NODE-032AA Diagnostics Propagation Gap Fix
+
+Result:
+
+```text
+node=NODE-032AA / gateway-event-diagnostics-propagation-gap-fix
+branch=feat/node-032aa-gateway-event-diagnostics-propagation-gap-fix
+phase=local implementation/docs only
+live_smoke=false
+server_state_changed=false
+```
+
+Confirmed local issue:
+
+```text
+problem=empty event-count dictionaries and missing event-count diagnostics were not explicit enough in final smoke evidence
+node032z_gap=diagnostic_propagation_gap
+```
+
+Fix:
+
+```text
+openai_event_type_counts_available=added
+meaning=true_when_openai_event_type_counts_field_propagated_even_if_empty
+openai_event_type_counts_present=kept_as_count_content_marker
+diagnostic_propagation_gap=true_only_when_diagnostics_missing_or_not_propagated
+```
+
+Safety:
+
+```text
+transcript_text_logging=false
+transcript_delta_logging=false
+business_dialog_enablement=false
+token_values_printed=false
+audio_artifacts_committed=false
+```
+
+Tests updated:
+
+```text
+tests/test_realtime_gateway.py
+tests/test_gateway_stt_adapter.py
+```
+
+Next recommendation:
+
+```text
+NODE-032AB / controlled-transcript-event-diagnostics-smoke-after-propagation-fix
+```

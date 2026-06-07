@@ -10,6 +10,7 @@ from pathlib import Path
 import threading
 
 from ai_secretary.stt.gateway_adapter import GatewaySttAdapterConfig, config_from_env, transcribe_via_gateway
+from ai_secretary.stt.gateway_adapter_smoke import build_report
 from ai_secretary.stt.gateway_adapter_smoke import main as gateway_adapter_smoke_main
 from ai_secretary.stt.gateway_adapter_smoke import run_smoke
 from ai_secretary.stt.realtime_gateway import GATEWAY_ENDPOINT
@@ -480,6 +481,7 @@ def test_gateway_adapter_smoke_reports_redacted_metadata(tmp_path: Path, monkeyp
     assert payload["openai_realtime_from_gateway"] == "ok"
     assert payload["chunks_sent"] == 6
     assert payload["openai_event_type_counts_present"] is True
+    assert payload["openai_event_type_counts_available"] is True
     assert payload["openai_event_type_counts"]["session.created"] == 1
     assert payload["transcript_event_seen"] is True
     assert payload["transcript_bearing_event_seen"] is True
@@ -534,6 +536,79 @@ def test_gateway_adapter_smoke_marks_missing_event_diagnostics_as_gap(
     assert payload["transcript_text_length_bucket"] == "unknown"
     assert payload["diagnostic_propagation_gap"] is True
     assert payload["diagnostic_classification"] == "diagnostic_propagation_gap"
+
+
+def test_gateway_adapter_smoke_preserves_empty_present_event_counts_without_gap() -> None:
+    report = build_report(
+        {
+            "stt_gateway_adapter_enabled": True,
+            "gateway_reachable": True,
+            "gateway_auth": "ok",
+            "gateway_http_status": 200,
+            "openai_realtime_connection_ok": True,
+            "chunks_sent": 5,
+            "openai_event_type_counts": {},
+            "openai_event_type_counts_available": True,
+            "openai_event_type_counts_present": False,
+            "transcript_event_seen": False,
+            "transcript_bearing_event_seen": False,
+            "transcript_text_present": False,
+            "transcript_text_length_bucket": "unknown",
+            "input_audio_buffer_commit_sent": True,
+            "timeout_observed": False,
+            "error_event_seen": False,
+            "diagnostic_propagation_gap": False,
+            "diagnostic_classification": "no_event_counts_available",
+            "dialog_transcript_used": False,
+            "transcript_text_logged": False,
+        },
+        accepted=False,
+        attempted=True,
+        reason="gateway_stt_dialog_use_disabled",
+    )
+
+    serialized = json.dumps(report, ensure_ascii=False)
+    assert report["openai_event_type_counts"] == {}
+    assert report["openai_event_type_counts_available"] is True
+    assert report["openai_event_type_counts_present"] is False
+    assert report["diagnostic_propagation_gap"] is False
+    assert report["diagnostic_classification"] == "no_event_counts_available"
+    assert report["transcript_used_for_dialog"] is False
+    assert report["business_dialog_unchanged"] is True
+    assert "gateway-token" not in serialized
+
+
+def test_gateway_adapter_smoke_marks_missing_diagnostics_as_gap_without_leaking_text() -> None:
+    transcript = "__FAKE_TRANSCRIPT_PLACEHOLDER__"
+    token = "__FAKE_GATEWAY_TOKEN_PLACEHOLDER__"
+
+    report = build_report(
+        {
+            "stt_gateway_adapter_enabled": True,
+            "gateway_reachable": True,
+            "gateway_auth": "ok",
+            "gateway_http_status": 200,
+            "openai_realtime_connection_ok": True,
+            "chunks_sent": 5,
+            "transcript_text": transcript,
+            "stt_gateway_token_configured": token,
+            "dialog_transcript_used": False,
+            "transcript_text_logged": False,
+        },
+        accepted=False,
+        attempted=True,
+        reason="gateway_stt_dialog_use_disabled",
+    )
+
+    serialized = json.dumps(report, ensure_ascii=False)
+    assert report["openai_event_type_counts"] == {}
+    assert report["openai_event_type_counts_available"] is False
+    assert report["diagnostic_propagation_gap"] is True
+    assert report["diagnostic_classification"] == "diagnostic_propagation_gap"
+    assert report["transcript_used_for_dialog"] is False
+    assert report["business_dialog_unchanged"] is True
+    assert transcript not in serialized
+    assert token not in serialized
 
 
 def test_gateway_adapter_smoke_requires_explicit_safe_flags(tmp_path: Path, monkeypatch, capsys) -> None:

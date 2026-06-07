@@ -3075,3 +3075,38 @@ Next recommendation:
 ```text
 NODE-032AA / gateway-event-diagnostics-propagation-gap-fix
 ```
+
+## NODE-032AA Runtime Notes
+
+Local/repo-only implementation:
+
+```text
+live_smoke=false
+ssh=false
+server_state_changed=false
+```
+
+Diagnostic schema update:
+
+```text
+openai_event_type_counts_available=added
+openai_event_type_counts_available_true=event_count_field_propagated_even_if_empty
+openai_event_type_counts_present=event_count_entries_exist
+diagnostic_propagation_gap=true_only_when_diagnostics_missing_or_not_propagated
+```
+
+Smoke report safety:
+
+```text
+transcript_text_stripped_when_logging_disabled=true
+transcript_text_logged=false
+transcript_delta_logged=false
+token_values_printed=false
+business_dialog_unchanged=true
+```
+
+Next recommendation:
+
+```text
+NODE-032AB / controlled-transcript-event-diagnostics-smoke-after-propagation-fix
+```
