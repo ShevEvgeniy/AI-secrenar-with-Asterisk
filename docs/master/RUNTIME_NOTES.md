@@ -3412,3 +3412,90 @@ Next recommendation:
 ```text
 NODE-032AF / controlled-gateway-runtime-measurement-dependency-rollout
 ```
+
+## NODE-032AF Runtime Measurement Dependency Inventory
+
+Phase A read-only result:
+
+```text
+asterisk_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript_flag=NOT_ENABLED
+transcript_text_logging_flag=NOT_ENABLED
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+ufw_8080_tcp=allowed_only_from_92.118.85.117
+gateway_env_metadata=root:gateway 640
+gateway_masked_secret_presence=passed
+```
+
+Deployed Gateway runtime:
+
+```text
+realtime_gateway_marker_openai_event_type_counts_available=present
+realtime_gateway_sha256=a1ba9d06be574f7559bd5e8805359385c15de21d587bf009a345c24a52373a85
+realtime_measurement_path=/opt/ai-secretary-gateway/src/ai_secretary/stt/realtime_measurement.py
+realtime_measurement_metadata=root:root 664 20054 2026-05-13 16:19:11 +0000
+realtime_measurement_sha256=51626eda7f8c74a557398312e1d0e6e9b6fd8a008c24c6a92a9365a99f9f3bcf
+diagnose_pcm_wav_audio_bytes_symbol=absent
+```
+
+Repo comparison:
+
+```text
+local_realtime_measurement_sha256=9848ccd75730ded3d649fb34bbd308554dce18ceb438ed4a63fac77e51d8fb90
+local_diagnose_pcm_wav_audio_bytes_symbol=present
+deployed_runtime_dependency_stale_or_missing=true
+```
+
+Backup feasibility:
+
+```text
+backup_dir=/opt/ai-secretary-gateway/backups
+backup_dir_exists=true
+backup_created=false
+```
+
+No deploy, server file edit, backup creation, service action, smoke, helper deploy, token handling, temp env creation, firewall/env/server change, transcript text/delta logging, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
+
+## NODE-032AF Runtime Measurement Dependency Rollout
+
+Approval phrase:
+
+```text
+APPROVE NODE-032AF GATEWAY MEASUREMENT DEPENDENCY ROLLOUT
+```
+
+Backup:
+
+```text
+backup_dir=/opt/ai-secretary-gateway/backups/node032af-20260607T191545Z
+backup_file=/opt/ai-secretary-gateway/backups/node032af-20260607T191545Z/realtime_measurement.py
+backup_sha256=51626eda7f8c74a557398312e1d0e6e9b6fd8a008c24c6a92a9365a99f9f3bcf
+```
+
+Rollout:
+
+```text
+updated_file=/opt/ai-secretary-gateway/src/ai_secretary/stt/realtime_measurement.py
+updated_file_metadata=root:root 664 25609 2026-06-07 19:15:45 +0000
+deployed_sha256=9848ccd75730ded3d649fb34bbd308554dce18ceb438ed4a63fac77e51d8fb90
+diagnose_pcm_wav_audio_bytes=present
+temporary_upload_removed=true
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+ufw_8080_tcp=allowed_only_from_92.118.85.117
+gateway_env_metadata=root:gateway 640
+realtime_gateway_marker_present=true
+realtime_gateway_sha256=a1ba9d06be574f7559bd5e8805359385c15de21d587bf009a345c24a52373a85
+asterisk_OPENAI_API_KEY_absent=true
+business_dialog_gateway_transcript_flag_not_enabled=true
+transcript_text_logging_flag_not_enabled=true
+```
+
+No smoke, test call, service action, `systemctl enable`, dependency install, reboot, power-cycle, firewall/env change, token output, transcript text/delta logging, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.

@@ -847,3 +847,50 @@ After each node, return:
 3. Short result.
 4. Validation result.
 5. Next recommendation.
+
+## NODE-032AF Controlled Gateway Runtime Measurement Dependency Rollout
+
+NODE-032AF Phase A completed read-only inventory of the deployed Gateway measurement dependency.
+
+Confirmed:
+
+```text
+deployed_realtime_gateway_marker_present=true
+deployed_realtime_gateway_sha256=a1ba9d06be574f7559bd5e8805359385c15de21d587bf009a345c24a52373a85
+deployed_realtime_measurement_symbol_diagnose_pcm_wav_audio_bytes=absent
+local_realtime_measurement_symbol_diagnose_pcm_wav_audio_bytes=present
+deployed_runtime_dependency_stale_or_missing=true
+backup_dir_exists=true
+```
+
+Plan for Phase B after exact approval:
+
+```text
+approval_phrase=APPROVE NODE-032AF GATEWAY MEASUREMENT DEPENDENCY ROLLOUT
+reconfirm_all_hard_gates
+backup_current_deployed_realtime_measurement_py
+roll_out_repo_realtime_measurement_py_to_deployed_runtime_path_only
+verify_symbol_and_hash
+preserve_env_and_firewall
+avoid_smoke_unless_separately_scoped
+document_rollback_path
+```
+
+NODE-032AF Phase B completed the controlled measurement dependency rollout without smoke.
+
+```text
+updated_file=/opt/ai-secretary-gateway/src/ai_secretary/stt/realtime_measurement.py
+backup_dir=/opt/ai-secretary-gateway/backups/node032af-20260607T191545Z
+deployed_realtime_measurement_sha256=9848ccd75730ded3d649fb34bbd308554dce18ceb438ed4a63fac77e51d8fb90
+diagnose_pcm_wav_audio_bytes=present
+service_action=false
+gateway_final_state=inactive_disabled
+firewall_unchanged=true
+smoke_ran=false
+```
+
+Next planned boundary:
+
+```text
+NODE-032AG / controlled-gateway-diagnostics-marker-smoke-after-measurement-rollout
+```
