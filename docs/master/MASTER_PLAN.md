@@ -822,6 +822,22 @@ Next planned boundary:
 NODE-032AE / controlled-gateway-diagnostics-marker-smoke-after-runtime-rollout
 ```
 
+NODE-032AE attempted the next smoke boundary after exact approval, but Gateway service readiness failed before the smoke helper invocation.
+
+```text
+blocker=deployed_runtime_dependency_gap
+missing_symbol=diagnose_pcm_wav_audio_bytes
+missing_symbol_module=ai_secretary.stt.realtime_measurement
+smoke_helper_invoked=false
+gateway_request_reached=false
+```
+
+Next planned boundary:
+
+```text
+NODE-032AF / controlled-gateway-runtime-measurement-dependency-rollout
+```
+
 ## Node Completion Report Format
 
 After each node, return:

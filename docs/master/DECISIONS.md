@@ -1839,6 +1839,30 @@ Next node:
 NODE-032AE / controlled-gateway-diagnostics-marker-smoke-after-runtime-rollout
 ```
 
+## NODE-032AE Blocked Smoke Decision
+
+Decision:
+
+- Treat NODE-032AE as blocked before smoke, not as failed Gateway/OpenAI smoke.
+- Do not retry smoke until the deployed Gateway runtime dependency set is complete.
+- Select a controlled rollout node for the missing `realtime_measurement.py` dependency.
+
+Evidence:
+
+```text
+smoke_helper_invoked=false
+gateway_request_reached=false
+gateway_service_readiness_failed=true
+missing_symbol=diagnose_pcm_wav_audio_bytes
+missing_symbol_module=ai_secretary.stt.realtime_measurement
+```
+
+Next node:
+
+```text
+NODE-032AF / controlled-gateway-runtime-measurement-dependency-rollout
+```
+
 ## NODE-032T Phase B Gateway Smoke Retry Decision
 
 NODE-032T Phase B was approved with:
