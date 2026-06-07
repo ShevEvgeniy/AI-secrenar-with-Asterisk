@@ -17,6 +17,8 @@ from .realtime_measurement import redact_secrets
 def build_report(result_details: dict[str, Any], *, accepted: bool, attempted: bool, reason: str) -> dict[str, Any]:
     """Build a secret-safe NODE-027 style report from adapter result details."""
     safe_details = redact_secrets(result_details)
+    if not safe_details.get("transcript_text_logged"):
+        safe_details.pop("transcript_text", None)
     transcript_present = bool(safe_details.get("transcript_text_present"))
     chunks_sent = safe_details.get("chunks_sent")
     diagnostics = _diagnostics_for_report(safe_details)
@@ -43,6 +45,7 @@ def build_report(result_details: dict[str, Any], *, accepted: bool, attempted: b
         "audio_non_silent_ratio": safe_details.get("audio_non_silent_ratio"),
         "audio_quality_classification": safe_details.get("audio_quality_classification"),
         "openai_event_type_counts": diagnostics["openai_event_type_counts"],
+        "openai_event_type_counts_available": diagnostics["openai_event_type_counts_available"],
         "openai_event_type_counts_present": diagnostics["openai_event_type_counts_present"],
         "transcript_event_seen": diagnostics["transcript_event_seen"],
         "transcript_bearing_event_seen": diagnostics["transcript_bearing_event_seen"],
@@ -153,6 +156,7 @@ def _diagnostics_for_report(details: dict[str, Any]) -> dict[str, Any]:
     counts = details.get("openai_event_type_counts")
     counts_available = isinstance(counts, dict)
     event_counts = counts if counts_available else {}
+    counts_present = _bool_or_none(details.get("openai_event_type_counts_present"))
     transcript_event_seen = _bool_or_none(details.get("transcript_event_seen"))
     transcript_bearing_event_seen = _bool_or_none(details.get("transcript_bearing_event_seen"))
     transcript_text_present = bool(details.get("transcript_text_present"))
@@ -162,7 +166,8 @@ def _diagnostics_for_report(details: dict[str, Any]) -> dict[str, Any]:
     diagnostic_propagation_gap = bool(details.get("diagnostic_propagation_gap")) or not counts_available
     return {
         "openai_event_type_counts": event_counts,
-        "openai_event_type_counts_present": bool(details.get("openai_event_type_counts_present")) or bool(event_counts),
+        "openai_event_type_counts_available": counts_available,
+        "openai_event_type_counts_present": counts_present if counts_present is not None else bool(event_counts),
         "transcript_event_seen": transcript_event_seen,
         "transcript_bearing_event_seen": transcript_bearing_event_seen,
         "transcript_text_present": transcript_text_present,

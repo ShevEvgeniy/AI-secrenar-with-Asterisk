@@ -12,7 +12,12 @@ import struct
 from fastapi.testclient import TestClient
 
 from ai_secretary.stt import realtime_gateway
-from ai_secretary.stt.realtime_gateway import GatewaySettings, create_app, run_gateway_realtime_measurement
+from ai_secretary.stt.realtime_gateway import (
+    GatewaySettings,
+    build_gateway_response,
+    create_app,
+    run_gateway_realtime_measurement,
+)
 from ai_secretary.stt.realtime_measurement import (
     GatewayMeasurementClientConfig,
     gateway_config_from_args_and_env,
@@ -181,6 +186,7 @@ def test_gateway_response_includes_audio_and_event_diagnostics(tmp_path: Path) -
     assert payload["openai_event_type_counts"]["session.created"] == 1
     assert payload["openai_event_type_counts"]["session.updated"] == 1
     assert payload["openai_event_type_counts"]["conversation.item.input_audio_transcription.completed"] == 1
+    assert payload["openai_event_type_counts_available"] is True
     assert payload["openai_event_type_counts_present"] is True
     assert payload["transcript_event_seen"] is True
     assert payload["transcript_bearing_event_seen"] is True
@@ -221,6 +227,34 @@ def test_gateway_audio_diagnostics_classify_silence(tmp_path: Path) -> None:
     assert payload["transcript_text_present"] is False
     assert payload["transcript_text_length_bucket"] == "zero"
     assert payload["diagnostic_classification"] == "transcript_event_observed_empty_or_no_text"
+
+
+def test_gateway_response_marks_empty_event_counts_available() -> None:
+    payload = build_gateway_response(
+        request_id="req_empty_diag",
+        settings=_settings(),
+        status=200,
+        response_diagnostics={
+            "openai_event_type_counts": {},
+            "openai_event_type_counts_available": True,
+            "openai_event_type_counts_present": False,
+            "transcript_event_seen": False,
+            "transcript_bearing_event_seen": False,
+            "transcript_text_present": False,
+            "transcript_text_length_bucket": "unknown",
+            "input_audio_buffer_commit_sent": False,
+            "timeout_observed": False,
+            "error_event_seen": False,
+            "diagnostic_propagation_gap": False,
+            "diagnostic_classification": "no_event_counts_available",
+        },
+    )
+
+    assert payload["openai_event_type_counts"] == {}
+    assert payload["openai_event_type_counts_available"] is True
+    assert payload["openai_event_type_counts_present"] is False
+    assert payload["diagnostic_propagation_gap"] is False
+    assert payload["diagnostic_classification"] == "no_event_counts_available"
 
 
 def test_gateway_request_schema_rejects_invalid_wav() -> None:

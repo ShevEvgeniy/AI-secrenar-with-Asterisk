@@ -656,6 +656,33 @@ NODE-032Z therefore remains a transport/auth/OpenAI Realtime success but a block
 NODE-032AA / gateway-event-diagnostics-propagation-gap-fix
 ```
 
+## NODE-032AA Diagnostics Propagation Fix
+
+NODE-032AA is a local implementation/docs node. It does not run live smoke or touch servers.
+
+It adds an explicit safe field:
+
+```text
+openai_event_type_counts_available
+```
+
+This separates two cases:
+
+```text
+openai_event_type_counts_available=true and openai_event_type_counts={} means diagnostics propagated but event counts are empty
+openai_event_type_counts_available=false means event-count diagnostics are missing/not propagated
+```
+
+The smoke report now keeps `diagnostic_propagation_gap=false` for empty-but-present diagnostics and reserves `diagnostic_propagation_gap=true` for missing diagnostics. It also defensively strips transcript text from smoke report details whenever transcript logging is disabled.
+
+Next live boundary:
+
+```text
+NODE-032AB / controlled-transcript-event-diagnostics-smoke-after-propagation-fix
+```
+
+NODE-032AB should run one controlled Asterisk-side non-business-dialog smoke after exact approval and hard-gate re-confirmation, checking the new availability marker plus the existing redacted diagnostic fields.
+
 ## Node Completion Report Format
 
 After each node, return:

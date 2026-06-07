@@ -117,6 +117,7 @@ Preferred flat fields:
 
 ```text
 openai_event_type_counts
+openai_event_type_counts_available
 openai_event_type_counts_present
 transcript_event_seen
 transcript_bearing_event_seen
@@ -151,6 +152,8 @@ unknown
 ```
 
 Default Gateway and smoke-helper behavior must not return or log transcript text. If a transcript-bearing OpenAI event contains text, reports may set `transcript_text_present=true` and `transcript_text_length_bucket=nonzero_redacted` only.
+
+`openai_event_type_counts_available=true` means the Gateway response/report path carried the safe event-count field, even when `openai_event_type_counts={}` and `openai_event_type_counts_present=false`. `diagnostic_propagation_gap=true` is reserved for missing or unpropagated diagnostics, not for an intentionally empty event-count dictionary.
 
 ## One-Shot Error Response
 
