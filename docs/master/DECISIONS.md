@@ -1498,6 +1498,55 @@ condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
 current_blocker=approval_phrase_absent
 ```
 
+## NODE-032AF Phase A Decision
+
+NODE-032AF confirms the NODE-032AE service readiness blocker is a deployed Gateway runtime dependency mismatch.
+
+Evidence:
+
+```text
+updated_deployed_realtime_gateway_py_marker=openai_event_type_counts_available
+updated_deployed_realtime_gateway_py_sha256=a1ba9d06be574f7559bd5e8805359385c15de21d587bf009a345c24a52373a85
+required_symbol=diagnose_pcm_wav_audio_bytes
+local_realtime_measurement_symbol=present
+deployed_realtime_measurement_symbol=absent
+local_deployed_realtime_measurement_hash_match=false
+```
+
+Decision:
+
+```text
+phase_b_rollout_can_be_requested=true
+phase_b_scope=controlled_realtime_measurement_py_rollout_only
+phase_b_approval_phrase=APPROVE NODE-032AF GATEWAY MEASUREMENT DEPENDENCY ROLLOUT
+smoke_in_phase_b=false_unless_separately_approved
+```
+
+Rejected for NODE-032AF Phase A:
+
+```text
+deploy_without_exact_approval=false
+service_restart_in_phase_a=false
+smoke_in_phase_a=false
+token_handling_in_phase_a=false
+```
+
+## NODE-032AF Phase B Rollout Decision
+
+NODE-032AF Phase B was approved and completed as a controlled Gateway runtime dependency rollout only.
+
+```text
+updated_dependency=realtime_measurement.py
+backup_created=true
+backup_dir=/opt/ai-secretary-gateway/backups/node032af-20260607T191545Z
+diagnose_pcm_wav_audio_bytes_after_rollout=present
+local_deployed_hash_match=true
+service_action=false
+smoke=false
+```
+
+The next boundary should verify Gateway readiness/smoke after the dependency rollout, using a separate exact approval gate. NODE-032AF deliberately did not combine dependency rollout with smoke.
+
 ## NODE-032Z Redacted Diagnostics Smoke Decision
 
 1. Accept NODE-032Z Phase B as a successful controlled transport/auth/OpenAI Realtime smoke, not as transcript-event diagnostic success.

@@ -2849,6 +2849,98 @@ approval_phrase=APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS
 current_blocker=approval_phrase_absent
 ```
 
+## NODE-032AF Phase A Runtime Measurement Dependency Inventory
+
+Result:
+
+```text
+node=NODE-032AF / controlled-gateway-runtime-measurement-dependency-rollout
+branch=feat/node-032af-controlled-gateway-runtime-measurement-dependency-rollout
+phase=Phase A read-only inventory
+base_master_head=d2bd0087dde74ba59e2f6f6b6f40533f7bfa64a3
+```
+
+Read-only gates:
+
+```text
+asterisk_ssh_reachable=true
+asterisk_hostname=tula
+asterisk_service=active_enabled
+asterisk_OPENAI_API_KEY_process=ABSENT
+asterisk_OPENAI_API_KEY_service_env=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+asterisk_target_listeners_443_8080_8081=absent
+gateway_ssh_reachable=true
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service=inactive_disabled
+gateway_env_metadata=root:gateway:640
+gateway_masked_OPENAI_API_KEY_presence=passed
+gateway_masked_GATEWAY_TOKEN_presence=passed
+gateway_target_listeners_443_8080_8081=absent
+ufw=active_default_deny_8080_from_92.118.85.117_only
+```
+
+Dependency inventory:
+
+```text
+deployed_realtime_gateway_marker_present=true
+deployed_realtime_gateway_sha256=a1ba9d06be574f7559bd5e8805359385c15de21d587bf009a345c24a52373a85
+local_realtime_measurement_sha256=9848ccd75730ded3d649fb34bbd308554dce18ceb438ed4a63fac77e51d8fb90
+deployed_realtime_measurement_sha256=51626eda7f8c74a557398312e1d0e6e9b6fd8a008c24c6a92a9365a99f9f3bcf
+local_diagnose_pcm_wav_audio_bytes=present
+deployed_diagnose_pcm_wav_audio_bytes=absent
+deployed_runtime_dependency_stale_or_missing=true
+backup_dir_exists=true
+```
+
+Phase A recommendation:
+
+```text
+phase_b_rollout_can_be_requested=true
+approval_phrase=APPROVE NODE-032AF GATEWAY MEASUREMENT DEPENDENCY ROLLOUT
+next_action=controlled_realtime_measurement_py_rollout_after_exact_approval
+```
+
+## NODE-032AF Phase B Runtime Measurement Dependency Rollout
+
+Approval:
+
+```text
+approval_phrase=APPROVE NODE-032AF GATEWAY MEASUREMENT DEPENDENCY ROLLOUT
+```
+
+Result:
+
+```text
+hard_gates_reconfirmed=true
+backup_dir=/opt/ai-secretary-gateway/backups/node032af-20260607T191545Z
+backup_file=/opt/ai-secretary-gateway/backups/node032af-20260607T191545Z/realtime_measurement.py
+backup_sha256=51626eda7f8c74a557398312e1d0e6e9b6fd8a008c24c6a92a9365a99f9f3bcf
+updated_file=/opt/ai-secretary-gateway/src/ai_secretary/stt/realtime_measurement.py
+deployed_sha256=9848ccd75730ded3d649fb34bbd308554dce18ceb438ed4a63fac77e51d8fb90
+local_deployed_hash_match=true
+diagnose_pcm_wav_audio_bytes=present
+temporary_upload_removed=true
+service_action_performed=false
+smoke_ran=false
+```
+
+Final safety state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall_unchanged=true
+ufw_8080_tcp=allowed_only_from_92.118.85.117
+gateway_env_metadata=root:gateway 640
+realtime_gateway_marker_hash_still_valid=true
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+```
+
 ## NODE-032AB Phase B Live Smoke
 
 Result:
