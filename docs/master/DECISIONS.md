@@ -1498,6 +1498,67 @@ condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
 current_blocker=approval_phrase_absent
 ```
 
+## NODE-032AG Phase A Decision
+
+NODE-032AG should proceed to one controlled transcript-event diagnostics smoke only after exact approval and immediate hard-gate re-confirmation.
+
+Evidence:
+
+```text
+asterisk_safety_gates=passed
+gateway_safety_gates=passed
+realtime_gateway_marker_hash_valid=true
+realtime_measurement_symbol_hash_valid=true
+gateway_service=inactive_disabled
+```
+
+Decision:
+
+```text
+phase_b_smoke_can_be_requested=true
+phase_b_approval_phrase=APPROVE NODE-032AG PHASE B LIVE SMOKE
+phase_b_scope=one_controlled_asterisk_side_non_business_dialog_smoke
+token_output=false
+transcript_text_or_delta_logging=false
+business_dialog_transcript_use=false
+```
+
+## NODE-032AG Phase B Smoke Decision
+
+NODE-032AG Phase B was approved and completed exactly one controlled Asterisk-side non-business-dialog smoke after immediate hard-gate re-confirmation.
+
+Decision:
+
+- Accept NODE-032AG as successful deployed Gateway diagnostics propagation proof.
+- The smoke proves Gateway reachability/auth, OpenAI Realtime session creation, audio chunk send, and redacted event-count propagation from the deployed runtime.
+- Do not treat it as business-dialog integration, production autostart, transcript text correctness, or transcript-quality acceptance.
+
+Evidence:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_present=false
+diagnostic_propagation_gap=false
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Next boundary:
+
+```text
+NODE-032AH / transcript-event-diagnostics-smoke-acceptance-and-next-boundary-decision
+```
+
 ## NODE-032AF Phase A Decision
 
 NODE-032AF confirms the NODE-032AE service readiness blocker is a deployed Gateway runtime dependency mismatch.
