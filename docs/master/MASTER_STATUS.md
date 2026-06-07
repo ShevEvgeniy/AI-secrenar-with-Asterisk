@@ -2849,6 +2849,112 @@ approval_phrase=APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS
 current_blocker=approval_phrase_absent
 ```
 
+## NODE-032AG Phase A Transcript Event Diagnostics Smoke Readiness
+
+Result:
+
+```text
+node=NODE-032AG / controlled-transcript-event-diagnostics-smoke-after-measurement-dependency-rollout
+branch=feat/node-032ag-controlled-transcript-event-diagnostics-smoke-after-measurement-dependency-rollout
+phase=Phase A read-only gates and pre-smoke readiness
+base_master_head=6cd71adb557d349bcac97a12656b0eace861473e
+```
+
+Read-only gates:
+
+```text
+asterisk_ssh_reachable=true
+asterisk_hostname=tula
+asterisk_service=active_enabled
+asterisk_OPENAI_API_KEY_process=ABSENT
+asterisk_OPENAI_API_KEY_service_env=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+asterisk_target_listeners_443_8080_8081=absent
+selected_runtime=Python 3.12.3
+selected_runtime_modules=httpx_fastapi_websockets_present
+gateway_ssh_reachable=true
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service=inactive_disabled
+gateway_env_metadata=root:gateway:640
+gateway_masked_OPENAI_API_KEY_presence=passed
+gateway_masked_GATEWAY_TOKEN_presence=passed
+gateway_target_listeners_443_8080_8081=absent
+ufw=active_default_deny_8080_from_92.118.85.117_only
+```
+
+Deployed runtime readiness:
+
+```text
+realtime_gateway_marker_present=true
+realtime_gateway_sha256=a1ba9d06be574f7559bd5e8805359385c15de21d587bf009a345c24a52373a85
+realtime_measurement_symbol_present=true
+realtime_measurement_sha256=9848ccd75730ded3d649fb34bbd308554dce18ceb438ed4a63fac77e51d8fb90
+```
+
+Phase A recommendation:
+
+```text
+phase_b_smoke_can_be_requested=true
+approval_phrase=APPROVE NODE-032AG PHASE B LIVE SMOKE
+condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
+```
+
+## NODE-032AG Phase B Transcript Event Diagnostics Smoke
+
+Result:
+
+```text
+node=NODE-032AG / controlled-transcript-event-diagnostics-smoke-after-measurement-dependency-rollout
+branch=feat/node-032ag-controlled-transcript-event-diagnostics-smoke-after-measurement-dependency-rollout
+phase=Phase B controlled live smoke passed
+approval_phrase=APPROVE NODE-032AG PHASE B LIVE SMOKE
+```
+
+Smoke evidence:
+
+```text
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_present=false
+transcript_text_length_bucket=zero
+input_audio_buffer_commit_sent=true
+timeout_observed=false
+error_event_seen=false
+diagnostic_propagation_gap=false
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Final safe state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted
+asterisk_OPENAI_API_KEY=ABSENT
+temporary_helper_env_audio_removed=true
+token_values_printed=false
+```
+
+Next:
+
+```text
+NODE-032AH / transcript-event-diagnostics-smoke-acceptance-and-next-boundary-decision
+```
+
 ## NODE-032AF Phase A Runtime Measurement Dependency Inventory
 
 Result:

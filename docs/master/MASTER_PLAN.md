@@ -848,6 +848,57 @@ After each node, return:
 4. Validation result.
 5. Next recommendation.
 
+## NODE-032AG Controlled Transcript Event Diagnostics Smoke Readiness
+
+NODE-032AG Phase A completed read-only smoke readiness checks after NODE-032AF.
+
+Confirmed:
+
+```text
+asterisk_safety_gates=passed
+gateway_safety_gates=passed
+gateway_service=inactive_disabled
+realtime_gateway_marker_and_hash=valid
+realtime_measurement_symbol_and_hash=valid
+```
+
+Plan for Phase B after exact approval:
+
+```text
+approval_phrase=APPROVE NODE-032AG PHASE B LIVE SMOKE
+reconfirm_all_hard_gates
+start_gateway_service_only_for_smoke_readiness
+run_exactly_one_asterisk_side_non_business_dialog_smoke
+collect_redacted_diagnostics_only
+restore_final_safe_state
+```
+
+NODE-032AG Phase B completed the approved controlled Asterisk-side non-business-dialog smoke.
+
+```text
+approval_phrase=APPROVE NODE-032AG PHASE B LIVE SMOKE
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_present=false
+diagnostic_propagation_gap=false
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+transcript_text_logged=false
+business_dialog_unchanged=true
+final_gateway_service=inactive_disabled
+```
+
+Next planned boundary:
+
+```text
+NODE-032AH / transcript-event-diagnostics-smoke-acceptance-and-next-boundary-decision
+```
+
 ## NODE-032AF Controlled Gateway Runtime Measurement Dependency Rollout
 
 NODE-032AF Phase A completed read-only inventory of the deployed Gateway measurement dependency.

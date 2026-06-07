@@ -3499,3 +3499,75 @@ transcript_text_logging_flag_not_enabled=true
 ```
 
 No smoke, test call, service action, `systemctl enable`, dependency install, reboot, power-cycle, firewall/env change, token output, transcript text/delta logging, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
+
+## NODE-032AG Transcript Event Diagnostics Smoke Readiness
+
+Phase A read-only gates:
+
+```text
+asterisk_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript_flag=NOT_ENABLED
+transcript_text_logging_flag=NOT_ENABLED
+selected_asterisk_runtime=Python 3.12.3
+selected_runtime_modules=httpx_fastapi_websockets_present
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+ufw_8080_tcp=allowed_only_from_92.118.85.117
+gateway_env_metadata=root:gateway 640
+gateway_masked_secret_presence=passed
+```
+
+Deployed runtime:
+
+```text
+realtime_gateway_marker_openai_event_type_counts_available=present
+realtime_gateway_sha256=a1ba9d06be574f7559bd5e8805359385c15de21d587bf009a345c24a52373a85
+realtime_measurement_diagnose_pcm_wav_audio_bytes=present
+realtime_measurement_sha256=9848ccd75730ded3d649fb34bbd308554dce18ceb438ed4a63fac77e51d8fb90
+```
+
+Future smoke gate:
+
+```text
+approval_phrase=APPROVE NODE-032AG PHASE B LIVE SMOKE
+phase_b_smoke_can_be_requested=true
+```
+
+No smoke, helper deploy, token handling, temp env creation, service action, firewall/env/server change, transcript text/delta logging, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
+
+## NODE-032AG Transcript Event Diagnostics Smoke Result
+
+NODE-032AG Phase B ran exactly one approved Asterisk-side non-business-dialog smoke after hard gates passed. Gateway service was started only for smoke readiness and stopped afterward.
+
+```text
+gateway_http_status=200
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+input_audio_buffer_commit_sent=true
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+openai_event_type_counts=conversation.item.added:1,conversation.item.done:1,conversation.item.input_audio_transcription.completed:1,input_audio_buffer.committed:1,session.created:1,session.updated:1
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_present=false
+transcript_text_length_bucket=zero
+diagnostic_propagation_gap=false
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Final runtime state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted
+asterisk_OPENAI_API_KEY=ABSENT
+temporary_helper_env_audio_removed=true
+```
