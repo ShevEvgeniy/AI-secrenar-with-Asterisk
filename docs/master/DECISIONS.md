@@ -1775,6 +1775,70 @@ production_autostart
 firewall_or_tls_changes
 ```
 
+## NODE-032AD Phase A Runtime Rollout Decision
+
+Decision:
+
+- Treat NODE-032AD Phase A as read-only evidence that the live Gateway runtime is stale relative to the repo diagnostics marker.
+- Allow Phase B rollout to be requested only with exact approval and immediate hard-gate re-confirmation.
+- Keep smoke verification separate unless explicitly scoped after rollout.
+
+Evidence:
+
+```text
+local_realtime_gateway_marker_present=true
+deployed_realtime_gateway_marker_present=false
+local_realtime_gateway_sha256=A1BA9D06BE574F7559BD5E8805359385C15DE21D587BF009A345C24A52373A85
+deployed_realtime_gateway_sha256=6b9eecd32ab15eb1a35344663ea67f589ad6fb86db663717e2819d4cec731199
+gateway_service_runtime_path=/opt/ai-secretary-gateway/src
+gateway_service_state=inactive_disabled
+```
+
+Phase B approval phrase:
+
+```text
+APPROVE NODE-032AD GATEWAY RUNTIME DIAGNOSTICS ROLLOUT
+```
+
+Rejected in Phase A:
+
+```text
+deploy
+backup_creation
+live_smoke
+service_action
+token_handling
+firewall_change
+business_dialog_enablement
+transcript_text_or_delta_logging
+```
+
+## NODE-032AD Phase B Runtime Rollout Decision
+
+Decision:
+
+- Apply only the Gateway runtime diagnostics propagation file required for the safe event-count marker.
+- Do not run smoke in NODE-032AD.
+- Keep Gateway service inactive and disabled after rollout.
+- Use a separate follow-up smoke node to verify runtime marker propagation over HTTP/OpenAI Realtime.
+
+Result:
+
+```text
+backup_dir=/opt/ai-secretary-gateway/backups/node032ad-20260607T140434Z
+updated_file=/opt/ai-secretary-gateway/src/ai_secretary/stt/realtime_gateway.py
+openai_event_type_counts_available_marker_present=true
+local_deployed_hash_match=true
+service_action=false
+firewall_unchanged=true
+```
+
+Next node:
+
+```text
+NODE-032AE / controlled-gateway-diagnostics-marker-smoke-after-runtime-rollout
+```
+
 ## NODE-032T Phase B Gateway Smoke Retry Decision
 
 NODE-032T Phase B was approved with:

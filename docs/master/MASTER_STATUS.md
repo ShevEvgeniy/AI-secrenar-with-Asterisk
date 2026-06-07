@@ -2955,6 +2955,103 @@ suggested_approval_phrase=APPROVE NODE-032AD GATEWAY RUNTIME DIAGNOSTICS ROLLOUT
 
 No live smoke, SSH, helper deploy, token handling, temp env, service action, dependency install, reboot, firewall/env/server change, transcript text logging, transcript delta logging, business-dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
 
+## NODE-032AD Phase A Gateway Runtime Inventory
+
+Result:
+
+```text
+node=NODE-032AD / controlled-gateway-runtime-diagnostics-propagation-rollout
+branch=feat/node-032ad-controlled-gateway-runtime-diagnostics-propagation-rollout
+phase=Phase A read-only inventory
+base_master_head=5ab96a13606be858d4b446dba87eefece0a76d1b
+phase_b_approval_phrase=APPROVE NODE-032AD GATEWAY RUNTIME DIAGNOSTICS ROLLOUT
+```
+
+Read-only findings:
+
+```text
+asterisk_ssh_reachable=true
+asterisk_OPENAI_API_KEY_absent=true
+business_dialog_gateway_transcript_flag_not_enabled=true
+transcript_text_logging_flag_not_enabled=true
+gateway_ssh_reachable=true
+gateway_service_active=inactive
+gateway_service_enabled=disabled
+gateway_unit_workdir=/opt/ai-secretary-gateway
+gateway_unit_pythonpath=/opt/ai-secretary-gateway/src
+gateway_env_metadata=root:gateway 640
+ufw_8080_tcp=allowed_only_from_92.118.85.117
+target_listeners_443_8080_8081=absent
+```
+
+Runtime inventory:
+
+```text
+local_realtime_gateway_marker_present=true
+deployed_realtime_gateway_marker_present=false
+local_realtime_gateway_sha256=A1BA9D06BE574F7559BD5E8805359385C15DE21D587BF009A345C24A52373A85
+deployed_realtime_gateway_sha256=6b9eecd32ab15eb1a35344663ea67f589ad6fb86db663717e2819d4cec731199
+deployed_gateway_adapter_smoke_present=false
+deployed_runtime_appears_stale=true
+```
+
+Phase B rollout can be requested after exact approval and immediate hard-gate re-confirmation. No deploy, server file edit, backup creation, live smoke, helper deploy, token handling, temp env, service action, dependency install, reboot, firewall/env/server change, transcript logging, business-dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
+
+## NODE-032AD Phase B Gateway Runtime Diagnostics Rollout
+
+Result:
+
+```text
+node=NODE-032AD / controlled-gateway-runtime-diagnostics-propagation-rollout
+phase=Phase B controlled rollout
+approval_phrase=APPROVE NODE-032AD GATEWAY RUNTIME DIAGNOSTICS ROLLOUT
+live_smoke=false
+```
+
+Hard gates passed immediately before rollout:
+
+```text
+asterisk_OPENAI_API_KEY_absent=true
+business_dialog_gateway_transcript_flag_not_enabled=true
+transcript_text_logging_flag_not_enabled=true
+gateway_service_before=inactive_disabled
+gateway_unit_verify=ok
+target_listeners_443_8080_8081_before=absent
+ufw_active_default_deny=true
+ufw_8080_tcp=allowed_only_from_92.118.85.117
+gateway_env_metadata=root:gateway 640
+gateway_masked_secret_presence=passed
+```
+
+Rollout:
+
+```text
+backup_dir=/opt/ai-secretary-gateway/backups/node032ad-20260607T140434Z
+updated_file=/opt/ai-secretary-gateway/src/ai_secretary/stt/realtime_gateway.py
+backup_sha256=6b9eecd32ab15eb1a35344663ea67f589ad6fb86db663717e2819d4cec731199
+deployed_sha256=a1ba9d06be574f7559bd5e8805359385c15de21d587bf009a345c24a52373a85
+local_deployed_hash_match=true
+openai_event_type_counts_available_marker_present=true
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall_unchanged=true
+gateway_env_metadata=root:gateway 640
+asterisk_OPENAI_API_KEY_absent=true
+business_dialog_gateway_transcript_flag_not_enabled=true
+transcript_text_logging_flag_not_enabled=true
+```
+
+Next recommendation:
+
+```text
+NODE-032AE / controlled-gateway-diagnostics-marker-smoke-after-runtime-rollout
+```
+
 ## NODE-032T Phase B Gateway Smoke Retry Result
 
 Result:
