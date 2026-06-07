@@ -1498,6 +1498,36 @@ condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
 current_blocker=approval_phrase_absent
 ```
 
+## NODE-032Z Redacted Diagnostics Smoke Decision
+
+1. Accept NODE-032Z Phase B as a successful controlled transport/auth/OpenAI Realtime smoke, not as transcript-event diagnostic success.
+2. Preserve the exact Phase B approval phrase used: `APPROVE NODE-032Z PHASE B LIVE SMOKE`.
+3. Record that hard gates passed before state-changing commands: Asterisk stayed `OPENAI_API_KEY_ABSENT`, business-dialog Gateway transcript use stayed not enabled, Gateway unit verified, Gateway env remained `root:gateway 640`, no target listeners existed before apply, and UFW remained source-restricted to `92.118.85.117`.
+4. Record that helper bundle validation, valid 24 kHz mono 16-bit PCM audio validation, and safe temp-env create/validate/cleanup completed without token output or transcript text output.
+5. Record that one malformed helper CLI command failed at argument parsing before any Gateway request; it is not counted as the controlled smoke.
+6. Record the single corrected smoke result: Gateway reachable/auth OK, HTTP `200`, OpenAI Realtime OK, session created, and `chunks_sent=5`.
+7. Preserve the business-dialog boundary: `transcript_text_logged=false`, `transcript_used_for_dialog=false`, and `business_dialog_unchanged=true`.
+8. Record NODE-032Y diagnostic outcome as blocked: `openai_event_type_counts_present=false`, empty event counts, transcript-event flags null, `diagnostic_propagation_gap=true`, and `diagnostic_classification=diagnostic_propagation_gap`.
+9. Preserve final safety state: Gateway service inactive/disabled, no target listeners on `443`, `8080`, or `8081`, firewall unchanged/source-restricted, Asterisk still has no `OPENAI_API_KEY`, and temporary helper/env/audio artifacts were removed.
+10. Select next boundary: `NODE-032AA / gateway-event-diagnostics-propagation-gap-fix`.
+
+## NODE-032Z Phase A Readiness Decision
+
+Decision:
+
+- Treat all live gates as stale because servers were powered on after a pause.
+- Phase A may only document read-only state and plan Phase B.
+- Phase B is conditional GO only after exact approval and immediate hard-gate re-confirmation.
+- Future smoke evidence must use NODE-032Y redacted diagnostics only.
+
+Approval phrase:
+
+```text
+APPROVE NODE-032Z PHASE B LIVE SMOKE
+```
+
+Phase A observed no blocking readiness issue beyond missing approval and stale-gate recheck requirement. Asterisk is reachable with `ai-secretary-ari.service` active/enabled, no Asterisk `OPENAI_API_KEY` in env/process, and business-dialog Gateway transcript use not enabled. Gateway is reachable with `ai-secretary-gateway.service` inactive/disabled, no target listeners, UFW active/restricted, and env metadata `root:gateway 640`.
+
 ## NODE-032Y Redacted Diagnostic Model Decision
 
 Decision:

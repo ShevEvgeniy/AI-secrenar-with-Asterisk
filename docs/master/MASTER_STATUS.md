@@ -3309,3 +3309,144 @@ Next recommendation:
 ```text
 NODE-032Z / controlled-transcript-event-diagnostics-smoke-with-redacted-counts
 ```
+
+## NODE-032Z Phase A Readiness
+
+Result:
+
+```text
+node=NODE-032Z / controlled-transcript-event-diagnostics-smoke-with-redacted-counts
+branch=feat/node-032z-controlled-transcript-event-diagnostics-smoke-with-redacted-counts
+base_head=b85300848c7b3a4bfe93489a34be5fe92a6f7edc
+phase=Phase A readiness only
+live_smoke=false
+server_state_changed=false
+```
+
+Asterisk read-only gates:
+
+```text
+ssh_reachable=true
+hostname=tula
+service_active=active
+service_enabled=enabled
+ari_env_metadata=root:tulauser 640
+env_OPENAI_API_KEY=ABSENT
+process_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+selected_runtime=/home/tulauser/AI-secrenar-with-Asterisk-node014/.venv/bin/python
+selected_runtime_version=Python 3.12.3
+```
+
+Gateway read-only gates:
+
+```text
+ssh_reachable=true
+hostname=ai-secretary-gateway-node023
+service_active=inactive
+service_enabled=disabled
+target_listeners_443_8080_8081=absent
+ufw_status=active
+ufw_default_incoming=deny
+ufw_8080_tcp=ALLOW from 92.118.85.117 only
+gateway_env_metadata=root:gateway 640
+```
+
+Phase B status:
+
+```text
+phase_b_recommendation=CONDITIONAL_GO
+approval_phrase_required=APPROVE NODE-032Z PHASE B LIVE SMOKE
+blockers=approval phrase absent; live gates stale until immediate Phase B recheck
+```
+
+## NODE-032Z Phase B Redacted Diagnostics Smoke
+
+Result:
+
+```text
+node=NODE-032Z / controlled-transcript-event-diagnostics-smoke-with-redacted-counts
+branch=feat/node-032z-controlled-transcript-event-diagnostics-smoke-with-redacted-counts
+phase=Phase B live smoke after exact approval
+approval_phrase=APPROVE NODE-032Z PHASE B LIVE SMOKE
+phase_b_result=blocked_diagnostic_propagation_gap
+```
+
+Hard gates were re-confirmed before state-changing commands:
+
+```text
+asterisk_ssh_reachable=true
+asterisk_hostname=tula
+asterisk_service=active_enabled
+asterisk_OPENAI_API_KEY_env=ABSENT
+asterisk_OPENAI_API_KEY_process=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+gateway_ssh_reachable=true
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service_before=inactive_disabled
+gateway_env_metadata=root:gateway:640
+gateway_masked_OPENAI_API_KEY_presence=passed
+gateway_masked_GATEWAY_TOKEN_presence=passed
+target_listeners_443_8080_8081_before=absent
+ufw=active_default_deny_8080_from_92.118.85.117_only
+```
+
+Smoke evidence:
+
+```text
+helper_bundle_validate=ok
+smoke_audio=24000_Hz_mono_16_bit_PCM_WAV
+safe_temp_env_create_validate_cleanup=ok
+token_values_printed=false
+transcript_text_printed=false
+controlled_smoke_invocations=1
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+accepted=false
+fallback_reason=gateway_stt_dialog_use_disabled
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Redacted diagnostic result:
+
+```text
+openai_event_type_counts={}
+openai_event_type_counts_present=false
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+transcript_text_present=false
+transcript_text_length_bucket=unknown
+input_audio_buffer_commit_sent=null
+timeout_observed=null
+error_event_seen=null
+diagnostic_propagation_gap=true
+diagnostic_classification=diagnostic_propagation_gap
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+temporary_helper_env_audio_removed=true
+local_temporary_helper_bundle_removed=true
+systemctl_enable=false
+reboot_or_power_cycle=false
+```
+
+Next recommendation:
+
+```text
+NODE-032AA / gateway-event-diagnostics-propagation-gap-fix
+```

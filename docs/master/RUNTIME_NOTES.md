@@ -2951,3 +2951,127 @@ Next recommendation:
 ```text
 NODE-032Z / controlled-transcript-event-diagnostics-smoke-with-redacted-counts
 ```
+
+## NODE-032Z Phase A Runtime Notes
+
+Read-only checks only:
+
+```text
+asterisk_host=tula
+asterisk_ssh_reachable=true
+asterisk_service=active_enabled
+asterisk_OPENAI_API_KEY_env=ABSENT
+asterisk_OPENAI_API_KEY_process=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+asterisk_selected_runtime=Python 3.12.3
+gateway_host=ai-secretary-gateway-node023
+gateway_ssh_reachable=true
+gateway_service=inactive_disabled
+gateway_target_listeners_443_8080_8081=absent
+gateway_ufw=active_default_deny_8080_from_92.118.85.117_only
+gateway_env_metadata=root:gateway 640
+```
+
+Safety:
+
+```text
+live_smoke=false
+helper_deploy=false
+token_handling=false
+server_temp_env=false
+service_action=false
+dependency_install=false
+reboot_or_power_cycle=false
+firewall_env_server_change=false
+transcript_text_logging=false
+business_dialog_enablement=false
+```
+
+## NODE-032Z Phase B Runtime Notes
+
+NODE-032Z Phase B was approved with:
+
+```text
+APPROVE NODE-032Z PHASE B LIVE SMOKE
+```
+
+Hard gates:
+
+```text
+asterisk_host=tula
+asterisk_service=active_enabled
+asterisk_OPENAI_API_KEY_env=ABSENT
+asterisk_OPENAI_API_KEY_process=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+gateway_host=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service_before=inactive_disabled
+gateway_env_metadata=root:gateway:640
+gateway_masked_secrets_present=true
+target_listeners_443_8080_8081_before=absent
+ufw=active_default_deny_8080_from_92.118.85.117_only
+```
+
+Smoke setup:
+
+```text
+helper_bundle_validate=ok
+smoke_audio_validate=24000_Hz_mono_16_bit_PCM_WAV
+safe_temp_env_create_validate_cleanup=ok
+token_values_printed=false
+transcript_text_printed=false
+gateway_service_started_for_smoke=true
+gateway_service_enabled=false
+systemctl_enable=false
+reboot_or_power_cycle=false
+```
+
+Smoke result:
+
+```text
+controlled_smoke_invocations=1
+gateway_http_status=200
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+accepted=false
+fallback_reason=gateway_stt_dialog_use_disabled
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+```
+
+Redacted diagnostics:
+
+```text
+openai_event_type_counts={}
+openai_event_type_counts_present=false
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+transcript_text_present=false
+transcript_text_length_bucket=unknown
+input_audio_buffer_commit_sent=null
+timeout_observed=null
+error_event_seen=null
+diagnostic_propagation_gap=true
+diagnostic_classification=diagnostic_propagation_gap
+```
+
+Final runtime state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+temporary_helper_env_audio_removed=true
+local_temporary_helper_bundle_removed=true
+```
+
+Next recommendation:
+
+```text
+NODE-032AA / gateway-event-diagnostics-propagation-gap-fix
+```
