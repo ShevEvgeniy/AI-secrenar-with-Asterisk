@@ -597,6 +597,65 @@ NODE-032Z / controlled-transcript-event-diagnostics-smoke-with-redacted-counts
 
 NODE-032Z should run one controlled Asterisk-side non-business-dialog smoke only after exact approval and immediate hard-gate re-confirmation. It must not log transcript text, expose tokens, enable business-dialog transcript use, or change production service/autostart state.
 
+## NODE-032Z Phase A Plan
+
+NODE-032Z Phase A completed read-only readiness checks and planning only. The live smoke remains unapproved.
+
+Future Phase B requires the exact approval phrase:
+
+```text
+APPROVE NODE-032Z PHASE B LIVE SMOKE
+```
+
+Phase B must immediately re-confirm all hard gates because the servers were recently powered on after a pause. If gates pass, Phase B may run exactly one Asterisk-side non-business-dialog smoke and collect only NODE-032Y safe diagnostic fields: event counts, booleans, transcript text bucket, propagation-gap flag, and diagnostic classification.
+
+Phase B must not log transcript text, expose token values, enable business-dialog transcript use, change production autostart, broaden firewall, reboot, or perform provider power-cycle.
+
+## NODE-032Z Phase B Result
+
+NODE-032Z Phase B ran after exact approval:
+
+```text
+APPROVE NODE-032Z PHASE B LIVE SMOKE
+```
+
+Hard gates passed. Helper bundle validation, 24 kHz mono 16-bit PCM smoke audio validation, and safe temp-env create/validate/cleanup all completed with no token values or transcript text printed. Gateway service was started only for smoke readiness and remained disabled.
+
+Exactly one corrected Asterisk-side non-business-dialog smoke ran. A prior malformed helper CLI invocation failed at argument parsing before any Gateway request and is recorded only as a non-smoke command error.
+
+Smoke result:
+
+```text
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+```
+
+NODE-032Y diagnostic fields classified the result as a propagation gap:
+
+```text
+openai_event_type_counts_present=false
+openai_event_type_counts={}
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+transcript_text_present=false
+transcript_text_length_bucket=unknown
+diagnostic_propagation_gap=true
+diagnostic_classification=diagnostic_propagation_gap
+```
+
+NODE-032Z therefore remains a transport/auth/OpenAI Realtime success but a blocked redacted-diagnostics smoke. The next node should fix local/Gateway diagnostic propagation before another transcript-presence retry:
+
+```text
+NODE-032AA / gateway-event-diagnostics-propagation-gap-fix
+```
+
 ## Node Completion Report Format
 
 After each node, return:
