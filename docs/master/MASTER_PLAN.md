@@ -777,6 +777,51 @@ NODE-032AD / controlled-gateway-runtime-diagnostics-propagation-rollout
 
 NODE-032AD should inventory the deployed Gateway runtime, compare safe marker/hash evidence against the repo, back up current deployed runtime files, apply only the diagnostics propagation update after exact approval, and then verify the deployed marker and runtime safety. A follow-up smoke can verify `openai_event_type_counts_available=true` after rollout unless explicitly included in NODE-032AD scope.
 
+## NODE-032AD Controlled Gateway Runtime Diagnostics Propagation Rollout
+
+NODE-032AD Phase A completed read-only inventory only.
+
+Confirmed:
+
+```text
+gateway_service_runtime=/opt/ai-secretary-gateway/src
+deployed_realtime_gateway_marker_present=false
+deployed_realtime_gateway_hash_matches_repo=false
+deployed_runtime_appears_stale=true
+backup_parent_exists=true
+backup_parent_writable_as_root=true
+```
+
+Plan for Phase B after exact approval:
+
+```text
+approval_phrase=APPROVE NODE-032AD GATEWAY RUNTIME DIAGNOSTICS ROLLOUT
+reconfirm_all_hard_gates
+backup_current_deployed_realtime_gateway_py
+roll_out_repo_realtime_gateway_py_to_deployed_runtime_path_only
+verify_marker_and_hash
+preserve_env_and_firewall
+avoid_smoke_unless separately scoped
+document rollback_path
+```
+
+NODE-032AD Phase B completed the controlled runtime rollout without smoke.
+
+```text
+updated_file=/opt/ai-secretary-gateway/src/ai_secretary/stt/realtime_gateway.py
+marker_present_after_rollout=true
+local_deployed_hash_match=true
+service_action=false
+gateway_final_state=inactive_disabled
+firewall_unchanged=true
+```
+
+Next planned boundary:
+
+```text
+NODE-032AE / controlled-gateway-diagnostics-marker-smoke-after-runtime-rollout
+```
+
 ## Node Completion Report Format
 
 After each node, return:

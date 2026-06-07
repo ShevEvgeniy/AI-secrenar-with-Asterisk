@@ -3271,3 +3271,97 @@ approval_phrase=APPROVE NODE-032AD GATEWAY RUNTIME DIAGNOSTICS ROLLOUT
 ```
 
 NODE-032AC did not run smoke, SSH, helper deploy, token handling, temp env creation, service action, dependency install, reboot, firewall/env/server change, transcript text logging, transcript delta logging, business-dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, or automation.
+
+## NODE-032AD Phase A Gateway Runtime Inventory Notes
+
+NODE-032AD Phase A performed read-only SSH inventory only.
+
+Gateway unit:
+
+```text
+service=ai-secretary-gateway.service
+state=inactive
+enabled=disabled
+working_directory=/opt/ai-secretary-gateway
+pythonpath=/opt/ai-secretary-gateway/src
+env_file=/etc/ai-secretary/openai-realtime-gateway.env
+exec=/opt/ai-secretary-gateway/.venv/bin/python -m ai_secretary.stt.realtime_gateway --host 0.0.0.0 --port 8080
+```
+
+Gateway runtime comparison:
+
+```text
+local_realtime_gateway_marker_present=true
+deployed_realtime_gateway_marker_present=false
+local_realtime_gateway_sha256=A1BA9D06BE574F7559BD5E8805359385C15DE21D587BF009A345C24A52373A85
+deployed_realtime_gateway_sha256=6b9eecd32ab15eb1a35344663ea67f589ad6fb86db663717e2819d4cec731199
+deployed_realtime_gateway_metadata=root:root 664 15866 2026-05-13 16:19:11 +0000
+deployed_gateway_adapter_smoke_present=false
+```
+
+Safety gates:
+
+```text
+asterisk_OPENAI_API_KEY_absent=true
+business_dialog_gateway_transcript_flag_not_enabled=true
+transcript_text_logging_flag_not_enabled=true
+gateway_env_metadata=root:gateway 640
+gateway_masked_secret_presence=passed
+target_listeners_443_8080_8081=absent
+ufw_8080_tcp=allowed_only_from_92.118.85.117
+```
+
+Backup feasibility, without creating backup:
+
+```text
+backup_parent=/opt/ai-secretary-gateway
+backup_parent_exists=true
+backup_parent_writable_as_root=true
+```
+
+NODE-032AD Phase B can be requested with:
+
+```text
+APPROVE NODE-032AD GATEWAY RUNTIME DIAGNOSTICS ROLLOUT
+```
+
+NODE-032AD Phase A did not deploy, edit server files, create backups, run smoke, deploy helpers, handle tokens, create temp env, start/stop/restart/reload/enable services, install dependencies, reboot, power-cycle, change firewall/env/server state, enable business-dialog transcript use, log transcript text/deltas, write Notion, update Runtime/Evidence, or add scheduler/webhook/automation.
+
+## NODE-032AD Phase B Runtime Rollout Notes
+
+Approval phrase:
+
+```text
+APPROVE NODE-032AD GATEWAY RUNTIME DIAGNOSTICS ROLLOUT
+```
+
+Backup:
+
+```text
+backup_dir=/opt/ai-secretary-gateway/backups/node032ad-20260607T140434Z
+backup_file=/opt/ai-secretary-gateway/backups/node032ad-20260607T140434Z/realtime_gateway.py
+backup_sha256=6b9eecd32ab15eb1a35344663ea67f589ad6fb86db663717e2819d4cec731199
+```
+
+Rollout:
+
+```text
+updated_file=/opt/ai-secretary-gateway/src/ai_secretary/stt/realtime_gateway.py
+updated_file_metadata=root:root 664 21922 2026-06-07 14:05:26 +0000
+deployed_sha256=a1ba9d06be574f7559bd5e8805359385c15de21d587bf009a345c24a52373a85
+openai_event_type_counts_available_marker_present=true
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+ufw_8080_tcp=allowed_only_from_92.118.85.117
+gateway_env_metadata=root:gateway 640
+asterisk_OPENAI_API_KEY_absent=true
+business_dialog_gateway_transcript_flag_not_enabled=true
+transcript_text_logging_flag_not_enabled=true
+```
+
+No smoke, helper deploy, token handling, temp env creation, service start/stop/restart/reload/enable, dependency install, reboot, power-cycle, firewall/env change, TLS/proxy/443/8081 change, production autostart, transcript text/delta logging, business-dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
