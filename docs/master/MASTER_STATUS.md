@@ -2924,6 +2924,37 @@ Next recommendation:
 NODE-032AC / controlled-gateway-runtime-diagnostics-propagation-rollout-plan
 ```
 
+## NODE-032AC Runtime Diagnostics Rollout Plan
+
+Result:
+
+```text
+node=NODE-032AC / controlled-gateway-runtime-diagnostics-propagation-rollout-plan
+branch=feat/node-032ac-controlled-gateway-runtime-diagnostics-propagation-rollout-plan
+phase=repo_local_planning_only
+base_master_head=43f1fb69d45e3cb775ee0afc0e237ed3776bdf74
+```
+
+Analysis:
+
+```text
+local_marker_source=src/ai_secretary/stt/realtime_gateway.py::_build_response_diagnostics
+local_report_mapping=src/ai_secretary/stt/gateway_adapter_smoke.py::build_report
+helper_bundle_includes_updated_mapping=true
+live_gateway_runtime=/opt/ai-secretary-gateway/src
+likely_root_cause=deployed_gateway_runtime_does_not_include_NODE_032AA_marker_or_response_mapping
+```
+
+Decision:
+
+```text
+next_node=NODE-032AD / controlled-gateway-runtime-diagnostics-propagation-rollout
+node032ad_is_not_blind_smoke_retry=true
+suggested_approval_phrase=APPROVE NODE-032AD GATEWAY RUNTIME DIAGNOSTICS ROLLOUT
+```
+
+No live smoke, SSH, helper deploy, token handling, temp env, service action, dependency install, reboot, firewall/env/server change, transcript text logging, transcript delta logging, business-dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
+
 ## NODE-032T Phase B Gateway Smoke Retry Result
 
 Result:

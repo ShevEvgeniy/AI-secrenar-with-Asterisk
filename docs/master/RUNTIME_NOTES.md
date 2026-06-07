@@ -3223,3 +3223,51 @@ Next recommendation:
 ```text
 NODE-032AC / controlled-gateway-runtime-diagnostics-propagation-rollout-plan
 ```
+
+## NODE-032AC Runtime Diagnostics Rollout Notes
+
+NODE-032AC performed local inspection only.
+
+Local marker source:
+
+```text
+src/ai_secretary/stt/realtime_gateway.py::_build_response_diagnostics
+openai_event_type_counts_available=True
+```
+
+Local report mapping:
+
+```text
+src/ai_secretary/stt/gateway_adapter_smoke.py::build_report
+```
+
+Helper bundle manifest includes the current smoke/report parser:
+
+```text
+src/ai_secretary/stt/gateway_adapter_smoke.py
+src/ai_secretary/stt/realtime_gateway.py
+src/ai_secretary/stt/gateway_adapter.py
+```
+
+Gateway service runtime remains a separate deployed tree:
+
+```text
+working_directory=/opt/ai-secretary-gateway
+pythonpath=/opt/ai-secretary-gateway/src
+exec=/opt/ai-secretary-gateway/.venv/bin/python -m ai_secretary.stt.realtime_gateway --host 0.0.0.0 --port 8080
+```
+
+Likely root cause:
+
+```text
+deployed_gateway_runtime_or_response_mapping_not_updated_to_NODE_032AA=true
+```
+
+Next node:
+
+```text
+NODE-032AD / controlled-gateway-runtime-diagnostics-propagation-rollout
+approval_phrase=APPROVE NODE-032AD GATEWAY RUNTIME DIAGNOSTICS ROLLOUT
+```
+
+NODE-032AC did not run smoke, SSH, helper deploy, token handling, temp env creation, service action, dependency install, reboot, firewall/env/server change, transcript text logging, transcript delta logging, business-dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, or automation.
