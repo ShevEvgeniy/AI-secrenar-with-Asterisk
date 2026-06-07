@@ -1680,6 +1680,62 @@ Next node:
 NODE-032W / controlled-gateway-transcript-presence-smoke
 ```
 
+## NODE-032AB Phase A Readiness Decision
+
+Decision:
+
+- Keep NODE-032AB Phase A read-only.
+- Do not run smoke, deploy helper bundles, handle tokens, create temp env files, start/stop services, install dependencies, reboot, change firewall/env/server state, enable business-dialog transcript use, or log transcript text.
+- Treat Phase B as conditional GO only after the exact approval phrase and immediate hard-gate re-confirmation.
+
+Approval phrase:
+
+```text
+APPROVE NODE-032AB PHASE B LIVE SMOKE
+```
+
+Phase A gate summary:
+
+```text
+asterisk_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+gateway_service=inactive_disabled
+gateway_env_metadata=root:gateway:640
+target_listeners_443_8080_8081=absent
+ufw_8080_tcp=ALLOW_IN_FROM_92.118.85.117_ONLY
+```
+
+Future Phase B should prove whether the NODE-032AA `openai_event_type_counts_available` marker propagates in live smoke evidence, while keeping transcript text and business-dialog transcript use disabled.
+
+## NODE-032AB Phase B Decision
+
+Decision:
+
+- Accept NODE-032AB as another successful Asterisk-origin Gateway transport/auth/OpenAI Realtime smoke.
+- Do not accept NODE-032AB as live diagnostic propagation success.
+- Keep transcript text logging disabled and business-dialog transcript use disabled.
+- Keep Gateway service disabled/inactive after cleanup.
+- Move the next boundary to a controlled Gateway runtime diagnostics propagation rollout/mapping plan.
+
+Evidence:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+chunks_sent=5
+openai_event_type_counts_available=false
+diagnostic_propagation_gap=true
+diagnostic_classification=diagnostic_propagation_gap
+```
+
+Next node:
+
+```text
+NODE-032AC / controlled-gateway-runtime-diagnostics-propagation-rollout-plan
+```
+
 ## NODE-032T Phase B Gateway Smoke Retry Decision
 
 NODE-032T Phase B was approved with:

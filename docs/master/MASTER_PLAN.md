@@ -683,6 +683,77 @@ NODE-032AB / controlled-transcript-event-diagnostics-smoke-after-propagation-fix
 
 NODE-032AB should run one controlled Asterisk-side non-business-dialog smoke after exact approval and hard-gate re-confirmation, checking the new availability marker plus the existing redacted diagnostic fields.
 
+## NODE-032AB Phase A Plan
+
+NODE-032AB Phase A completed read-only readiness and command planning only.
+
+Fresh base:
+
+```text
+master_head=43c8ec3b658cc63874ebeb4207c36ea881e62a13
+```
+
+Phase A confirmed:
+
+```text
+asterisk_ssh_reachable=true
+gateway_ssh_reachable=true
+asterisk_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+gateway_service=inactive_disabled
+gateway_unit_verify=OK
+gateway_env_metadata=root:gateway:640
+gateway_masked_secret_presence=passed
+target_listeners_443_8080_8081=absent
+ufw_8080_tcp=ALLOW_IN_FROM_92.118.85.117_ONLY
+```
+
+Future Phase B may be requested only with:
+
+```text
+APPROVE NODE-032AB PHASE B LIVE SMOKE
+```
+
+NODE-032AB Phase B, if approved, should run exactly one controlled Asterisk-side non-business-dialog smoke and verify `openai_event_type_counts_available` plus the existing redacted diagnostic fields without transcript text logging or business-dialog transcript use.
+
+## NODE-032AB Phase B Result
+
+NODE-032AB Phase B ran after exact approval:
+
+```text
+APPROVE NODE-032AB PHASE B LIVE SMOKE
+```
+
+The controlled smoke again proved transport/auth/OpenAI Realtime from the Asterisk origin:
+
+```text
+gateway_http_status=200
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+```
+
+However, the NODE-032AA marker did not appear as available in live smoke evidence:
+
+```text
+openai_event_type_counts_available=false
+openai_event_type_counts_present=false
+openai_event_type_counts={}
+diagnostic_propagation_gap=true
+diagnostic_classification=diagnostic_propagation_gap
+```
+
+This means NODE-032AB is blocked on live diagnostic propagation, not on Gateway auth or OpenAI transport.
+
+Next boundary:
+
+```text
+NODE-032AC / controlled-gateway-runtime-diagnostics-propagation-rollout-plan
+```
+
 ## Node Completion Report Format
 
 After each node, return:

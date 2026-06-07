@@ -2849,6 +2849,81 @@ approval_phrase=APPROVE NODE-032T GATEWAY SMOKE RETRY AFTER RUNTIME READINESS
 current_blocker=approval_phrase_absent
 ```
 
+## NODE-032AB Phase B Live Smoke
+
+Result:
+
+```text
+node=NODE-032AB / controlled-transcript-event-diagnostics-smoke-after-propagation-fix
+branch=feat/node-032ab-controlled-transcript-event-diagnostics-smoke-after-propagation-fix
+approval_phrase=APPROVE NODE-032AB PHASE B LIVE SMOKE
+phase_b_result=blocked_diagnostic_propagation_gap
+```
+
+Hard gates passed before state-changing commands:
+
+```text
+asterisk_ssh_reachable=true
+asterisk_service=active_enabled
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+gateway_ssh_reachable=true
+gateway_unit_verify=OK
+gateway_service_before=inactive_disabled
+gateway_env_metadata=root:gateway:640
+gateway_masked_secret_presence=passed
+target_listeners_443_8080_8081_before=absent
+ufw=active_default_deny_8080_from_92.118.85.117_only
+```
+
+Smoke evidence:
+
+```text
+controlled_smoke_invocations=1
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+openai_event_type_counts_available=false
+openai_event_type_counts_present=false
+openai_event_type_counts={}
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+transcript_text_present=false
+transcript_text_length_bucket=unknown
+input_audio_buffer_commit_sent=null
+timeout_observed=null
+error_event_seen=null
+diagnostic_propagation_gap=true
+diagnostic_classification=diagnostic_propagation_gap
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted
+asterisk_OPENAI_API_KEY=ABSENT
+temporary_helper_env_audio_removed=true
+local_temporary_helper_bundle_removed=true
+systemctl_enable=false
+reboot_or_power_cycle=false
+```
+
+Next recommendation:
+
+```text
+NODE-032AC / controlled-gateway-runtime-diagnostics-propagation-rollout-plan
+```
+
 ## NODE-032T Phase B Gateway Smoke Retry Result
 
 Result:
@@ -3500,4 +3575,48 @@ Next recommendation:
 
 ```text
 NODE-032AB / controlled-transcript-event-diagnostics-smoke-after-propagation-fix
+```
+
+## NODE-032AB Phase A Readiness
+
+Result:
+
+```text
+node=NODE-032AB / controlled-transcript-event-diagnostics-smoke-after-propagation-fix
+branch=feat/node-032ab-controlled-transcript-event-diagnostics-smoke-after-propagation-fix
+phase=Phase A read-only gates and planning
+base_master_head=43c8ec3b658cc63874ebeb4207c36ea881e62a13
+```
+
+Read-only gates:
+
+```text
+asterisk_ssh_reachable=true
+asterisk_hostname=tula
+asterisk_service=active_enabled
+asterisk_OPENAI_API_KEY_process=ABSENT
+asterisk_OPENAI_API_KEY_service_env=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+asterisk_selected_runtime=Python 3.12.3
+gateway_ssh_reachable=true
+gateway_hostname=ai-secretary-gateway-node023
+gateway_unit_verify=OK
+gateway_service=inactive_disabled
+gateway_env_metadata=root:gateway:640
+gateway_masked_OPENAI_API_KEY_presence=passed
+gateway_masked_GATEWAY_TOKEN_presence=passed
+target_listeners_443_8080_8081=absent
+ufw=active_default_deny_8080_from_92.118.85.117_only
+```
+
+Phase A did not run smoke, deploy helpers, handle tokens, create temp env files, perform service actions, install dependencies, reboot, power-cycle, change firewall/env/server state, enable business-dialog transcript use, or log transcript text.
+
+Phase B status:
+
+```text
+phase_b_recommendation=CONDITIONAL_GO
+condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
+approval_phrase=APPROVE NODE-032AB PHASE B LIVE SMOKE
+current_blocker=approval_phrase_absent
 ```

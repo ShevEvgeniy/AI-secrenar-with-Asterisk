@@ -3110,3 +3110,116 @@ Next recommendation:
 ```text
 NODE-032AB / controlled-transcript-event-diagnostics-smoke-after-propagation-fix
 ```
+
+## NODE-032AB Phase A Runtime Notes
+
+Phase A performed read-only gates and command planning only.
+
+```text
+live_smoke=false
+helper_deploy=false
+token_handling=false
+server_temp_env=false
+service_action=false
+dependency_install=false
+reboot_or_power_cycle=false
+firewall_env_server_change=false
+transcript_text_logging=false
+business_dialog_transcript_use=false
+```
+
+Asterisk:
+
+```text
+hostname=tula
+ai-secretary-ari.service=active_enabled
+process_OPENAI_API_KEY=ABSENT
+service_env_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+selected_runtime_python=Python 3.12.3
+target_listeners_443_8080_8081=absent
+```
+
+Gateway:
+
+```text
+hostname=ai-secretary-gateway-node023
+ai-secretary-gateway.service=inactive_disabled
+gateway_unit_verify=OK
+gateway_env_metadata=root:gateway:640
+masked_gateway_secrets_present=true
+target_listeners_443_8080_8081=absent
+ufw=active_default_deny_8080_from_92.118.85.117_only
+```
+
+Future Phase B boundary:
+
+```text
+approval_phrase=APPROVE NODE-032AB PHASE B LIVE SMOKE
+phase_b_recommendation=CONDITIONAL_GO_AFTER_IMMEDIATE_HARD_GATE_RECONFIRMATION
+```
+
+## NODE-032AB Phase B Runtime Notes
+
+Phase B ran after exact approval and immediate hard-gate re-confirmation:
+
+```text
+approval_phrase=APPROVE NODE-032AB PHASE B LIVE SMOKE
+```
+
+Smoke setup:
+
+```text
+helper_bundle_validate=ok
+smoke_audio=24000_Hz_mono_16_bit_PCM_WAV
+safe_temp_env_create_validate_cleanup=ok
+temp_env_mode=600
+token_values_printed=false
+transcript_text_logged=false
+gateway_service_started_for_smoke=true
+gateway_service_enabled=false
+```
+
+Smoke result:
+
+```text
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+openai_event_type_counts_available=false
+openai_event_type_counts_present=false
+openai_event_type_counts={}
+transcript_event_seen=null
+transcript_bearing_event_seen=null
+transcript_text_present=false
+transcript_text_length_bucket=unknown
+input_audio_buffer_commit_sent=null
+timeout_observed=null
+error_event_seen=null
+diagnostic_propagation_gap=true
+diagnostic_classification=diagnostic_propagation_gap
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall=unchanged_source_restricted
+asterisk_OPENAI_API_KEY=ABSENT
+temporary_helper_env_audio_removed=true
+local_temporary_helper_bundle_removed=true
+```
+
+Next recommendation:
+
+```text
+NODE-032AC / controlled-gateway-runtime-diagnostics-propagation-rollout-plan
+```
