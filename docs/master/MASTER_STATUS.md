@@ -3052,6 +3052,61 @@ Next recommendation:
 NODE-032AE / controlled-gateway-diagnostics-marker-smoke-after-runtime-rollout
 ```
 
+## NODE-032AE Blocked Gateway Diagnostics Marker Smoke
+
+Result:
+
+```text
+node=NODE-032AE / controlled-gateway-diagnostics-marker-smoke-after-runtime-rollout
+branch=feat/node-032ae-controlled-gateway-diagnostics-marker-smoke-after-runtime-rollout
+phase=Phase B blocked before smoke helper invocation
+approval_phrase=APPROVE NODE-032AE PHASE B LIVE SMOKE
+```
+
+Hard gates passed:
+
+```text
+asterisk_OPENAI_API_KEY_absent=true
+business_dialog_gateway_transcript_flag_not_enabled=true
+transcript_text_logging_flag_not_enabled=true
+gateway_service_before=inactive_disabled
+gateway_unit_verify=ok
+target_listeners_443_8080_8081_before=absent
+ufw_active_default_deny=true
+ufw_8080_tcp=allowed_only_from_92.118.85.117
+gateway_env_metadata=root:gateway 640
+deployed_realtime_gateway_marker_present=true
+deployed_realtime_gateway_sha256=a1ba9d06be574f7559bd5e8805359385c15de21d587bf009a345c24a52373a85
+```
+
+Blocker:
+
+```text
+smoke_helper_invoked=false
+gateway_request_reached=false
+gateway_service_readiness_failed=true
+error_type=ImportError
+missing_symbol=diagnose_pcm_wav_audio_bytes
+missing_symbol_module=ai_secretary.stt.realtime_measurement
+diagnostic_classification=service_readiness_import_error
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+firewall_unchanged=true
+remote_helper_env_audio_removed=true
+local_temp_helper_bundle_removed=true
+```
+
+Next recommendation:
+
+```text
+NODE-032AF / controlled-gateway-runtime-measurement-dependency-rollout
+```
+
 ## NODE-032T Phase B Gateway Smoke Retry Result
 
 Result:

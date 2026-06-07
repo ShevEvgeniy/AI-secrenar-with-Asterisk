@@ -3365,3 +3365,50 @@ transcript_text_logging_flag_not_enabled=true
 ```
 
 No smoke, helper deploy, token handling, temp env creation, service start/stop/restart/reload/enable, dependency install, reboot, power-cycle, firewall/env change, TLS/proxy/443/8081 change, production autostart, transcript text/delta logging, business-dialog enablement, Notion write, Runtime/Evidence update, scheduler, webhook, or automation occurred.
+
+## NODE-032AE Blocked Smoke Runtime Notes
+
+Approval phrase:
+
+```text
+APPROVE NODE-032AE PHASE B LIVE SMOKE
+```
+
+Preparation:
+
+```text
+helper_bundle_preflight=ok
+safe_temp_env=create_validate_ok
+smoke_audio=24000_hz_mono_16bit_pcm_wav
+token_values_printed=false
+```
+
+Blocker before smoke helper invocation:
+
+```text
+gateway_service_readiness_failed=true
+error_type=ImportError
+missing_symbol=diagnose_pcm_wav_audio_bytes
+missing_symbol_module=ai_secretary.stt.realtime_measurement
+smoke_helper_invoked=false
+gateway_request_reached=false
+```
+
+Final state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=absent
+ufw_8080_tcp=allowed_only_from_92.118.85.117
+gateway_env_metadata=root:gateway 640
+deployed_realtime_gateway_marker_present=true
+deployed_realtime_gateway_sha256=a1ba9d06be574f7559bd5e8805359385c15de21d587bf009a345c24a52373a85
+remote_helper_env_audio_removed=true
+local_temp_helper_bundle_removed=true
+```
+
+Next recommendation:
+
+```text
+NODE-032AF / controlled-gateway-runtime-measurement-dependency-rollout
+```
