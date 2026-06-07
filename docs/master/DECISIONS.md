@@ -1736,6 +1736,45 @@ Next node:
 NODE-032AC / controlled-gateway-runtime-diagnostics-propagation-rollout-plan
 ```
 
+## NODE-032AC Runtime Propagation Decision
+
+Decision:
+
+- Treat NODE-032AB as transport/auth/OpenAI Realtime success but live diagnostics propagation failure.
+- Do not run another smoke until the deployed Gateway runtime boundary is addressed.
+- Select a controlled Gateway runtime diagnostics propagation rollout as the next boundary.
+
+Reasoning:
+
+```text
+current_repo_realtime_gateway_adds_openai_event_type_counts_available=true
+current_repo_helper_bundle_includes_updated_parser=true
+live_gateway_service_uses=/opt/ai-secretary-gateway/src
+node032ab_live_response_openai_event_type_counts_available=false
+```
+
+Selected next node:
+
+```text
+NODE-032AD / controlled-gateway-runtime-diagnostics-propagation-rollout
+```
+
+Suggested approval phrase:
+
+```text
+APPROVE NODE-032AD GATEWAY RUNTIME DIAGNOSTICS ROLLOUT
+```
+
+Rejected for immediate next step:
+
+```text
+blind_smoke_retry
+business_dialog_enablement
+transcript_text_logging
+production_autostart
+firewall_or_tls_changes
+```
+
 ## NODE-032T Phase B Gateway Smoke Retry Decision
 
 NODE-032T Phase B was approved with:

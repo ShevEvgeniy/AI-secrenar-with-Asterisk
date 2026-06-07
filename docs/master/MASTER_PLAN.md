@@ -754,6 +754,29 @@ Next boundary:
 NODE-032AC / controlled-gateway-runtime-diagnostics-propagation-rollout-plan
 ```
 
+## NODE-032AC Gateway Runtime Diagnostics Rollout Plan
+
+NODE-032AC is repo-local planning only.
+
+Conclusion:
+
+```text
+helper_bundle_parser_current=true
+gateway_service_runtime_is_separate_deployed_tree=true
+gateway_service_runtime_path=/opt/ai-secretary-gateway/src
+likely_root_cause=live_gateway_runtime_not_updated_to_NODE_032AA_or_runtime_response_mapping_not_reloaded
+```
+
+The next step must be a controlled rollout/runtime propagation node, not another blind smoke retry.
+
+Selected next node:
+
+```text
+NODE-032AD / controlled-gateway-runtime-diagnostics-propagation-rollout
+```
+
+NODE-032AD should inventory the deployed Gateway runtime, compare safe marker/hash evidence against the repo, back up current deployed runtime files, apply only the diagnostics propagation update after exact approval, and then verify the deployed marker and runtime safety. A follow-up smoke can verify `openai_event_type_counts_available=true` after rollout unless explicitly included in NODE-032AD scope.
+
 ## Node Completion Report Format
 
 After each node, return:
