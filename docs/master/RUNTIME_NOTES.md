@@ -3608,3 +3608,44 @@ Next runtime investigation boundary:
 ```text
 NODE-032AI / controlled-transcript-content-stimulus-quality-plan
 ```
+## NODE-032AI Runtime Notes
+
+No runtime action occurred in NODE-032AI.
+
+Accepted prior runtime proof from NODE-032AG via NODE-032AH:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+diagnostic_propagation_gap=false
+```
+
+Remaining runtime/content limitation:
+
+```text
+transcript_text_present=false
+transcript_text_length_bucket=zero
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+```
+
+NODE-032AI records that the next boundary should prepare stimulus quality before another smoke. It must keep:
+
+```text
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+token_values_printed=false
+```
+
+Next recommended node:
+
+```text
+NODE-032AJ / controlled-transcript-content-stimulus-preparation
+```

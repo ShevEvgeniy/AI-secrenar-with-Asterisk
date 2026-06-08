@@ -2103,3 +2103,48 @@ phase_b_recommendation=CONDITIONAL_GO
 condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
 current_blocker=approval_phrase_absent
 ```
+## NODE-032AI Transcript Content Stimulus Quality Decision
+
+Date: 2026-06-08
+
+Decision:
+
+```text
+accept_NODE_032AG_as_deployed_diagnostics_propagation_proof=true
+accept_NODE_032AG_as_transcript_text_content_proof=false
+remaining_issue=empty_or_zero_transcript_content
+```
+
+NODE-032AG proved Gateway/Auth/OpenAI Realtime transport, session creation, `chunks_sent=5`, transcript-bearing event observation, and redacted diagnostic propagation with `diagnostic_propagation_gap=false`.
+
+NODE-032AI does not treat the remaining `transcript_text_present=false` and `transcript_text_length_bucket=zero` evidence as a transport/auth/runtime propagation failure.
+
+Hypotheses to investigate later:
+
+```text
+smoke_audio_too_short
+speech_stimulus_not_clear_or_speech_like_enough
+audio_clipped_or_silence_dominant
+commit_timing_or_buffer_window_too_short
+session_transcription_settings_need_review
+language_or_prompt_context_not_optimal
+provider_transcription_completed_empty_despite_event
+```
+
+Selected next boundary:
+
+```text
+NODE-032AJ / controlled-transcript-content-stimulus-preparation
+```
+
+Rejected for NODE-032AI:
+
+```text
+repeat_same_live_smoke_unchanged
+business_dialog_integration
+production_autostart
+real_customer_call
+dual_channel_recording_proof
+transcript_text_logging
+using_transcript_for_dialog
+```

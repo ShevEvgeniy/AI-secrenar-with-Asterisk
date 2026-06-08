@@ -977,3 +977,33 @@ Next planned boundary:
 ```text
 NODE-032AG / controlled-gateway-diagnostics-marker-smoke-after-measurement-rollout
 ```
+## NODE-032AI Plan Update
+
+NODE-032AI records the next safe planning boundary after NODE-032AH accepted NODE-032AG as deployed Gateway diagnostics propagation proof.
+
+Decision:
+
+```text
+diagnostics_propagation_proof=accepted
+transport_auth_openai_realtime_path=accepted
+transcript_text_content_proof=not_accepted
+remaining_issue=empty_or_zero_transcript_content
+```
+
+The next smoke should not be repeated unchanged. Before another live smoke, prepare a safer stimulus/content plan that defines:
+
+```text
+longer_speech_duration
+clearer_speech_like_waveform
+avoid_clipping
+avoid_silence_dominant_segments
+24000_hz_mono_16_bit_pcm_validation
+duration_rms_peak_non_silent_ratio_diagnostics
+redacted_success_metrics_only
+```
+
+Next node:
+
+```text
+NODE-032AJ / controlled-transcript-content-stimulus-preparation
+```
