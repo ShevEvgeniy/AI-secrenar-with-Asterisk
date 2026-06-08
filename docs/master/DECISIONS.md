@@ -1559,6 +1559,42 @@ Next boundary:
 NODE-032AH / transcript-event-diagnostics-smoke-acceptance-and-next-boundary-decision
 ```
 
+## NODE-032AH Acceptance Decision
+
+Decision:
+
+- Accept NODE-032AG as successful deployed Gateway diagnostics propagation proof.
+- Treat `transcript_event_seen=true` and `transcript_bearing_event_seen=true` as proof that transcript-bearing events are reaching the redacted diagnostic path.
+- Treat `diagnostic_propagation_gap=false` as closure of the deployed diagnostics propagation gap.
+- Do not accept NODE-032AG as proof of transcript text correctness, non-empty transcript content, business-dialog integration, production autostart, full live-call/caller path, dual-channel recording, or safe transcript use in dialog.
+
+Evidence:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+diagnostic_propagation_gap=false
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+transcript_text_present=false
+transcript_text_length_bucket=zero
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Next boundary:
+
+```text
+NODE-032AI / controlled-transcript-content-stimulus-quality-plan
+```
+
 ## NODE-032AF Phase A Decision
 
 NODE-032AF confirms the NODE-032AE service readiness blocker is a deployed Gateway runtime dependency mismatch.

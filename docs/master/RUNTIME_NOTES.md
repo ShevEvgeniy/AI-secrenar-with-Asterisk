@@ -3571,3 +3571,40 @@ firewall=unchanged_source_restricted
 asterisk_OPENAI_API_KEY=ABSENT
 temporary_helper_env_audio_removed=true
 ```
+
+## NODE-032AH Acceptance Runtime Boundary
+
+NODE-032AH records that NODE-032AG proves deployed Gateway diagnostics propagation, not transcript content readiness for business dialog.
+
+Accepted runtime facts:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+diagnostic_propagation_gap=false
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+```
+
+Still not accepted:
+
+```text
+transcript_text_correctness=false
+non_empty_transcript_content=false
+business_dialog_integration=false
+production_autostart=false
+full_live_call_caller_path=false
+dual_channel_recording=false
+safe_transcript_use_in_dialog=false
+```
+
+Next runtime investigation boundary:
+
+```text
+NODE-032AI / controlled-transcript-content-stimulus-quality-plan
+```
