@@ -2955,6 +2955,54 @@ Next:
 NODE-032AH / transcript-event-diagnostics-smoke-acceptance-and-next-boundary-decision
 ```
 
+## NODE-032AH Transcript Event Diagnostics Smoke Acceptance
+
+Result:
+
+```text
+node=NODE-032AH / transcript-event-diagnostics-smoke-acceptance-and-next-boundary-decision
+branch=feat/node-032ah-transcript-event-diagnostics-smoke-acceptance-and-next-boundary-decision
+phase=local_repo_decision_docs_only
+```
+
+Decision:
+
+```text
+node032ag_accepted_as_successful_deployed_gateway_diagnostics_propagation_proof=true
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+diagnostic_propagation_gap=false
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+```
+
+Remaining limitation:
+
+```text
+transcript_text_present=false
+transcript_text_length_bucket=zero
+```
+
+Safety boundary:
+
+```text
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+```
+
+Next:
+
+```text
+NODE-032AI / controlled-transcript-content-stimulus-quality-plan
+```
+
 ## NODE-032AF Phase A Runtime Measurement Dependency Inventory
 
 Result:
