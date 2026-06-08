@@ -4049,3 +4049,71 @@ condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
 approval_phrase=APPROVE NODE-032AB PHASE B LIVE SMOKE
 current_blocker=approval_phrase_absent
 ```
+## NODE-032AI Transcript Content Stimulus Quality Plan
+
+Result:
+
+```text
+node=NODE-032AI / controlled-transcript-content-stimulus-quality-plan
+branch=feat/node-032ai-controlled-transcript-content-stimulus-quality-plan
+phase=local planning/docs only
+base_master_head=16c8e5ead04b2d17044d6abf5eaf58a6cd9f0300
+live_smoke=false
+server_state_changed=false
+```
+
+Accepted prior proof from NODE-032AH/NODE-032AG:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+diagnostic_propagation_gap=false
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+```
+
+Remaining limitation:
+
+```text
+transcript_text_present=false
+transcript_text_length_bucket=zero
+problem_class=empty_or_zero_transcript_content
+```
+
+Hypotheses for the zero transcript content remain unproven:
+
+```text
+smoke_audio_too_short
+speech_stimulus_not_clear_or_speech_like_enough
+audio_clipped_or_silence_dominant
+commit_timing_or_buffer_window_too_short
+session_transcription_settings_need_review
+language_or_prompt_context_not_optimal
+provider_transcription_completed_empty_despite_event
+```
+
+Next recommendation:
+
+```text
+NODE-032AJ / controlled-transcript-content-stimulus-preparation
+```
+
+Safety:
+
+```text
+ssh_used=false
+live_smoke=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+service_action=false
+firewall_or_env_change=false
+transcript_text_or_delta_added=false
+audio_binary_artifact_added=false
+business_dialog_gateway_transcript=NOT_ENABLED
+```
