@@ -4117,3 +4117,73 @@ transcript_text_or_delta_added=false
 audio_binary_artifact_added=false
 business_dialog_gateway_transcript=NOT_ENABLED
 ```
+## NODE-032AJ Transcript Content Stimulus Preparation
+
+Result:
+
+```text
+node=NODE-032AJ / controlled-transcript-content-stimulus-preparation
+branch=feat/node-032aj-controlled-transcript-content-stimulus-preparation
+phase=local preparation/docs only
+base_master_head=65ab5aa93d167c83630b3d8ac7941d26e5431430
+live_smoke=false
+server_state_changed=false
+```
+
+Prepared stimulus target:
+
+```text
+speech_duration_longer_than_NODE_032AG
+clear_speech_like_waveform
+not_silence_dominant
+not_clipped
+audio_format=24000_hz_mono_16_bit_pcm
+pre_smoke_duration_reported=true
+pre_smoke_rms_reported=true
+pre_smoke_peak_reported=true
+pre_smoke_non_silent_ratio_reported=true
+no_real_caller_audio=true
+no_sensitive_audio=true
+no_committed_audio_binary_artifacts=true
+```
+
+Redacted next-smoke evidence target:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent>0
+openai_event_type_counts_available=true
+diagnostic_propagation_gap=false
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_length_bucket=nonzero_bucket
+actual_transcript_text_redacted=true
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+token_values_printed=false
+```
+
+Next recommendation:
+
+```text
+NODE-032AK / controlled-transcript-content-smoke-with-prepared-stimulus
+```
+
+Safety:
+
+```text
+ssh_used=false
+live_smoke=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+service_action=false
+firewall_or_env_change=false
+transcript_text_or_delta_added=false
+audio_binary_artifact_added=false
+business_dialog_gateway_transcript=NOT_ENABLED
+```

@@ -1007,3 +1007,36 @@ Next node:
 ```text
 NODE-032AJ / controlled-transcript-content-stimulus-preparation
 ```
+## NODE-032AJ Plan Update
+
+NODE-032AJ prepares the next safe transcript-content smoke boundary without running a smoke or creating audio artifacts.
+
+Stimulus strategy:
+
+```text
+speech_duration_longer_than_NODE_032AG
+clear_speech_like_waveform
+not_silence_dominant
+not_clipped
+24000_hz_mono_16_bit_pcm
+duration_rms_peak_non_silent_ratio_reported=true
+no_real_caller_audio=true
+no_sensitive_audio=true
+no_committed_audio_binary_artifacts=true
+```
+
+The next smoke should use redacted evidence only:
+
+```text
+transcript_text_length_bucket=nonzero_bucket
+actual_transcript_text_redacted=true
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+```
+
+Next node:
+
+```text
+NODE-032AK / controlled-transcript-content-smoke-with-prepared-stimulus
+```
