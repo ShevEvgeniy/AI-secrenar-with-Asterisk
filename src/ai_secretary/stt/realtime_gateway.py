@@ -255,13 +255,13 @@ async def run_gateway_realtime_measurement(
                 event_type = payload.get("type")
                 _record_event_type(event_type_counts, event_type)
                 if event_type == "conversation.item.input_audio_transcription.delta":
-                    delta = str(payload.get("delta") or "")
+                    delta = _transcript_text_from_event(payload, event_type=event_type)
                     if delta:
                         transcript_text_present = True
                         if first_delta_ms is None:
                             first_delta_ms = int((clock() - started) * 1000)
                 elif event_type == "conversation.item.input_audio_transcription.completed":
-                    transcript = str(payload.get("transcript") or "").strip()
+                    transcript = _transcript_text_from_event(payload, event_type=event_type)
                     transcript_text_present = transcript_text_present or bool(transcript)
                     final_ms = int((clock() - started) * 1000)
                     if return_transcript and settings.allow_return_transcript:
@@ -369,6 +369,55 @@ def map_openai_error(exc: Exception) -> str:
 def _record_event_type(event_type_counts: Counter[str], event_type: Any) -> None:
     if isinstance(event_type, str) and event_type:
         event_type_counts[event_type] += 1
+
+
+def _transcript_text_from_event(payload: dict[str, Any], *, event_type: str) -> str:
+    if event_type == "conversation.item.input_audio_transcription.delta":
+        return _first_non_empty_string(payload.get("delta"), payload.get("text"))
+    if event_type != "conversation.item.input_audio_transcription.completed":
+        return ""
+
+    direct = _first_non_empty_string(payload.get("transcript"))
+    if direct:
+        return direct
+
+    nested_transcript = payload.get("transcript")
+    if isinstance(nested_transcript, dict):
+        nested_text = _first_non_empty_string(nested_transcript.get("text"), nested_transcript.get("value"))
+        if nested_text:
+            return nested_text
+
+    item = payload.get("item")
+    if isinstance(item, dict):
+        item_text = _first_non_empty_string(item.get("transcript"))
+        if item_text:
+            return item_text
+        content_text = _transcript_text_from_content_array(item.get("content"))
+        if content_text:
+            return content_text
+
+    return _transcript_text_from_content_array(payload.get("content"))
+
+
+def _transcript_text_from_content_array(value: Any) -> str:
+    if not isinstance(value, list):
+        return ""
+    for entry in value:
+        if not isinstance(entry, dict):
+            continue
+        text = _first_non_empty_string(entry.get("transcript"), entry.get("text"))
+        if text:
+            return text
+    return ""
+
+
+def _first_non_empty_string(*values: Any) -> str:
+    for value in values:
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped:
+                return stripped
+    return ""
 
 
 def _build_response_diagnostics(

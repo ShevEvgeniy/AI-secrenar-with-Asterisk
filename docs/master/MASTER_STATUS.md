@@ -4406,3 +4406,36 @@ Outcome:
 node_outcome=LOCAL_ANALYSIS_COMPLETE
 next_recommendation=NODE-032AN / transcript-event-schema-fixtures-and-nonzero-bucket-local-proof
 ```
+## NODE-032AN Local Fixture Proof
+
+Result:
+
+```text
+node=NODE-032AN / transcript-event-schema-fixtures-and-nonzero-bucket-local-proof
+branch=feat/node-032an-transcript-event-schema-fixtures-and-nonzero-bucket-local-proof
+scope=repo_local_implementation_tests_docs
+live_smoke=false
+ssh=false
+server_state_change=false
+```
+
+Implemented local fixture coverage:
+
+```text
+current_delta_event_payload_delta_non_empty=covered
+current_completed_event_payload_transcript_non_empty=covered
+current_completed_event_payload_transcript_empty=covered
+completed_event_nested_transcript_field=covered
+completed_event_item_transcript_field=covered
+completed_event_content_array_transcript_field=covered
+delta_event_alternate_text_field=covered
+late_delta_after_completed_event=not_supported_separate_node_required
+```
+
+Outcome:
+
+```text
+focused_suite=55_passed
+node_outcome=LOCAL_FIXTURE_PROOF_COMPLETE
+next_recommendation=NODE-032AO / safe-actual-speech-stimulus-and-session-settings-plan
+```

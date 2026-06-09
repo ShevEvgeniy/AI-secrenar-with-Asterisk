@@ -2316,3 +2316,30 @@ local_fixtures_before_live_retry=true
 prove_nonzero_bucket_without_real_transcript_text=true
 document_safe_actual_speech_stimulus_requirements=true
 ```
+## NODE-032AN Fixture Proof Decision
+
+Date: 2026-06-09
+
+Decision:
+
+```text
+implement_selected_alternate_schema_fixture_support=true
+preserve_redaction_and_bucket_safety=true
+late_delta_after_completed_event_deferred=true
+live_smoke_retry_now=false
+```
+
+Accepted local proof:
+
+```text
+nonzero_placeholder_text_maps_to_nonzero_redacted_bucket=true
+empty_completed_event_maps_to_zero_bucket=true
+smoke_report_preserves_zero_bucket_classification=true
+placeholder_values_not_serialized_in_reports=true
+```
+
+Next boundary:
+
+```text
+NODE-032AO / safe-actual-speech-stimulus-and-session-settings-plan
+```

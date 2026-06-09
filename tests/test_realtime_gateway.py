@@ -25,6 +25,11 @@ from ai_secretary.stt.realtime_measurement import (
 )
 
 
+PLACEHOLDER_NONZERO_TRANSCRIPT = "PLACEHOLDER_NONZERO_TRANSCRIPT"
+PLACEHOLDER_DELTA_TEXT = "PLACEHOLDER_DELTA_TEXT"
+PLACEHOLDER_ALT_SCHEMA_TEXT = "PLACEHOLDER_ALT_SCHEMA_TEXT"
+
+
 def _pcm_wav_bytes(path: Path, *, sample_rate: int = 24000, frames: int = 4800) -> bytes:
     with wave.open(str(path), "wb") as handle:
         handle.setnchannels(1)
@@ -154,8 +159,11 @@ def test_gateway_response_includes_audio_and_event_diagnostics(tmp_path: Path) -
         [
             {"type": "session.created"},
             {"type": "session.updated"},
-            {"type": "conversation.item.input_audio_transcription.delta", "delta": "pri"},
-            {"type": "conversation.item.input_audio_transcription.completed", "transcript": "privet"},
+            {"type": "conversation.item.input_audio_transcription.delta", "delta": PLACEHOLDER_DELTA_TEXT},
+            {
+                "type": "conversation.item.input_audio_transcription.completed",
+                "transcript": PLACEHOLDER_NONZERO_TRANSCRIPT,
+            },
         ]
     )
 
@@ -197,6 +205,126 @@ def test_gateway_response_includes_audio_and_event_diagnostics(tmp_path: Path) -
     assert payload["error_event_seen"] is False
     assert payload["diagnostic_propagation_gap"] is False
     assert payload["diagnostic_classification"] == "transcript_bearing_event_observed_text_redacted"
+    serialized = json.dumps(payload, ensure_ascii=False)
+    assert PLACEHOLDER_DELTA_TEXT not in serialized
+    assert PLACEHOLDER_NONZERO_TRANSCRIPT not in serialized
+
+
+def test_gateway_completed_event_supports_nested_transcript_fixture(tmp_path: Path) -> None:
+    audio = _tone_wav_bytes(tmp_path / "nested.wav")
+    fake_ws = _FakeWebSocket(
+        [
+            {"type": "session.created"},
+            {"type": "session.updated"},
+            {
+                "type": "conversation.item.input_audio_transcription.completed",
+                "transcript": {"text": PLACEHOLDER_ALT_SCHEMA_TEXT},
+            },
+        ]
+    )
+
+    async def _connector(_url: str, _headers: dict[str, str]) -> _FakeWebSocket:
+        return fake_ws
+
+    status, payload = asyncio.run(
+        run_gateway_realtime_measurement(
+            audio,
+            settings=_settings(allow_return_transcript=False),
+            request_id="req_nested_schema",
+            return_transcript=True,
+            connector=_connector,
+        )
+    )
+
+    assert status == 200
+    assert payload["transcript_text_present"] is True
+    assert payload["transcript_text_length_bucket"] == "nonzero_redacted"
+    assert payload["diagnostic_classification"] == "transcript_bearing_event_observed_text_redacted"
+    assert "transcript_text" not in payload
+    assert PLACEHOLDER_ALT_SCHEMA_TEXT not in json.dumps(payload, ensure_ascii=False)
+
+
+def test_gateway_completed_event_supports_item_transcript_fixture(tmp_path: Path) -> None:
+    audio = _tone_wav_bytes(tmp_path / "item.wav")
+    fake_ws = _FakeWebSocket(
+        [
+            {"type": "session.created"},
+            {"type": "session.updated"},
+            {
+                "type": "conversation.item.input_audio_transcription.completed",
+                "item": {"transcript": PLACEHOLDER_ALT_SCHEMA_TEXT},
+            },
+        ]
+    )
+
+    async def _connector(_url: str, _headers: dict[str, str]) -> _FakeWebSocket:
+        return fake_ws
+
+    status, payload = asyncio.run(
+        run_gateway_realtime_measurement(audio, settings=_settings(), request_id="req_item_schema", connector=_connector)
+    )
+
+    assert status == 200
+    assert payload["transcript_text_present"] is True
+    assert payload["transcript_text_length_bucket"] == "nonzero_redacted"
+    assert payload["openai_event_type_counts"]["conversation.item.input_audio_transcription.completed"] == 1
+    assert PLACEHOLDER_ALT_SCHEMA_TEXT not in json.dumps(payload, ensure_ascii=False)
+
+
+def test_gateway_completed_event_supports_content_array_fixture(tmp_path: Path) -> None:
+    audio = _tone_wav_bytes(tmp_path / "content.wav")
+    fake_ws = _FakeWebSocket(
+        [
+            {"type": "session.created"},
+            {"type": "session.updated"},
+            {
+                "type": "conversation.item.input_audio_transcription.completed",
+                "content": [{"type": "input_text", "text": PLACEHOLDER_ALT_SCHEMA_TEXT}],
+            },
+        ]
+    )
+
+    async def _connector(_url: str, _headers: dict[str, str]) -> _FakeWebSocket:
+        return fake_ws
+
+    status, payload = asyncio.run(
+        run_gateway_realtime_measurement(audio, settings=_settings(), request_id="req_content_schema", connector=_connector)
+    )
+
+    assert status == 200
+    assert payload["transcript_text_present"] is True
+    assert payload["transcript_text_length_bucket"] == "nonzero_redacted"
+    assert payload["diagnostic_propagation_gap"] is False
+    assert PLACEHOLDER_ALT_SCHEMA_TEXT not in json.dumps(payload, ensure_ascii=False)
+
+
+def test_gateway_delta_event_supports_alternate_text_fixture(tmp_path: Path) -> None:
+    audio = _tone_wav_bytes(tmp_path / "delta-alt.wav")
+    fake_ws = _FakeWebSocket(
+        [
+            {"type": "session.created"},
+            {"type": "session.updated"},
+            {
+                "type": "conversation.item.input_audio_transcription.delta",
+                "text": PLACEHOLDER_ALT_SCHEMA_TEXT,
+            },
+            {"type": "conversation.item.input_audio_transcription.completed", "transcript": ""},
+        ]
+    )
+
+    async def _connector(_url: str, _headers: dict[str, str]) -> _FakeWebSocket:
+        return fake_ws
+
+    status, payload = asyncio.run(
+        run_gateway_realtime_measurement(audio, settings=_settings(), request_id="req_delta_alt", connector=_connector)
+    )
+
+    assert status == 200
+    assert payload["first_delta_ms"] is not None
+    assert payload["transcript_text_present"] is True
+    assert payload["transcript_text_length_bucket"] == "nonzero_redacted"
+    assert payload["diagnostic_classification"] == "transcript_bearing_event_observed_text_redacted"
+    assert PLACEHOLDER_ALT_SCHEMA_TEXT not in json.dumps(payload, ensure_ascii=False)
 
 
 def test_gateway_audio_diagnostics_classify_silence(tmp_path: Path) -> None:
