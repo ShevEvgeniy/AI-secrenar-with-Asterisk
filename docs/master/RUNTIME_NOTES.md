@@ -3774,3 +3774,36 @@ asterisk_OPENAI_API_KEY=ABSENT
 business_dialog_gateway_transcript=NOT_ENABLED
 transcript_text_logging=NOT_ENABLED
 ```
+## NODE-032AL Runtime Notes
+
+NODE-032AL performed local repo analysis only.
+
+Runtime action summary:
+
+```text
+live_smoke=false
+ssh=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+audio_created_or_uploaded=false
+service_action=false
+dependency_install=false
+reboot_or_power_cycle=false
+firewall_or_env_change=false
+server_state_change=false
+transcript_text_or_delta_logged=false
+```
+
+NODE-032AK final runtime evidence remains the latest live-state reference:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=ABSENT
+firewall=unchanged_source_restricted
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+```
+
+NODE-032AL did not alter this state.

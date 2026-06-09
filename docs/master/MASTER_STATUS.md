@@ -4332,3 +4332,44 @@ business_dialog_gateway_transcript=NOT_ENABLED
 transcript_text_logging=NOT_ENABLED
 temporary_helper_env_audio_removed=true
 ```
+## NODE-032AL Local Analysis
+
+Result:
+
+```text
+node=NODE-032AL / transcript-content-empty-after-prepared-stimulus-analysis
+branch=feat/node-032al-transcript-content-empty-after-prepared-stimulus-analysis
+scope=repo_local_analysis_only
+live_smoke=false
+ssh=false
+source_runtime_change=false
+```
+
+Analysis summary:
+
+```text
+prior_node=NODE-032AK
+transport_auth_runtime_diagnostics=pass
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_present=false
+transcript_text_length_bucket=zero
+diagnostic_propagation_gap=false
+primary_classification=transcript_content_empty_after_prepared_stimulus
+```
+
+Most likely causes:
+
+```text
+rank_1=audio_semantics_not_real_speech_despite_signal_metrics
+rank_2=provider_completed_empty_event_expected_under_current_input
+rank_3=session_transcription_settings_suboptimal_for_synthetic_stimulus
+rank_4=language_or_model_context_issue
+```
+
+Outcome:
+
+```text
+node_outcome=LOCAL_ANALYSIS_COMPLETE
+next_recommendation=NODE-032AM / transcript-content-empty-local-schema-and-stimulus-analysis
+```
