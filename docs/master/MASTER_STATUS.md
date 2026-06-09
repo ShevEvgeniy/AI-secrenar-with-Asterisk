@@ -4439,3 +4439,46 @@ focused_suite=55_passed
 node_outcome=LOCAL_FIXTURE_PROOF_COMPLETE
 next_recommendation=NODE-032AO / safe-actual-speech-stimulus-and-session-settings-plan
 ```
+## NODE-032AO Safe Stimulus And Session Plan
+
+Result:
+
+```text
+node=NODE-032AO / safe-actual-speech-stimulus-and-session-settings-plan
+branch=feat/node-032ao-safe-actual-speech-stimulus-and-session-settings-plan
+scope=repo_planning_docs_only
+source_runtime_change=false
+live_smoke=false
+ssh=false
+server_state_change=false
+audio_generated=false
+```
+
+Planning summary:
+
+```text
+transport_auth_runtime_diagnostics_proven=true
+diagnostic_propagation_proven=true
+transcript_event_seen=true
+local_nonzero_bucket_mapping_proven=true
+actual_linguistic_stimulus_proof_gap=open
+session_settings_content_quality_gap=open
+```
+
+Selected future stimulus boundary:
+
+```text
+stimulus_label=SAFE_RU_SHORT_COMMAND
+expected_language=ru
+expected_content_bucket=nonempty_linguistic
+audio_format=24000_hz_mono_16_bit_pcm_wav
+actual_text_committed=false
+audio_committed=false
+```
+
+Outcome:
+
+```text
+node_outcome=LOCAL_PLAN_COMPLETE
+next_recommendation=NODE-032AP / controlled-actual-speech-transcript-content-smoke
+```
