@@ -1125,3 +1125,24 @@ Next recommended local boundary:
 ```text
 NODE-032AM / transcript-content-empty-local-schema-and-stimulus-analysis
 ```
+## NODE-032AM Plan Result
+
+NODE-032AM completed local schema/stimulus analysis without source/runtime changes or live access.
+
+Current parser assumptions:
+
+```text
+delta_event=conversation.item.input_audio_transcription.delta
+delta_text_field=payload.delta
+completed_event=conversation.item.input_audio_transcription.completed
+completed_text_field=payload.transcript
+alternate_or_nested_text_fields_read=none
+```
+
+The next safe boundary should be local implementation/tests/specs, not a live smoke:
+
+```text
+NODE-032AN / transcript-event-schema-fixtures-and-nonzero-bucket-local-proof
+```
+
+NODE-032AN should add placeholder-safe local fixtures for alternate provider event shapes and prove non-zero bucket mapping without logging transcript text.

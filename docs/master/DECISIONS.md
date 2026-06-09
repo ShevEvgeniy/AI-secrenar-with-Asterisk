@@ -2281,3 +2281,38 @@ transcript_text_or_delta_logging
 audio_artifact_creation
 business_dialog_integration
 ```
+## NODE-032AM Schema And Stimulus Analysis Decision
+
+Date: 2026-06-09
+
+Decision:
+
+```text
+accept_current_supported_event_fields_as_locally_tested=true
+accept_redaction_bucket_false_zero_as_unlikely=true
+accept_alternate_provider_event_shape_gap_as_open=true
+accept_actual_linguistic_stimulus_proof_gap_as_open=true
+live_smoke_retry_now=false
+```
+
+Current supported fields:
+
+```text
+delta_text_field=payload.delta
+completed_text_field=payload.transcript
+nested_transcript_fields_read=none
+```
+
+Selected next boundary:
+
+```text
+NODE-032AN / transcript-event-schema-fixtures-and-nonzero-bucket-local-proof
+```
+
+Rationale:
+
+```text
+local_fixtures_before_live_retry=true
+prove_nonzero_bucket_without_real_transcript_text=true
+document_safe_actual_speech_stimulus_requirements=true
+```
