@@ -2247,3 +2247,37 @@ Next boundary:
 ```text
 NODE-032AL / transcript-content-empty-after-prepared-stimulus-analysis
 ```
+## NODE-032AL Transcript Content Analysis Decision
+
+Date: 2026-06-09
+
+Decision:
+
+```text
+accept_NODE_032AK_transport_auth_runtime_diagnostics=true
+accept_NODE_032AK_transcript_event_observed=true
+accept_NODE_032AK_transcript_content_success=false
+remaining_problem=transcript_content_empty_after_prepared_stimulus
+```
+
+NODE-032AL rejects transport/auth/runtime diagnostics and diagnostic propagation as the current blocker because NODE-032AK recorded HTTP 200, OpenAI Realtime OK, session creation, `chunks_sent=20`, transcript event evidence, and `diagnostic_propagation_gap=false`.
+
+The most likely next investigation boundary is local schema/stimulus/settings analysis before any future live smoke:
+
+```text
+next_boundary=NODE-032AM / transcript-content-empty-local-schema-and-stimulus-analysis
+```
+
+Rejected in NODE-032AL:
+
+```text
+live_smoke_retry
+ssh_or_server_change
+token_handling
+temp_env_creation
+service_action
+firewall_or_env_change
+transcript_text_or_delta_logging
+audio_artifact_creation
+business_dialog_integration
+```
