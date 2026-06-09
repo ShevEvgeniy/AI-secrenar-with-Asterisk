@@ -578,6 +578,51 @@ def test_gateway_adapter_smoke_preserves_empty_present_event_counts_without_gap(
     assert "gateway-token" not in serialized
 
 
+def test_gateway_adapter_smoke_preserves_zero_bucket_classification() -> None:
+    report = build_report(
+        {
+            "stt_gateway_adapter_enabled": True,
+            "gateway_reachable": True,
+            "gateway_auth": "ok",
+            "openai_realtime_connection_ok": True,
+            "chunks_sent": 20,
+            "openai_event_type_counts": {
+                "session.created": 1,
+                "conversation.item.input_audio_transcription.completed": 1,
+            },
+            "openai_event_type_counts_present": True,
+            "transcript_event_seen": True,
+            "transcript_bearing_event_seen": True,
+            "transcript_text_present": False,
+            "transcript_text_length_bucket": "zero",
+            "input_audio_buffer_commit_sent": True,
+            "timeout_observed": False,
+            "error_event_seen": False,
+            "diagnostic_propagation_gap": False,
+            "diagnostic_classification": "transcript_event_observed_empty_or_no_text",
+            "dialog_transcript_used": False,
+            "transcript_text_logged": False,
+        },
+        accepted=False,
+        attempted=True,
+        reason="empty_transcript",
+    )
+
+    serialized = json.dumps(report, ensure_ascii=False)
+    assert report["openai_event_type_counts_available"] is True
+    assert report["openai_event_type_counts_present"] is True
+    assert report["transcript_event_seen"] is True
+    assert report["transcript_bearing_event_seen"] is True
+    assert report["transcript_text_present"] is False
+    assert report["transcript_text_length_bucket"] == "zero"
+    assert report["diagnostic_propagation_gap"] is False
+    assert report["diagnostic_classification"] == "transcript_event_observed_empty_or_no_text"
+    assert report["transcript_used_for_dialog"] is False
+    assert report["business_dialog_unchanged"] is True
+    assert "transcript_text" not in report["details"]
+    assert "PLACEHOLDER" not in serialized
+
+
 def test_gateway_adapter_smoke_marks_missing_diagnostics_as_gap_without_leaking_text() -> None:
     transcript = "__FAKE_TRANSCRIPT_PLACEHOLDER__"
     token = "__FAKE_GATEWAY_TOKEN_PLACEHOLDER__"

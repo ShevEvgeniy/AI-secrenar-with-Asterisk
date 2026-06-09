@@ -1146,3 +1146,29 @@ NODE-032AN / transcript-event-schema-fixtures-and-nonzero-bucket-local-proof
 ```
 
 NODE-032AN should add placeholder-safe local fixtures for alternate provider event shapes and prove non-zero bucket mapping without logging transcript text.
+## NODE-032AN Plan Result
+
+NODE-032AN implemented placeholder-safe local parser fixtures and tests for selected transcript event schema shapes.
+
+Covered:
+
+```text
+top_level_delta
+top_level_completed_transcript
+nested_completed_transcript_text_or_value
+item_transcript
+content_array_transcript_or_text
+alternate_delta_text
+```
+
+Deferred:
+
+```text
+late_delta_after_completed_event
+```
+
+Next recommended boundary:
+
+```text
+NODE-032AO / safe-actual-speech-stimulus-and-session-settings-plan
+```
