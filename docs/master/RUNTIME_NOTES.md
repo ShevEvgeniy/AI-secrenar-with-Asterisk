@@ -3649,3 +3649,39 @@ Next recommended node:
 ```text
 NODE-032AJ / controlled-transcript-content-stimulus-preparation
 ```
+## NODE-032AJ Runtime Notes
+
+No runtime action occurred in NODE-032AJ.
+
+The next smoke should use a prepared stimulus with:
+
+```text
+speech_duration_longer_than_NODE_032AG
+clear_speech_like_waveform
+not_silence_dominant
+not_clipped
+audio_format=24000_hz_mono_16_bit_pcm
+pre_smoke_duration_reported=true
+pre_smoke_rms_reported=true
+pre_smoke_peak_reported=true
+pre_smoke_non_silent_ratio_reported=true
+```
+
+Runtime evidence must remain redacted:
+
+```text
+actual_transcript_text_redacted=true
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+token_values_printed=false
+```
+
+No audio artifacts were created or committed in NODE-032AJ.
+
+Next recommended node:
+
+```text
+NODE-032AK / controlled-transcript-content-smoke-with-prepared-stimulus
+```

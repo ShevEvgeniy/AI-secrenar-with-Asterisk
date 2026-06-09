@@ -2148,3 +2148,48 @@ dual_channel_recording_proof
 transcript_text_logging
 using_transcript_for_dialog
 ```
+## NODE-032AJ Stimulus Preparation Decision
+
+Date: 2026-06-09
+
+Decision:
+
+```text
+prepare_stimulus_strategy_before_next_smoke=true
+create_or_commit_audio_artifact=false
+run_live_smoke=false
+next_boundary=NODE-032AK / controlled-transcript-content-smoke-with-prepared-stimulus
+```
+
+The next controlled smoke should use a longer, clearer, non-sensitive, non-silence-dominant, non-clipped `24000 Hz mono 16-bit PCM` stimulus and report pre-smoke audio diagnostics:
+
+```text
+duration
+rms
+peak
+non_silent_ratio
+```
+
+Accepted metrics for the later smoke remain redacted:
+
+```text
+transcript_text_length_bucket=nonzero_bucket
+actual_transcript_text_redacted=true
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+token_values_printed=false
+```
+
+Rejected for NODE-032AJ:
+
+```text
+business_dialog_integration
+production_autostart
+real_customer_call
+dual_channel_recording_proof
+transcript_text_logging
+using_transcript_for_dialog
+customer_audio
+committed_audio_artifacts
+```
