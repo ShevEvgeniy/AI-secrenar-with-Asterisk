@@ -2409,3 +2409,27 @@ Required future approval phrase remains:
 ```text
 APPROVE NODE-032AP PHASE B LIVE SMOKE
 ```
+## NODE-032AQ Reachability Decision
+
+Date: 2026-06-09
+
+Decision:
+
+```text
+phase_b_go=false
+reason=asterisk_ssh_still_unreachable
+classification=provider_control_unavailable
+secondary_classification=unknown_reachability_failure
+power_on_occurred=false
+live_smoke_run=false
+server_state_change=false
+```
+
+Accepted conclusion:
+
+```text
+repo_or_ssh_only_recovery_not_possible=true
+out_of_band_provider_or_network_recovery_required=true
+```
+
+NODE-032AP Phase B remains blocked until Asterisk SSH reachability is restored and read-only hard gates pass.

@@ -3916,3 +3916,37 @@ gateway_checks_run=false
 ```
 
 No live runtime state was changed.
+## NODE-032AQ Runtime Notes
+
+NODE-032AQ performed local validation and Asterisk reachability checks only.
+
+Runtime action summary:
+
+```text
+live_smoke=false
+phase_b=false
+audio_generated=false
+audio_uploaded=false
+temp_env_created=false
+helper_deploy=false
+token_handling=false
+service_action=false
+dependency_install=false
+reboot_or_power_cycle=false
+firewall_or_env_change=false
+server_file_change=false
+server_state_change=false
+transcript_text_or_delta_logged=false
+```
+
+Reachability result:
+
+```text
+asterisk_tcp_22_reachable=false
+asterisk_ping_reachable=false
+asterisk_ssh_reachable=false
+power_state_check_available=false
+power_on_occurred=false
+```
+
+No live runtime state was changed.

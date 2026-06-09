@@ -1235,3 +1235,25 @@ Future Phase B remains blocked until Asterisk SSH reachability is restored, all 
 ```text
 APPROVE NODE-032AP PHASE B LIVE SMOKE
 ```
+## NODE-032AQ Reachability Result
+
+NODE-032AQ attempted repository-local validation and Asterisk reachability recovery/classification only.
+
+Local readiness passed:
+
+```text
+focused_suite=55_passed
+source_runtime_diff=empty
+```
+
+Asterisk remained unreachable:
+
+```text
+tcp_22_reachable=false
+ping_reachable=false
+ssh_reachable=false
+power_state_check_available=false
+power_on_available=false
+```
+
+No power-on occurred because no provider power-control mechanism was available in the repo or active tooling. The next action is out-of-band provider or network recovery, then another read-only preflight before NODE-032AP Phase B can be requested.
