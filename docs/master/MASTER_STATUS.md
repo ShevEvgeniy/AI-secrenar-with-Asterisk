@@ -4521,3 +4521,46 @@ Future approval phrase remains:
 ```text
 APPROVE NODE-032AP PHASE B LIVE SMOKE
 ```
+## NODE-032AQ Asterisk Reachability Recovery
+
+Result:
+
+```text
+node=NODE-032AQ / restore-asterisk-reachability-for-controlled-smoke-preflight
+branch=feat/node-032aq-restore-asterisk-reachability-for-controlled-smoke-preflight
+scope=asterisk_reachability_only
+live_smoke=false
+audio_generated=false
+helper_deploy=false
+token_handling=false
+service_action=false
+server_state_change=false
+```
+
+Local validation:
+
+```text
+focused_suite=55_passed
+git_diff_check=passed
+source_runtime_diff=empty
+```
+
+Reachability result:
+
+```text
+asterisk_tcp_22_reachable=false
+asterisk_ping_reachable=false
+asterisk_ssh_reachable=false
+power_state_check_available=false
+power_on_available=false
+power_on_occurred=false
+classification=provider_control_unavailable
+secondary_classification=unknown_reachability_failure
+```
+
+Outcome:
+
+```text
+node_outcome=REACHABILITY_BLOCKED
+next_recommendation=out_of_band_provider_or_network_recovery_then_rerun_read_only_preflight
+```
