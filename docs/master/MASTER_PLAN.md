@@ -1210,3 +1210,28 @@ Future exact approval phrase:
 ```text
 APPROVE NODE-032AP PHASE B LIVE SMOKE
 ```
+## NODE-032AP Phase A Result
+
+NODE-032AP began the controlled actual-speech transcript-content smoke boundary with Phase A read-only preflight only.
+
+Local readiness passed:
+
+```text
+focused_suite=55_passed
+source_runtime_diff=empty
+```
+
+Server readiness did not pass because the first required server gate failed:
+
+```text
+asterisk_ssh_reachable=false
+blocker=asterisk_ssh_timeout_to_92_118_85_117_port_22
+gateway_checks=not_run_after_asterisk_gate_failure
+phase_b_recommendation=NO_GO
+```
+
+Future Phase B remains blocked until Asterisk SSH reachability is restored, all hard gates pass, and the exact approval phrase is provided:
+
+```text
+APPROVE NODE-032AP PHASE B LIVE SMOKE
+```
