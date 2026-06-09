@@ -1172,3 +1172,41 @@ Next recommended boundary:
 ```text
 NODE-032AO / safe-actual-speech-stimulus-and-session-settings-plan
 ```
+## NODE-032AO Plan Result
+
+NODE-032AO completed the local safe stimulus and session settings plan before any new live transcript-content smoke.
+
+The next live attempt should isolate the stimulus variable:
+
+```text
+stimulus_label=SAFE_RU_SHORT_COMMAND
+expected_language=ru
+expected_content_bucket=nonempty_linguistic
+format=24000_hz_mono_16_bit_pcm_wav
+actual_spoken_text_not_recorded=true
+audio_not_committed=true
+```
+
+Current session settings should be kept for the first next smoke unless immediate Phase A gates fail:
+
+```text
+model=gpt-realtime-whisper
+language=ru
+sample_rate=24000
+chunk_ms=200
+turn_detection=unchanged
+noise_reduction=unchanged
+prompt_or_context=unchanged
+```
+
+Next recommended boundary:
+
+```text
+NODE-032AP / controlled-actual-speech-transcript-content-smoke
+```
+
+Future exact approval phrase:
+
+```text
+APPROVE NODE-032AP PHASE B LIVE SMOKE
+```

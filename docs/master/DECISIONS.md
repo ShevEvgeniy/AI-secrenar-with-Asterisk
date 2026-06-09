@@ -2343,3 +2343,45 @@ Next boundary:
 ```text
 NODE-032AO / safe-actual-speech-stimulus-and-session-settings-plan
 ```
+## NODE-032AO Safe Stimulus And Session Settings Decision
+
+Date: 2026-06-09
+
+Decision:
+
+```text
+accept_transport_auth_runtime_diagnostics_as_proven=true
+accept_diagnostic_propagation_as_proven=true
+accept_local_nonzero_bucket_mapping_as_proven=true
+accept_current_live_transcript_content_success=false
+live_smoke_retry_now=false
+```
+
+Selected next strategy:
+
+```text
+safe_actual_speech_stimulus_required=true
+stimulus_label=SAFE_RU_SHORT_COMMAND
+actual_spoken_text_committed=false
+audio_committed=false
+keep_current_session_settings_for_first_next_smoke=true
+```
+
+Rejected now:
+
+```text
+business_dialog_integration
+production_autostart
+real_customer_audio
+committed_audio_fixture
+transcript_text_or_delta_logging
+multiple_smoke_retries
+session_setting_changes_before_actual_speech_proof
+```
+
+Next boundary:
+
+```text
+NODE-032AP / controlled-actual-speech-transcript-content-smoke
+approval_phrase=APPROVE NODE-032AP PHASE B LIVE SMOKE
+```
