@@ -3886,3 +3886,33 @@ asterisk_OPENAI_API_KEY=ABSENT
 business_dialog_gateway_transcript=NOT_ENABLED
 transcript_text_logging=NOT_ENABLED
 ```
+## NODE-032AP Runtime Notes
+
+NODE-032AP Phase A performed local validation and attempted the first read-only server SSH gate.
+
+Runtime action summary:
+
+```text
+live_smoke=false
+audio_generated=false
+audio_uploaded=false
+temp_env_created=false
+helper_deploy=false
+token_handling=false
+service_action=false
+dependency_install=false
+reboot_or_power_cycle=false
+firewall_or_env_change=false
+server_state_change=false
+transcript_text_or_delta_logged=false
+```
+
+Read-only server gate result:
+
+```text
+asterisk_ssh_reachable=false
+asterisk_ssh_result=timeout_to_92_118_85_117_port_22
+gateway_checks_run=false
+```
+
+No live runtime state was changed.

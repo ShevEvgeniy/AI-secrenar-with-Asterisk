@@ -2385,3 +2385,27 @@ Next boundary:
 NODE-032AP / controlled-actual-speech-transcript-content-smoke
 approval_phrase=APPROVE NODE-032AP PHASE B LIVE SMOKE
 ```
+## NODE-032AP Phase A Gate Decision
+
+Date: 2026-06-09
+
+Decision:
+
+```text
+phase_b_go=false
+reason=asterisk_ssh_timeout
+live_smoke_run=false
+audio_generated=false
+helper_deploy=false
+token_handling=false
+service_action=false
+server_state_change=false
+```
+
+The future actual-speech smoke remains the selected boundary, but it is not approved or runnable while the Asterisk SSH gate is unavailable.
+
+Required future approval phrase remains:
+
+```text
+APPROVE NODE-032AP PHASE B LIVE SMOKE
+```

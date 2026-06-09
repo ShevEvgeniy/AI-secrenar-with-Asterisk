@@ -4482,3 +4482,42 @@ Outcome:
 node_outcome=LOCAL_PLAN_COMPLETE
 next_recommendation=NODE-032AP / controlled-actual-speech-transcript-content-smoke
 ```
+## NODE-032AP Phase A Read-Only Preflight
+
+Result:
+
+```text
+node=NODE-032AP / controlled-actual-speech-transcript-content-smoke
+branch=feat/node-032ap-controlled-actual-speech-transcript-content-smoke
+phase=Phase_A_read_only_preflight_only
+live_smoke=false
+audio_generated=false
+helper_deploy=false
+token_handling=false
+service_action=false
+server_state_change=false
+```
+
+Local validation:
+
+```text
+focused_suite=55_passed
+git_diff_check=passed
+source_runtime_diff=empty
+```
+
+Read-only server gate result:
+
+```text
+asterisk_ssh_reachable=false
+asterisk_ssh_result=timeout_to_92_118_85_117_port_22
+gateway_ssh_checked=false
+phase_b_recommendation=NO_GO
+blocker=asterisk_ssh_timeout
+```
+
+Future approval phrase remains:
+
+```text
+APPROVE NODE-032AP PHASE B LIVE SMOKE
+```
