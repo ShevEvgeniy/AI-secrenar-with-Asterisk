@@ -3685,3 +3685,92 @@ Next recommended node:
 ```text
 NODE-032AK / controlled-transcript-content-smoke-with-prepared-stimulus
 ```
+## NODE-032AK Phase A Runtime Notes
+
+Phase A performed sanitized read-only gates only.
+
+Asterisk:
+
+```text
+ssh_reachable=true
+hostname=tula
+ai_secretary_ari_service=active_enabled
+process_OPENAI_API_KEY=ABSENT
+service_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+tmp_helper_env_markers=ABSENT
+```
+
+Gateway:
+
+```text
+ssh_reachable=true
+hostname=ai-secretary-gateway-node023
+ai_secretary_gateway_service=inactive_disabled
+gateway_unit_verify=OK
+target_listeners_443_8080_8081=ABSENT
+ufw=active_default_deny
+ufw_8080_tcp=ALLOW_FROM_92.118.85.117_ONLY
+gateway_env_metadata=root:gateway:640
+gateway_secret_presence=masked_pass
+realtime_gateway_marker_openai_event_type_counts_available=PRESENT
+realtime_measurement_symbol_diagnose_pcm_wav_audio_bytes=PRESENT
+```
+
+No runtime state change occurred. No smoke, call, helper deploy, token handling, temp env creation, audio stimulus creation/upload, service action, firewall/env change, reboot, transcript text logging, or business-dialog transcript use occurred.
+
+Phase B exact approval phrase:
+
+```text
+APPROVE NODE-032AK PHASE B LIVE SMOKE
+```
+## NODE-032AK Phase B Runtime Notes
+
+Phase B ran after exact approval and immediate hard-gate re-confirmation.
+
+Runtime actions:
+
+```text
+temporary_helper_bundle_copied=true
+temporary_env_created_with_guard=true
+temporary_generated_stimulus_created=true
+gateway_service_started_for_smoke=true
+smoke_invocations=1
+gateway_service_stopped_after_smoke=true
+temporary_helper_env_audio_removed=true
+local_temporary_helper_bundle_removed=true
+```
+
+Smoke result:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=20
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_present=false
+transcript_text_length_bucket=zero
+diagnostic_propagation_gap=false
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+token_values_printed=false
+```
+
+Final runtime state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=ABSENT
+firewall=unchanged_source_restricted
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+```

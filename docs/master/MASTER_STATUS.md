@@ -4187,3 +4187,148 @@ transcript_text_or_delta_added=false
 audio_binary_artifact_added=false
 business_dialog_gateway_transcript=NOT_ENABLED
 ```
+## NODE-032AK Phase A Readiness
+
+Result:
+
+```text
+node=NODE-032AK / controlled-transcript-content-smoke-with-prepared-stimulus
+branch=feat/node-032ak-controlled-transcript-content-smoke-with-prepared-stimulus
+phase=Phase A read-only gates and planning
+base_master_head=2d05ad5d0710437dfae47e548c7081e830570c45
+live_smoke=false
+server_state_changed=false
+```
+
+Repo gates:
+
+```text
+smoke_helper_present=true
+helper_bundle_present=true
+safe_temp_env_guard_present=true
+focused_suite=50_passed
+git_diff_check=pass
+source_runtime_diff=empty
+```
+
+Asterisk read-only gates:
+
+```text
+asterisk_ssh_reachable=true
+asterisk_hostname=tula
+ai_secretary_ari_service=active_enabled
+process_OPENAI_API_KEY=ABSENT
+service_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+tmp_helper_env_markers=ABSENT
+```
+
+Gateway read-only gates:
+
+```text
+gateway_ssh_reachable=true
+gateway_hostname=ai-secretary-gateway-node023
+ai_secretary_gateway_service=inactive_disabled
+gateway_unit_verify=OK
+target_listeners_443_8080_8081=ABSENT
+ufw=active_default_deny
+ufw_8080_tcp=ALLOW_FROM_92.118.85.117_ONLY
+gateway_env_metadata=root:gateway:640
+gateway_secret_presence=masked_pass
+realtime_gateway_marker_openai_event_type_counts_available=PRESENT
+realtime_measurement_symbol_diagnose_pcm_wav_audio_bytes=PRESENT
+```
+
+Phase B:
+
+```text
+phase_b_recommendation=CONDITIONAL_GO
+condition=exact_approval_phrase_and_immediate_hard_gate_reconfirmation
+approval_phrase=APPROVE NODE-032AK PHASE B LIVE SMOKE
+```
+
+Safety:
+
+```text
+live_smoke=false
+test_call=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+audio_created_or_uploaded=false
+service_action=false
+firewall_or_env_change=false
+transcript_text_or_delta_added=false
+audio_binary_artifact_added=false
+```
+## NODE-032AK Phase B Controlled Smoke
+
+Result:
+
+```text
+node=NODE-032AK / controlled-transcript-content-smoke-with-prepared-stimulus
+branch=feat/node-032ak-controlled-transcript-content-smoke-with-prepared-stimulus
+phase=Phase B controlled live smoke
+approval_phrase_received=APPROVE NODE-032AK PHASE B LIVE SMOKE
+hard_gates_reconfirmed=true
+smoke_invocations=1
+```
+
+Smoke summary:
+
+```text
+gateway_reachable_from_asterisk=true
+gateway_auth=ok
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=20
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_present=false
+transcript_text_length_bucket=zero
+diagnostic_propagation_gap=false
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+token_values_printed=false
+```
+
+Prepared stimulus:
+
+```text
+stimulus_duration_ms=4000
+stimulus_format=24000_hz_mono_16_bit_pcm
+stimulus_rms=0.191375
+stimulus_peak=0.715424
+stimulus_non_silent_ratio=0.857115
+no_real_caller_audio=true
+no_sensitive_audio=true
+audio_binary_artifact_added=false
+```
+
+Outcome:
+
+```text
+transport_auth_runtime_diagnostics=pass
+transcript_content_target=blocked
+node_outcome=BLOCKED_TRANSCRIPT_CONTENT_STILL_EMPTY
+next_recommendation=NODE-032AL / transcript-content-empty-after-prepared-stimulus-analysis
+```
+
+Final safety state:
+
+```text
+gateway_service=inactive_disabled
+target_listeners_443_8080_8081=ABSENT
+firewall=unchanged_source_restricted
+asterisk_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript=NOT_ENABLED
+transcript_text_logging=NOT_ENABLED
+temporary_helper_env_audio_removed=true
+```

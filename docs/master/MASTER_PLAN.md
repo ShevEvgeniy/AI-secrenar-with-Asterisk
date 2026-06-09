@@ -1040,3 +1040,62 @@ Next node:
 ```text
 NODE-032AK / controlled-transcript-content-smoke-with-prepared-stimulus
 ```
+## NODE-032AK Phase A Plan Update
+
+NODE-032AK Phase A completed read-only readiness for a future controlled transcript-content smoke with prepared stimulus.
+
+Phase B is not approved yet. It requires:
+
+```text
+APPROVE NODE-032AK PHASE B LIVE SMOKE
+```
+
+Phase B, if approved, should run one controlled non-business-dialog smoke using:
+
+```text
+non_sensitive_generated_speech_like_stimulus
+speech_duration_longer_than_NODE_032AG
+audio_format=24000_hz_mono_16_bit_pcm
+duration_rms_peak_non_silent_ratio_reported_before_smoke=true
+actual_transcript_text_redacted=true
+```
+
+Expected target:
+
+```text
+transcript_text_length_bucket=nonzero_bucket
+transcript_text_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+token_values_printed=false
+```
+## NODE-032AK Phase B Plan Result
+
+NODE-032AK Phase B ran exactly one controlled Asterisk-side non-business-dialog smoke after the exact approval phrase.
+
+Transport/auth/runtime diagnostics passed:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=20
+openai_event_type_counts_available=true
+diagnostic_propagation_gap=false
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+```
+
+Transcript content remained blocked:
+
+```text
+transcript_text_present=false
+transcript_text_length_bucket=zero
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+```
+
+Next recommended planning boundary:
+
+```text
+NODE-032AL / transcript-content-empty-after-prepared-stimulus-analysis
+```
