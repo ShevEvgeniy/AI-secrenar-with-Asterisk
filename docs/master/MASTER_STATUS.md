@@ -4373,3 +4373,36 @@ Outcome:
 node_outcome=LOCAL_ANALYSIS_COMPLETE
 next_recommendation=NODE-032AM / transcript-content-empty-local-schema-and-stimulus-analysis
 ```
+## NODE-032AM Local Schema And Stimulus Analysis
+
+Result:
+
+```text
+node=NODE-032AM / transcript-content-empty-local-schema-and-stimulus-analysis
+branch=feat/node-032am-transcript-content-empty-local-schema-and-stimulus-analysis
+scope=repo_local_analysis_only
+source_runtime_change=false
+live_smoke=false
+ssh=false
+server_state_change=false
+```
+
+Analysis summary:
+
+```text
+current_delta_event=conversation.item.input_audio_transcription.delta
+current_delta_text_field=payload.delta
+current_completed_event=conversation.item.input_audio_transcription.completed
+current_completed_text_field=payload.transcript
+nested_transcript_fields_read=none
+redaction_bucket_false_zero=unlikely
+alternate_event_schema_fixture_gap=open
+stimulus_linguistic_content_proof_gap=open
+```
+
+Outcome:
+
+```text
+node_outcome=LOCAL_ANALYSIS_COMPLETE
+next_recommendation=NODE-032AN / transcript-event-schema-fixtures-and-nonzero-bucket-local-proof
+```
