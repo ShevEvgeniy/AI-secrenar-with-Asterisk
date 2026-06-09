@@ -2193,3 +2193,57 @@ using_transcript_for_dialog
 customer_audio
 committed_audio_artifacts
 ```
+## NODE-032AK Phase A Readiness Decision
+
+Date: 2026-06-09
+
+Decision:
+
+```text
+phase_a_read_only_gates_passed=true
+phase_b_recommendation=CONDITIONAL_GO
+phase_b_approval_required=true
+approval_phrase=APPROVE NODE-032AK PHASE B LIVE SMOKE
+```
+
+Phase A confirms repo helpers are present, local focused tests pass, source/runtime diff is empty, Asterisk read-only safety gates pass, and Gateway read-only safety gates pass.
+
+Phase B remains blocked until exact approval and immediate hard-gate re-confirmation. Phase B must not log transcript text/deltas, print tokens, use transcript for dialog, deploy helper persistence, enable services, broaden firewall, or commit audio/binary artifacts.
+## NODE-032AK Controlled Smoke Decision
+
+Date: 2026-06-09
+
+Decision:
+
+```text
+phase_b_approval_received=true
+exact_approval_phrase=APPROVE NODE-032AK PHASE B LIVE SMOKE
+exactly_one_controlled_smoke_ran=true
+accept_as_transport_auth_runtime_diagnostics=true
+accept_as_transcript_content_success=false
+```
+
+NODE-032AK proved the Asterisk-to-Gateway transport/auth/OpenAI Realtime diagnostics path again with a longer prepared stimulus:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=20
+openai_event_type_counts_available=true
+diagnostic_propagation_gap=false
+```
+
+NODE-032AK does not prove transcript content success:
+
+```text
+transcript_text_present=false
+transcript_text_length_bucket=zero
+diagnostic_classification=transcript_event_observed_empty_or_no_text
+```
+
+Next boundary:
+
+```text
+NODE-032AL / transcript-content-empty-after-prepared-stimulus-analysis
+```
