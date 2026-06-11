@@ -4564,3 +4564,75 @@ Outcome:
 node_outcome=REACHABILITY_BLOCKED
 next_recommendation=out_of_band_provider_or_network_recovery_then_rerun_read_only_preflight
 ```
+
+## NODE-032AR Asterisk Reachability Recovery Evidence
+
+Result:
+
+```text
+node=NODE-032AR / rerun-actual-speech-smoke-preflight-after-asterisk-reachability-recovery
+scope=repository_docs_only_with_coordinator_collected_read_only_evidence
+live_smoke=false
+call_run=false
+audio_generated=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+service_action=false
+server_state_change=false
+```
+
+Coordinator read-only evidence:
+
+```text
+tcp_22_reachable=true
+ssh_login=ok
+ping_timeout=true
+host=tula
+os=Ubuntu 24.04.3 LTS
+kernel=6.8.0-53-generic
+uptime_at_check=12_min
+```
+
+Asterisk and AI Secretary state:
+
+```text
+asterisk_systemd_unit_absent=true
+asterisk_runtime_process_present=true
+asterisk_process_user=tulauser
+ai_secretary_ari_service_active=active
+ai_secretary_ari_service_enabled=enabled
+ai_secretary_process_running=true
+ready_waiting_for_calls=true
+system_sounds_done=true
+```
+
+Listener/process summary:
+
+```text
+ssh_tcp_22_listening=true
+tcp_7077_listening=true
+udp_7077_listening=true
+tcp_8088_listening=true
+rtp_udp_10000_10100_listening_via_docker_proxy=true
+docker_proxy_ports_present=true
+```
+
+Interpretation:
+
+```text
+asterisk_ssh_timeout_resolved=true
+future_phase_b_preconditions_can_be_reconsidered=true
+phase_b_still_requires_exact_approval_phrase=true
+```
+
+Safety:
+
+```text
+no_server_access_after_coordinator_evidence_acceptance=true
+no_smoke_or_call=true
+no_audio_helper_temp_env_or_token_action=true
+no_service_firewall_env_or_server_mutation=true
+disk_image_touched=false
+server_started_out_of_band_by_user_provider_action=true
+```

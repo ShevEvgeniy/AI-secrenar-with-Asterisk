@@ -1257,3 +1257,32 @@ power_on_available=false
 ```
 
 No power-on occurred because no provider power-control mechanism was available in the repo or active tooling. The next action is out-of-band provider or network recovery, then another read-only preflight before NODE-032AP Phase B can be requested.
+
+## NODE-032AR Reachability Evidence Result
+
+NODE-032AR records coordinator-collected read-only evidence after out-of-band Asterisk reachability recovered.
+
+Recovered evidence:
+
+```text
+tcp_22_reachable=true
+ssh_login=ok
+ping_timeout=true
+host=tula
+os=Ubuntu 24.04.3 LTS
+kernel=6.8.0-53-generic
+uptime_at_check=12_min
+```
+
+Runtime interpretation:
+
+```text
+asterisk_systemd_unit_absent=true
+asterisk_runtime_process_present=true
+ai_secretary_service_ready=true
+future_phase_b_preconditions_can_be_reconsidered=true
+```
+
+NODE-032AR did not run smoke, generate audio, deploy helpers, handle tokens, create temp env files, perform service actions, or mutate firewall/env/server state. Any live smoke still requires exact approval and immediate hard-gate re-check.
+
+The Selectel disk image exists as a fallback and was not touched. The Asterisk server was started out of band by user/provider action before NODE-032AR documentation; Codex performed no power action.
