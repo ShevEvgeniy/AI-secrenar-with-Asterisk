@@ -2521,3 +2521,39 @@ Next decision boundary:
 ```text
 NODE-032AV / controlled-gateway-service-readiness-recovery-plan
 ```
+
+## NODE-032AV Gateway Service Readiness Recovery Decision
+
+Date: 2026-06-11
+
+Decision:
+
+```text
+docs_only=true
+phase_b_go=false
+live_action_run=false
+selected_next_boundary=controlled_gateway_service_readiness_recovery_live_action
+approval_phrase=APPROVE NODE-032AW GATEWAY SERVICE READINESS RECOVERY
+```
+
+NODE-032AV selects a narrow service-readiness recovery node before any smoke is retried. The future node may only start the already-installed Gateway service after exact approval and immediate hard-gate re-check, then verify active state, expected `8080` listener, no `443`/`8081`, unchanged firewall, safe logs, and rollback to inactive/disabled.
+
+Deferred boundaries:
+
+```text
+gateway_smoke=false
+helper_deploy=false
+token_handling=false
+temp_env_creation=false
+openai_requests=false
+business_dialog_integration=false
+production_autostart=false
+docker_mutation=false
+firewall_or_env_change=false
+```
+
+Next decision boundary:
+
+```text
+NODE-032AW / controlled-gateway-service-readiness-recovery-live-action
+```

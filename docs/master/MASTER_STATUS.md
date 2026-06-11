@@ -4813,3 +4813,61 @@ no_audio_helper_temp_env_or_token_action=true
 no_service_firewall_env_or_server_docker_mutation=true
 disk_image_touched=false
 ```
+
+## NODE-032AV Gateway Service Readiness Recovery Plan
+
+Result:
+
+```text
+node=NODE-032AV / controlled-gateway-service-readiness-recovery-plan
+branch=feat/node-032av-controlled-gateway-service-readiness-recovery-plan
+scope=docs_only_recovery_plan
+live_smoke=false
+call_run=false
+phase_b=false
+ssh_used=false
+server_access=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+service_action=false
+docker_mutation=false
+server_state_change=false
+```
+
+Current blocker carried from NODE-032AU:
+
+```text
+gateway_ssh_reachable=true
+ai_secretary_gateway_service_unit=present
+ai_secretary_gateway_service_state=disabled
+target_listeners_443_8080_8081=absent
+gateway_runtime_process=absent
+docker_inventory=empty
+phase_b_hard_gate=NO_GO
+blocker=gateway_service_installed_disabled_without_runtime_or_listener
+```
+
+Future approval phrase:
+
+```text
+APPROVE NODE-032AW GATEWAY SERVICE READINESS RECOVERY
+```
+
+Next recommendation:
+
+```text
+NODE-032AW / controlled-gateway-service-readiness-recovery-live-action
+```
+
+Safety:
+
+```text
+docs_only=true
+no_live_systems_touched=true
+no_ssh_or_provider_controls=true
+no_smoke_call_or_retry=true
+no_service_or_docker_mutation=true
+no_audio_helper_temp_env_token_or_openai_action=true
+disk_image_touched=false
+```

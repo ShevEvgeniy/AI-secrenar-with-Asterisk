@@ -1361,3 +1361,28 @@ Next recommendation:
 ```text
 NODE-032AV / controlled-gateway-service-readiness-recovery-plan
 ```
+
+## NODE-032AV Gateway Service Recovery Plan
+
+NODE-032AV is a docs-only planning boundary after NODE-032AU found host access recovered but Gateway service readiness absent.
+
+Planned future boundary:
+
+```text
+next_node=NODE-032AW / controlled-gateway-service-readiness-recovery-live-action
+approval_phrase=APPROVE NODE-032AW GATEWAY SERVICE READINESS RECOVERY
+purpose=start_gateway_service_for_readiness_only_then_restore_safe_state
+smoke=false
+calls=false
+helper_deploy=false
+token_handling=false
+temp_env_creation=false
+openai_requests=false
+docker_mutation=false
+systemctl_enable=false
+firewall_broadening=false
+```
+
+The next node must re-check unit, env metadata, masked secret presence, target listener absence, and firewall restriction before any service action. If approved and gates pass, it may start the Gateway service only for readiness verification, inspect safe status/listener/log evidence, then stop and verify the service returns to inactive/disabled with no target listeners.
+
+Stop conditions include missing approval, failed SSH, invalid unit, wrong env metadata, failed masked secret presence, unexpected target listener before action, UFW not active/default deny/source-restricted, unclear rollback, or any command that would print secret values.
