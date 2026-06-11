@@ -2472,3 +2472,27 @@ server_state_change=false
 ```
 
 Asterisk recovery evidence from NODE-032AR can be considered recovered, but future Phase B cannot proceed while the Gateway hard gate is unavailable. The next step is out-of-band Gateway start/recovery followed by read-only Gateway preflight.
+
+## NODE-032AT Gateway Recovery Read-Only Decision
+
+Date: 2026-06-11
+
+Decision:
+
+```text
+gateway_tcp_22_recovered=true
+gateway_ssh_recovered=true
+phase_b_go=false
+reason=full_gateway_hard_gate_not_yet_satisfied
+live_smoke_run=false
+gateway_mutation=false
+server_state_change=false
+```
+
+Gateway host-level SSH recovery is proven. Phase B remains not approved because the bounded read-only status did not observe a Gateway app process, matching running service, or target listener, and this node did not perform the full unit/env/firewall/masked-secret hard-gate set.
+
+Next decision boundary:
+
+```text
+NODE_032AU_full_gateway_readonly_hard_gate_after_kamatera_recovery
+```
