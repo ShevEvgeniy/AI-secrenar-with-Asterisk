@@ -1456,3 +1456,33 @@ service_enable=false
 docker_mutation=false
 firewall_or_env_change=false
 ```
+
+## NODE-032AY Gateway Listener And Log Readiness Result
+
+NODE-032AY ran the approved service-readiness check, not smoke.
+
+Result:
+
+```text
+service_start_result=active
+service_enabled_after_start=disabled
+gateway_runtime_process_after_start=true
+listener_8080_seen=true
+listener_8080_seen_at_iteration=2
+listener_443=false
+listener_8081=false
+safe_log_filter_result=passed_with_redaction
+service_stop_result=inactive
+service_enabled_final=disabled
+hard_gate_result=GO_FOR_SERVICE_READINESS_ONLY
+```
+
+The NODE-032AX bounded listener wait fixed the NODE-032AW immediate-listener ambiguity. `8080` appeared on the second one-second wait iteration. The safe journal filter ran without the prior quoting failure and produced redacted readiness/status evidence only.
+
+This accepts Gateway service listener/log readiness only. It does not accept smoke, Gateway request, OpenAI Realtime, transcript content, business-dialog integration, service enablement, autostart, Docker, firewall, env, or server/app config changes.
+
+Next recommendation:
+
+```text
+NODE-032AZ / controlled-actual-speech-transcript-content-smoke-after-gateway-readiness
+```
