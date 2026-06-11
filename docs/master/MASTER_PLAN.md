@@ -1334,3 +1334,30 @@ Next recommendation:
 ```text
 NODE_032AU_full_gateway_readonly_hard_gate_after_kamatera_recovery
 ```
+
+## NODE-032AU Full Gateway Hard-Gate Result
+
+NODE-032AU ran the full read-only Gateway hard-gate inventory after NODE-032AT recovered TCP/SSH access.
+
+Result:
+
+```text
+gateway_ssh=ok
+ai_secretary_gateway_unit_file_present=true
+ai_secretary_gateway_unit_file_state=disabled
+target_listener_443=false
+target_listener_8080=false
+target_listener_8081=false
+gateway_runtime_process_observed=false
+docker_container_candidate_observed=false
+phase_b_hard_gate=NO_GO
+blocker=gateway_service_installed_disabled_without_runtime_or_listener
+```
+
+The next step should not be a smoke. The recommended boundary is a controlled Gateway service readiness recovery plan that defines exactly what may be started, how it will be verified, and how it will be restored, before any smoke/call/token/temp-env/helper action is requested.
+
+Next recommendation:
+
+```text
+NODE-032AV / controlled-gateway-service-readiness-recovery-plan
+```

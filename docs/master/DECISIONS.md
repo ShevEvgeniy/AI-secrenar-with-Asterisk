@@ -2496,3 +2496,28 @@ Next decision boundary:
 ```text
 NODE_032AU_full_gateway_readonly_hard_gate_after_kamatera_recovery
 ```
+
+## NODE-032AU Full Gateway Hard-Gate Decision
+
+Date: 2026-06-11
+
+Decision:
+
+```text
+gateway_tcp_22_recovered=true
+gateway_ssh_recovered=true
+phase_b_go=false
+reason=gateway_service_installed_disabled_without_runtime_or_listener
+live_smoke_run=false
+gateway_mutation=false
+docker_mutation=false
+server_state_change=false
+```
+
+The full read-only inventory found a disabled `ai-secretary-gateway.service` unit file but no running Gateway app process, no Docker runtime candidate, and no target listener on `443`, `8080`, or `8081`. This clears host reachability but not service readiness.
+
+Next decision boundary:
+
+```text
+NODE-032AV / controlled-gateway-service-readiness-recovery-plan
+```

@@ -4749,3 +4749,67 @@ no_audio_helper_temp_env_or_token_action=true
 no_service_firewall_env_or_server_mutation=true
 disk_image_touched=false
 ```
+
+## NODE-032AU Full Gateway Read-Only Hard Gate
+
+Result:
+
+```text
+node=NODE-032AU / full-gateway-readonly-hard-gate-after-kamatera-recovery
+branch=feat/node-032au-full-gateway-readonly-hard-gate-after-kamatera-recovery
+scope=gateway_read_only_hard_gate_only
+live_smoke=false
+call_run=false
+audio_generated=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+service_action=false
+docker_mutation=false
+server_state_change=false
+```
+
+Gateway identity:
+
+```text
+gateway_host=45.61.48.199
+gateway_ssh=ok
+hostname=ai-secretary-gateway-node023
+os=Ubuntu 24.04.4 LTS
+kernel=6.8.0-117-generic
+uptime_at_check=30_min
+```
+
+Inventory:
+
+```text
+target_listener_443=false
+target_listener_8080=false
+target_listener_8081=false
+gateway_runtime_process_observed=false
+matching_running_or_loaded_service_units_observed=false
+ai_secretary_gateway_unit_file_present=true
+ai_secretary_gateway_unit_file_state=disabled
+ai_secretary_gateway_unit_file_preset=enabled
+docker_container_candidate_observed=false
+```
+
+Hard-gate result:
+
+```text
+gateway_tcp_22_recovered=true
+gateway_ssh_recovered=true
+phase_b_hard_gate=NO_GO
+blocker=gateway_service_installed_disabled_without_runtime_or_listener
+```
+
+Safety:
+
+```text
+no_gateway_mutation=true
+no_server_provider_controls_used=true
+no_smoke_or_call_or_retry=true
+no_audio_helper_temp_env_or_token_action=true
+no_service_firewall_env_or_server_docker_mutation=true
+disk_image_touched=false
+```

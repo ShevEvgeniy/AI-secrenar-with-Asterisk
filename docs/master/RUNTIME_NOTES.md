@@ -4095,3 +4095,51 @@ matching_running_services_observed=false
 ```
 
 No live runtime state was changed.
+
+## NODE-032AU Runtime Notes
+
+NODE-032AU performed one bounded read-only Gateway inventory session after NODE-032AT recovered Gateway SSH.
+
+Runtime action summary:
+
+```text
+live_smoke=false
+call_run=false
+retry_run=false
+openai_request=false
+audio_generated=false
+audio_uploaded=false
+temp_env_created=false
+helper_deploy=false
+token_handling=false
+service_action=false
+apt_update_or_upgrade=false
+docker_mutation=false
+firewall_or_env_change=false
+server_file_change=false
+server_state_change=false
+provider_controls_used=false
+transcript_text_or_delta_logged=false
+disk_image_touched=false
+```
+
+Gateway inventory:
+
+```text
+gateway_ssh=ok
+hostname=ai-secretary-gateway-node023
+os=Ubuntu 24.04.4 LTS
+kernel=6.8.0-117-generic
+uptime_at_check=30_min
+target_listener_443=false
+target_listener_8080=false
+target_listener_8081=false
+gateway_runtime_process_observed=false
+matching_running_or_loaded_service_units_observed=false
+ai_secretary_gateway_unit_file_present=true
+ai_secretary_gateway_unit_file_state=disabled
+ai_secretary_gateway_unit_file_preset=enabled
+docker_container_candidate_observed=false
+```
+
+No live runtime state was changed. The next step should plan a controlled Gateway service readiness recovery boundary before any smoke is requested.
