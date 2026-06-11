@@ -3916,6 +3916,58 @@ gateway_checks_run=false
 ```
 
 No live runtime state was changed.
+
+## NODE-032AW Runtime Notes
+
+NODE-032AW ran the approved Gateway service-readiness recovery cycle.
+
+Runtime action summary:
+
+```text
+approval_phrase=APPROVE NODE-032AW GATEWAY SERVICE READINESS RECOVERY
+live_smoke=false
+call_run=false
+phase_b=false
+gateway_http_request=false
+openai_request=false
+audio_generated=false
+audio_uploaded=false
+temp_env_created=false
+helper_deploy=false
+token_handling=false
+service_start=true
+service_stop=true
+service_enable=false
+service_disable=false
+service_restart=false
+service_reload=false
+apt_update_or_upgrade=false
+docker_mutation=false
+firewall_or_env_change=false
+server_file_change=false
+app_config_change=false
+disk_image_touched=false
+```
+
+Service cycle result:
+
+```text
+pre_service_active=inactive
+pre_service_enabled=disabled
+pre_target_listeners_absent=true
+post_start_service_active=active
+post_start_service_enabled=disabled
+post_start_gateway_process=true
+post_start_runtime_command_includes_port_8080=true
+post_start_listener_8080=false
+safe_log_filter_result=unavailable_due_quoting_error
+final_service_active=inactive
+final_service_enabled=disabled
+final_gateway_process=false
+final_target_listeners_absent=true
+```
+
+No smoke or Gateway request was made. Final runtime state was restored inactive/disabled.
 ## NODE-032AQ Runtime Notes
 
 NODE-032AQ performed local validation and Asterisk reachability checks only.

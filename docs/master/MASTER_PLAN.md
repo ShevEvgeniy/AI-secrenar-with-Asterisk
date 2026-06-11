@@ -1386,3 +1386,29 @@ firewall_broadening=false
 The next node must re-check unit, env metadata, masked secret presence, target listener absence, and firewall restriction before any service action. If approved and gates pass, it may start the Gateway service only for readiness verification, inspect safe status/listener/log evidence, then stop and verify the service returns to inactive/disabled with no target listeners.
 
 Stop conditions include missing approval, failed SSH, invalid unit, wrong env metadata, failed masked secret presence, unexpected target listener before action, UFW not active/default deny/source-restricted, unclear rollback, or any command that would print secret values.
+
+## NODE-032AW Gateway Service Readiness Recovery Result
+
+NODE-032AW ran the approved service-readiness recovery cycle, not smoke.
+
+Result:
+
+```text
+service_start_result=active
+gateway_runtime_process_after_start=true
+gateway_runtime_command_includes_port_8080=true
+listener_8080_after_start=false
+service_stop_result=inactive
+service_enabled_final=disabled
+hard_gate_result=NO_GO
+blocker=service_active_but_8080_listener_not_observed_in_immediate_check
+secondary_note=safe_log_filter_unavailable_due_quoting_error
+```
+
+The service was restored to inactive/disabled and no target listeners remained. The next boundary should fix the readiness evidence method before any smoke is requested: use a bounded wait for `8080` listener appearance and a robust local-safe log redaction command.
+
+Next recommendation:
+
+```text
+NODE-032AX / gateway-service-readiness-listener-and-log-preflight-fix
+```
