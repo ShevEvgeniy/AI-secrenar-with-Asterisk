@@ -2632,3 +2632,43 @@ Next decision boundary:
 ```text
 NODE-032AY / controlled-gateway-listener-and-log-readiness-check
 ```
+
+## NODE-032AY Gateway Listener And Log Readiness Decision
+
+Date: 2026-06-11
+
+Decision:
+
+```text
+approval_phrase=APPROVE NODE-032AY GATEWAY LISTENER AND LOG READINESS CHECK
+service_start_allowed=true
+service_stop_allowed=true
+smoke_allowed=false
+phase_b=false
+hard_gate_result=GO_FOR_SERVICE_READINESS_ONLY
+final_state_restored=true
+```
+
+NODE-032AY accepts the narrow service-readiness proof: the Gateway service can start, remains disabled, spawns the expected runtime process, exposes `8080` after a bounded wait, avoids `443` and `8081`, produces safe redacted readiness log evidence, and restores to inactive/disabled.
+
+Deferred boundaries:
+
+```text
+gateway_smoke=false
+gateway_request=false
+openai_requests=false
+token_handling=false
+temp_env_creation=false
+helper_deploy=false
+business_dialog_integration=false
+production_autostart=false
+service_enablement=false
+docker_mutation=false
+firewall_or_env_change=false
+```
+
+Next decision boundary:
+
+```text
+NODE-032AZ / controlled-actual-speech-transcript-content-smoke-after-gateway-readiness
+```

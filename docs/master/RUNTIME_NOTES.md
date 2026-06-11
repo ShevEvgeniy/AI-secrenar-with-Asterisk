@@ -4057,6 +4057,80 @@ next_node=NODE-032AY / controlled-gateway-listener-and-log-readiness-check
 approval_phrase=APPROVE NODE-032AY GATEWAY LISTENER AND LOG READINESS CHECK
 ```
 
+## NODE-032AY Runtime Notes
+
+NODE-032AY ran the approved Gateway listener/log readiness check.
+
+Runtime action summary:
+
+```text
+approval_phrase=APPROVE NODE-032AY GATEWAY LISTENER AND LOG READINESS CHECK
+live_smoke=false
+call_run=false
+phase_b=false
+gateway_http_request=false
+openai_request=false
+audio_generated=false
+audio_uploaded=false
+temp_env_created=false
+helper_deploy=false
+token_handling=false
+service_start=true
+service_stop=true
+service_enable_disable_restart_reload=false
+apt_update_or_upgrade=false
+docker_mutation=false
+firewall_or_env_change=false
+server_config_change=false
+app_config_change=false
+transcript_text_or_delta_logged=false
+disk_image_touched=false
+```
+
+Pre-state:
+
+```text
+gateway_ssh=ok
+hostname=ai-secretary-gateway-node023
+os=Ubuntu 24.04.4 LTS
+kernel=6.8.0-117-generic
+service_active_pre=inactive
+service_enabled_pre=disabled
+listener_443_pre=false
+listener_8080_pre=false
+listener_8081_pre=false
+gateway_runtime_process_pre=false
+```
+
+Readiness result:
+
+```text
+service_active_after_start=active
+service_enabled_after_start=disabled
+gateway_runtime_process_after_start=true
+listener_8080_seen=true
+listener_8080_seen_at_iteration=2
+listener_443_after_wait=false
+listener_8081_after_wait=false
+safe_journal_filter_ran=true
+safe_journal_filter_quoting_error=false
+uvicorn_8080_readiness_seen=true
+token_values_printed=false
+transcript_text_or_delta_logged=false
+```
+
+Final state:
+
+```text
+service_active_final=inactive
+service_enabled_final=disabled
+gateway_runtime_process_final=false
+listener_443_final=false
+listener_8080_final=false
+listener_8081_final=false
+hard_gate_result=GO_FOR_SERVICE_READINESS_ONLY
+```
+
 ## NODE-032AR Runtime Notes
 
 NODE-032AR records coordinator-collected read-only Asterisk reachability recovery evidence. Codex did not access servers after evidence acceptance.

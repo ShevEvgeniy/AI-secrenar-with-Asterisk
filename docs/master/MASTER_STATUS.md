@@ -5008,3 +5008,85 @@ Next recommendation:
 ```text
 NODE-032AY / controlled-gateway-listener-and-log-readiness-check
 ```
+
+## NODE-032AY Gateway Listener And Log Readiness Check
+
+Result:
+
+```text
+node=NODE-032AY / controlled-gateway-listener-and-log-readiness-check
+branch=feat/node-032ay-controlled-gateway-listener-and-log-readiness-check
+approval_phrase=APPROVE NODE-032AY GATEWAY LISTENER AND LOG READINESS CHECK
+scope=controlled_gateway_listener_log_readiness_only
+live_smoke=false
+call_run=false
+phase_b=false
+gateway_http_request=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+docker_mutation=false
+firewall_or_env_change=false
+```
+
+Pre-state:
+
+```text
+gateway_host=ai-secretary-gateway-node023
+service_active=inactive
+service_enabled=disabled
+target_listener_443=false
+target_listener_8080=false
+target_listener_8081=false
+gateway_runtime_process=false
+```
+
+Service readiness cycle:
+
+```text
+systemctl_start_ran=true
+service_active_after_start=active
+service_enabled_after_start=disabled
+gateway_runtime_process_after_start=true
+listener_8080_seen=true
+listener_8080_seen_at_iteration=2
+listener_443_after_wait=false
+listener_8081_after_wait=false
+safe_log_filter_result=passed_with_redaction
+systemctl_stop_ran=true
+```
+
+Final state:
+
+```text
+service_active_final=inactive
+service_enabled_final=disabled
+gateway_runtime_process_final=false
+target_listener_443_final=false
+target_listener_8080_final=false
+target_listener_8081_final=false
+```
+
+Hard-gate result:
+
+```text
+hard_gate_result=GO_FOR_SERVICE_READINESS_ONLY
+blockers=none_for_service_readiness_scope
+smoke_allowed=false
+```
+
+Safety:
+
+```text
+no_smoke_call_phase_b_or_gateway_request=true
+no_audio_helper_temp_env_token_or_openai_action=true
+no_service_enable_disable_restart_reload=true
+no_docker_firewall_env_server_or_app_config_mutation=true
+disk_image_touched=false
+```
+
+Next recommendation:
+
+```text
+NODE-032AZ / controlled-actual-speech-transcript-content-smoke-after-gateway-readiness
+```
