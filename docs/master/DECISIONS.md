@@ -2433,3 +2433,23 @@ out_of_band_provider_or_network_recovery_required=true
 ```
 
 NODE-032AP Phase B remains blocked until Asterisk SSH reachability is restored and read-only hard gates pass.
+
+## NODE-032AR Read-Only Reachability Evidence Decision
+
+Date: 2026-06-11
+
+Decision:
+
+```text
+asterisk_ssh_timeout_resolved=true
+phase_b_go=false
+live_smoke_run=false
+server_state_change=false
+source=coordinator_collected_read_only_evidence
+```
+
+The coordinator evidence shows TCP 22 reachable and SSH login OK on host `tula`. Ping still timed out, but that is not blocking because SSH over TCP 22 works. `asterisk.service` is absent from systemd, but the Asterisk runtime process is present under `tulauser`; future gates should treat process readiness as the relevant observed runtime condition unless the architecture changes.
+
+`ai-secretary-ari.service` is active/enabled and the app is ready for calls according to the supplied evidence. NODE-032AR does not approve live smoke; any Phase B still requires the exact approval phrase and immediate hard-gate re-check.
+
+The Selectel disk image exists as fallback and was not touched. The Asterisk server was started out of band by user/provider action before this node; Codex performed no power, SSH, smoke, deploy, token, temp-env, service, firewall, env, or server mutation action.

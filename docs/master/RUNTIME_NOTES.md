@@ -3950,3 +3950,55 @@ power_on_occurred=false
 ```
 
 No live runtime state was changed.
+
+## NODE-032AR Runtime Notes
+
+NODE-032AR records coordinator-collected read-only Asterisk reachability recovery evidence. Codex did not access servers after evidence acceptance.
+
+Runtime action summary:
+
+```text
+live_smoke=false
+call_run=false
+audio_generated=false
+audio_uploaded=false
+temp_env_created=false
+helper_deploy=false
+token_handling=false
+service_action=false
+dependency_install=false
+reboot_or_power_cycle=false
+firewall_or_env_change=false
+server_file_change=false
+server_state_change=false
+transcript_text_or_delta_logged=false
+disk_image_touched=false
+server_started_out_of_band_by_user_provider_action=true
+```
+
+Coordinator evidence:
+
+```text
+tcp_22_reachable=true
+ssh_login=ok
+ping_timeout=true
+host=tula
+os=Ubuntu 24.04.3 LTS
+kernel=6.8.0-53-generic
+uptime_at_check=12_min
+```
+
+Runtime state:
+
+```text
+asterisk_systemd_unit_absent=true
+asterisk_runtime_process_present=true
+asterisk_process_user=tulauser
+ai_secretary_ari_service_active=active
+ai_secretary_ari_service_enabled=enabled
+ai_secretary_process_running=true
+ready_waiting_for_calls=true
+system_sounds_done=true
+```
+
+No live runtime state was changed.
