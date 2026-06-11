@@ -2557,3 +2557,30 @@ Next decision boundary:
 ```text
 NODE-032AW / controlled-gateway-service-readiness-recovery-live-action
 ```
+
+## NODE-032AW Gateway Service Readiness Recovery Decision
+
+Date: 2026-06-11
+
+Decision:
+
+```text
+approval_phrase=APPROVE NODE-032AW GATEWAY SERVICE READINESS RECOVERY
+service_start_allowed=true
+service_stop_allowed=true
+smoke_allowed=false
+phase_b=false
+hard_gate_result=NO_GO
+reason=service_active_but_8080_listener_not_observed_in_immediate_check
+final_state_restored=true
+```
+
+The approved live-action boundary was respected. `ai-secretary-gateway.service` started and became active while remaining disabled, and the Gateway runtime process appeared with `--port 8080`. The immediate listener inventory did not show an `8080` listener, and the safe log filter had a quoting error, so service readiness is not accepted.
+
+No smoke, call, Gateway HTTP request, token handling, temp env creation, helper deploy, OpenAI request, service enable/disable/restart/reload, Docker mutation, firewall/env/server/app config change, audio generation/upload, or disk image action occurred.
+
+Next decision boundary:
+
+```text
+NODE-032AX / gateway-service-readiness-listener-and-log-preflight-fix
+```
