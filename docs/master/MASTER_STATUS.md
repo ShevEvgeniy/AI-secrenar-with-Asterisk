@@ -4636,3 +4636,54 @@ no_service_firewall_env_or_server_mutation=true
 disk_image_touched=false
 server_started_out_of_band_by_user_provider_action=true
 ```
+
+## NODE-032AS Gateway Hard-Gate Preflight
+
+Result:
+
+```text
+node=NODE-032AS / gateway-and-phase-b-hard-gate-preflight-after-asterisk-recovery
+branch=feat/node-032as-gateway-and-phase-b-hard-gate-preflight-after-asterisk-recovery
+scope=hard_gate_preflight_only
+live_smoke=false
+call_run=false
+audio_generated=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+service_action=false
+server_state_change=false
+```
+
+Asterisk context from NODE-032AR:
+
+```text
+asterisk_ssh_timeout_resolved=true
+asterisk_runtime_process_present=true
+ai_secretary_ari_service_active=active
+ai_secretary_ari_service_enabled=enabled
+```
+
+Gateway hard gate:
+
+```text
+gateway_host=45.61.48.199
+gateway_tcp_22_reachable=false
+gateway_tcp_22_result=timed_out_with_tcp_connect_failure
+gateway_ping_result=timed_out
+gateway_ssh_attempted=false
+gateway_power_state=not_started_or_unknown
+phase_b_hard_gate=NO_GO
+blocker=gateway_ssh_unreachable_or_powered_off
+```
+
+Safety:
+
+```text
+gateway_power_on_occurred=false
+provider_controls_used=false
+no_smoke_or_call_or_retry=true
+no_audio_helper_temp_env_or_token_action=true
+no_service_firewall_env_or_server_mutation=true
+disk_image_touched=false
+```

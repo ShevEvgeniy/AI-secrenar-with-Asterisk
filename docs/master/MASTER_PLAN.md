@@ -1286,3 +1286,25 @@ future_phase_b_preconditions_can_be_reconsidered=true
 NODE-032AR did not run smoke, generate audio, deploy helpers, handle tokens, create temp env files, perform service actions, or mutate firewall/env/server state. Any live smoke still requires exact approval and immediate hard-gate re-check.
 
 The Selectel disk image exists as a fallback and was not touched. The Asterisk server was started out of band by user/provider action before NODE-032AR documentation; Codex performed no power action.
+
+## NODE-032AS Gateway Hard-Gate Preflight Result
+
+NODE-032AS checked the Gateway hard gate after Asterisk recovery evidence was recorded.
+
+Result:
+
+```text
+gateway_host=45.61.48.199
+gateway_tcp_22_reachable=false
+gateway_ssh_attempted=false
+phase_b_hard_gate=NO_GO
+blocker=gateway_ssh_unreachable_or_powered_off
+```
+
+The Gateway was known from coordinator context as not started, and the local TCP 22 check timed out. No Gateway power-on or provider-control action occurred.
+
+Next recommendation:
+
+```text
+out_of_band_gateway_start_or_recovery_then_rerun_read_only_gateway_preflight
+```

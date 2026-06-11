@@ -4002,3 +4002,44 @@ system_sounds_done=true
 ```
 
 No live runtime state was changed.
+
+## NODE-032AS Runtime Notes
+
+NODE-032AS performed a local Gateway TCP hard-gate preflight after Asterisk recovery evidence.
+
+Runtime action summary:
+
+```text
+live_smoke=false
+call_run=false
+retry_run=false
+audio_generated=false
+audio_uploaded=false
+temp_env_created=false
+helper_deploy=false
+token_handling=false
+service_action=false
+dependency_install=false
+reboot_or_power_cycle=false
+gateway_power_on=false
+provider_controls_used=false
+firewall_or_env_change=false
+server_file_change=false
+server_state_change=false
+transcript_text_or_delta_logged=false
+disk_image_touched=false
+```
+
+Gateway hard gate:
+
+```text
+gateway_host=45.61.48.199
+gateway_tcp_22_reachable=false
+gateway_tcp_22_result=timed_out_with_tcp_connect_failure
+gateway_ping_result=timed_out
+gateway_ssh_attempted=false
+phase_b_hard_gate=NO_GO
+blocker=gateway_ssh_unreachable_or_powered_off
+```
+
+No live runtime state was changed.
