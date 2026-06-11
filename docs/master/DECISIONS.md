@@ -2453,3 +2453,22 @@ The coordinator evidence shows TCP 22 reachable and SSH login OK on host `tula`.
 `ai-secretary-ari.service` is active/enabled and the app is ready for calls according to the supplied evidence. NODE-032AR does not approve live smoke; any Phase B still requires the exact approval phrase and immediate hard-gate re-check.
 
 The Selectel disk image exists as fallback and was not touched. The Asterisk server was started out of band by user/provider action before this node; Codex performed no power, SSH, smoke, deploy, token, temp-env, service, firewall, env, or server mutation action.
+
+## NODE-032AS Gateway Hard-Gate Decision
+
+Date: 2026-06-11
+
+Decision:
+
+```text
+phase_b_go=false
+reason=gateway_ssh_unreachable_or_powered_off
+gateway_tcp_22_reachable=false
+gateway_ssh_attempted=false
+gateway_power_on_occurred=false
+provider_controls_used=false
+live_smoke_run=false
+server_state_change=false
+```
+
+Asterisk recovery evidence from NODE-032AR can be considered recovered, but future Phase B cannot proceed while the Gateway hard gate is unavailable. The next step is out-of-band Gateway start/recovery followed by read-only Gateway preflight.
