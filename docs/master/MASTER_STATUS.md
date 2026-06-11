@@ -4947,3 +4947,64 @@ no_service_enable_disable_restart_reload=true
 no_docker_firewall_env_server_or_app_config_mutation=true
 disk_image_touched=false
 ```
+
+## NODE-032AX Gateway Listener And Log Preflight Fix
+
+Result:
+
+```text
+node=NODE-032AX / gateway-service-readiness-listener-and-log-preflight-fix
+branch=feat/node-032ax-gateway-service-readiness-listener-and-log-preflight-fix
+docs_only=true
+live_checks=false
+ssh=false
+provider_controls=false
+gateway_power_on=false
+smoke=false
+calls=false
+phase_b=false
+gateway_requests=false
+service_actions=false
+docker_mutation=false
+firewall_or_env_change=false
+```
+
+NODE-032AW readiness remains NO-GO:
+
+```text
+service_became_active=true
+service_remained_disabled=true
+gateway_process_observed=true
+gateway_process_command_included=--host_0.0.0.0_--port_8080
+listener_8080=not_observed_in_immediate_ss_check
+safe_log_filter_unavailable_due_quoting_error=true
+hard_gate=NO_GO
+```
+
+Corrected future listener wait:
+
+```bash
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  ss -lntup | grep -E '(:8080\s|:8080$)' && break
+  sleep 1
+done
+ss -lntup || true
+```
+
+Corrected future safe log filter:
+
+```bash
+journalctl -u ai-secretary-gateway.service -n 120 --no-pager | grep -Ei 'started|listening|ready|error|failed|exception|8080|443|8081|uvicorn|server' || true
+```
+
+Future approval phrase:
+
+```text
+APPROVE NODE-032AY GATEWAY LISTENER AND LOG READINESS CHECK
+```
+
+Next recommendation:
+
+```text
+NODE-032AY / controlled-gateway-listener-and-log-readiness-check
+```

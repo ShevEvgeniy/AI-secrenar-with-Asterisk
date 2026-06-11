@@ -2584,3 +2584,51 @@ Next decision boundary:
 ```text
 NODE-032AX / gateway-service-readiness-listener-and-log-preflight-fix
 ```
+
+## NODE-032AX Gateway Listener And Log Preflight Decision
+
+Date: 2026-06-11
+
+Decision:
+
+```text
+docs_only=true
+live_action_run=false
+node_032aw_readiness_accepted=false
+selected_next_boundary=controlled_gateway_listener_and_log_readiness_check
+approval_phrase=APPROVE NODE-032AY GATEWAY LISTENER AND LOG READINESS CHECK
+```
+
+NODE-032AX accepts that NODE-032AW proved service startability and process creation, but not listener readiness. The future readiness procedure must use a bounded wait for the `8080` listener and a quote-safe journal filter before any smoke is reconsidered.
+
+Corrective procedure:
+
+```text
+listener_wait=ten_one_second_iterations_for_8080
+safe_journal_filter=simple_journalctl_pipe_to_grep
+redaction_marker=REDACTED_TOKEN_LIKE_LOG_LINE
+stop_if_8080_absent_after_wait=true
+stop_if_safe_log_filter_unavailable=true
+```
+
+Deferred boundaries:
+
+```text
+smoke=false
+calls=false
+phase_b=false
+gateway_request=false
+token_handling=false
+temp_env_creation=false
+helper_deploy=false
+openai_requests=false
+docker_mutation=false
+firewall_or_env_change=false
+service_enablement=false
+```
+
+Next decision boundary:
+
+```text
+NODE-032AY / controlled-gateway-listener-and-log-readiness-check
+```

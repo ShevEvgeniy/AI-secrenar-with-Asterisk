@@ -1412,3 +1412,47 @@ Next recommendation:
 ```text
 NODE-032AX / gateway-service-readiness-listener-and-log-preflight-fix
 ```
+
+## NODE-032AX Gateway Listener And Log Preflight Fix
+
+NODE-032AX is a docs-only correction for the NODE-032AW service-readiness procedure.
+
+It keeps NODE-032AW as NO-GO because the service became active and spawned a Gateway process, but the immediate listener check did not observe `8080`, and the safe journal filter failed due quoting.
+
+Future listener evidence must use this bounded wait:
+
+```bash
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  ss -lntup | grep -E '(:8080\s|:8080$)' && break
+  sleep 1
+done
+ss -lntup || true
+```
+
+Future safe log evidence must use this simpler filter:
+
+```bash
+journalctl -u ai-secretary-gateway.service -n 120 --no-pager | grep -Ei 'started|listening|ready|error|failed|exception|8080|443|8081|uvicorn|server' || true
+```
+
+Any token-like or secret-like future log line must be replaced with:
+
+```text
+REDACTED_TOKEN_LIKE_LOG_LINE
+```
+
+The next node remains service-readiness only, not smoke:
+
+```text
+NODE-032AY / controlled-gateway-listener-and-log-readiness-check
+approval_phrase=APPROVE NODE-032AY GATEWAY LISTENER AND LOG READINESS CHECK
+smoke=false
+token_handling=false
+temp_env_creation=false
+helper_deploy=false
+gateway_request=false
+openai_request=false
+service_enable=false
+docker_mutation=false
+firewall_or_env_change=false
+```
