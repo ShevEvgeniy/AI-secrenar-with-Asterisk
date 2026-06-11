@@ -4143,3 +4143,50 @@ docker_container_candidate_observed=false
 ```
 
 No live runtime state was changed. The next step should plan a controlled Gateway service readiness recovery boundary before any smoke is requested.
+
+## NODE-032AV Runtime Notes
+
+NODE-032AV was docs-only and performed no runtime access or mutation.
+
+Runtime action summary:
+
+```text
+live_smoke=false
+call_run=false
+retry_run=false
+phase_b=false
+server_access=false
+ssh_used=false
+provider_controls_used=false
+gateway_power_on=false
+openai_request=false
+audio_generated=false
+audio_uploaded=false
+temp_env_created=false
+helper_deploy=false
+token_handling=false
+service_action=false
+apt_update_or_upgrade=false
+docker_mutation=false
+firewall_or_env_change=false
+server_file_change=false
+server_state_change=false
+transcript_text_or_delta_logged=false
+disk_image_touched=false
+```
+
+Future planned live boundary:
+
+```text
+next_node=NODE-032AW / controlled-gateway-service-readiness-recovery-live-action
+approval_phrase=APPROVE NODE-032AW GATEWAY SERVICE READINESS RECOVERY
+scope=service_readiness_start_verify_stop_only
+smoke=false
+token_handling=false
+temp_env_created=false
+helper_deploy=false
+docker_mutation=false
+firewall_or_env_change=false
+```
+
+No live runtime state was changed.
