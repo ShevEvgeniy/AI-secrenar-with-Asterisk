@@ -1308,3 +1308,29 @@ Next recommendation:
 ```text
 out_of_band_gateway_start_or_recovery_then_rerun_read_only_gateway_preflight
 ```
+
+## NODE-032AT Gateway Recovery Read-Only Preflight
+
+NODE-032AT confirmed the Gateway host is reachable again after out-of-band Kamatera recovery.
+
+Result:
+
+```text
+gateway_host=45.61.48.199
+gateway_tcp_22_reachable=true
+gateway_ssh=ok
+hostname=ai-secretary-gateway-node023
+target_listener_443=false
+target_listener_8080=false
+target_listener_8081=false
+gateway_process_observed=false
+matching_running_services_observed=false
+```
+
+The node did not mutate Gateway state. Phase B remains not approved because this was a bounded host/runtime preflight and no Gateway app process, matching running service, or target listener was observed.
+
+Next recommendation:
+
+```text
+NODE_032AU_full_gateway_readonly_hard_gate_after_kamatera_recovery
+```

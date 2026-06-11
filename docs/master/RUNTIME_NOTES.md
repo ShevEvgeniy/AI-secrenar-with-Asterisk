@@ -4043,3 +4043,55 @@ blocker=gateway_ssh_unreachable_or_powered_off
 ```
 
 No live runtime state was changed.
+
+## NODE-032AT Runtime Notes
+
+NODE-032AT performed bounded read-only Gateway reachability and runtime checks after Kamatera recovery.
+
+Runtime action summary:
+
+```text
+live_smoke=false
+call_run=false
+retry_run=false
+openai_request=false
+audio_generated=false
+audio_uploaded=false
+temp_env_created=false
+helper_deploy=false
+token_handling=false
+service_action=false
+apt_update_or_upgrade=false
+docker_mutation=false
+firewall_or_env_change=false
+server_file_change=false
+server_state_change=false
+provider_controls_used=false
+transcript_text_or_delta_logged=false
+disk_image_touched=false
+```
+
+Gateway reachability:
+
+```text
+gateway_host=45.61.48.199
+gateway_tcp_22_reachable=true
+gateway_ssh=ok
+hostname=ai-secretary-gateway-node023
+os=Ubuntu 24.04.4 LTS
+kernel=6.8.0-117-generic
+uptime_at_check=8_min
+```
+
+Process/listener summary:
+
+```text
+ssh_tcp_22_listening=true
+target_listener_443=false
+target_listener_8080=false
+target_listener_8081=false
+gateway_process_observed=false
+matching_running_services_observed=false
+```
+
+No live runtime state was changed.

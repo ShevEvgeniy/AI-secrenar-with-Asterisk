@@ -4687,3 +4687,65 @@ no_audio_helper_temp_env_or_token_action=true
 no_service_firewall_env_or_server_mutation=true
 disk_image_touched=false
 ```
+
+## NODE-032AT Gateway Recovery Read-Only Preflight
+
+Result:
+
+```text
+node=NODE-032AT / rerun-gateway-readonly-preflight-after-kamatera-recovery
+branch=feat/node-032at-rerun-gateway-readonly-preflight-after-kamatera-recovery
+scope=gateway_read_only_preflight_only
+live_smoke=false
+call_run=false
+audio_generated=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+service_action=false
+server_state_change=false
+```
+
+Gateway reachability:
+
+```text
+gateway_host=45.61.48.199
+coordinator_tcp_22_reachable=true
+local_tcp_22_reachable=true
+gateway_ssh=ok
+hostname=ai-secretary-gateway-node023
+os=Ubuntu 24.04.4 LTS
+kernel=6.8.0-117-generic
+uptime_at_check=8_min
+```
+
+Process/listener summary:
+
+```text
+ssh_tcp_22_listening=true
+target_listener_443=false
+target_listener_8080=false
+target_listener_8081=false
+gateway_process_observed=false
+matching_running_services_observed=false
+```
+
+Hard-gate result:
+
+```text
+gateway_tcp_22_recovered=true
+gateway_ssh_recovered=true
+phase_b_hard_gate=NO_GO_PENDING_FULL_GATE_RECHECK
+blocker=gateway_runtime_process_and_target_listener_absent_in_bounded_readonly_status
+```
+
+Safety:
+
+```text
+no_gateway_mutation=true
+no_server_provider_controls_used=true
+no_smoke_or_call_or_retry=true
+no_audio_helper_temp_env_or_token_action=true
+no_service_firewall_env_or_server_mutation=true
+disk_image_touched=false
+```
