@@ -4003,6 +4003,60 @@ power_on_occurred=false
 
 No live runtime state was changed.
 
+## NODE-032AX Runtime Notes
+
+NODE-032AX was docs-only and performed no runtime access or mutation.
+
+Runtime action summary:
+
+```text
+live_checks=false
+server_access=false
+ssh_used=false
+provider_controls_used=false
+gateway_power_on=false
+live_smoke=false
+call_run=false
+phase_b=false
+gateway_request=false
+openai_request=false
+audio_generated=false
+audio_uploaded=false
+temp_env_created=false
+helper_deploy=false
+token_handling=false
+service_action=false
+service_enable_disable_restart_reload=false
+apt_update_or_upgrade=false
+docker_mutation=false
+firewall_or_env_change=false
+server_file_change=false
+app_config_change=false
+transcript_text_or_delta_logged=false
+disk_image_touched=false
+```
+
+NODE-032AW blockers preserved:
+
+```text
+service_active_after_start=true
+gateway_runtime_process_observed=true
+gateway_runtime_command_includes_port_8080=true
+listener_8080_not_observed_in_immediate_check=true
+safe_log_filter_unavailable_due_quoting_error=true
+hard_gate=NO_GO
+```
+
+Corrected future readiness procedure:
+
+```text
+listener_wait=bounded_10_seconds_for_8080
+safe_log_filter=journalctl_pipe_to_grep_safe_terms
+redaction_marker=REDACTED_TOKEN_LIKE_LOG_LINE
+next_node=NODE-032AY / controlled-gateway-listener-and-log-readiness-check
+approval_phrase=APPROVE NODE-032AY GATEWAY LISTENER AND LOG READINESS CHECK
+```
+
 ## NODE-032AR Runtime Notes
 
 NODE-032AR records coordinator-collected read-only Asterisk reachability recovery evidence. Codex did not access servers after evidence acceptance.
