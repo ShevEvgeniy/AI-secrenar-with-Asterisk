@@ -2749,3 +2749,41 @@ Next decision boundary:
 ```text
 NODE-032BB / restore-approved-asterisk-smoke-helper-and-token-boundary-before-transcript-smoke
 ```
+
+## NODE-032BB Restore Boundary Decision
+
+Date: 2026-06-13
+
+Decision:
+
+```text
+approval_phrase=APPROVE NODE-032BB RESTORE SMOKE HELPER AND TOKEN BOUNDARY ONLY
+restore_helper=true
+restore_credential_boundary=true
+run_smoke=false
+gateway_request=false
+phase_b=false
+```
+
+NODE-032BB accepted the narrow restore boundary only. The approved repo-supported smoke helper bundle was restored to the Asterisk project path, and the Asterisk-side credential boundary was created through the existing safe temp-env guard with Gateway token material piped to stdin only.
+
+Safety decisions:
+
+```text
+token_values_printed=false
+raw_env_printed=false
+transcript_text_logged=false
+transcript_delta_logged=false
+business_dialog_config_mutation=false
+docker_mutation=false
+firewall_mutation=false
+service_enable_disable_restart_reload=false
+```
+
+Next decision boundary:
+
+```text
+NODE-032BC / controlled-actual-speech-transcript-content-smoke-after-helper-and-token-boundary-restore
+```
+
+NODE-032BC requires fresh exact smoke approval and immediate hard-gate re-check.

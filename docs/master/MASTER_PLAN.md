@@ -1547,3 +1547,43 @@ Next recommendation:
 ```text
 NODE-032BB / restore-approved-asterisk-smoke-helper-and-token-boundary-before-transcript-smoke
 ```
+
+## NODE-032BB Helper And Token Boundary Restored
+
+NODE-032BB received exact approval to restore the Asterisk smoke helper and Gateway credential boundary only:
+
+```text
+APPROVE NODE-032BB RESTORE SMOKE HELPER AND TOKEN BOUNDARY ONLY
+```
+
+The node restored the tracked repo-supported helper bundle to the Asterisk project path and materialized the future smoke credential boundary through the newline-safe guard with token material piped through stdin only. Evidence remained redacted:
+
+```text
+helper_present=true
+helper_executable=true
+helper_source=repo_supported
+credential_boundary_present=true
+credential_boundary_mode=600
+token_present_masked=true
+token_values_printed=false
+raw_env_printed=false
+```
+
+Gateway remained safe and inactive:
+
+```text
+ai_secretary_gateway_service_active=inactive
+ai_secretary_gateway_service_enabled=disabled
+target_listeners_443_8080_8081=ABSENT
+gateway_runtime_process=ABSENT
+gateway_request=false
+smoke_attempt_count=0
+```
+
+Next recommendation:
+
+```text
+NODE-032BC / controlled-actual-speech-transcript-content-smoke-after-helper-and-token-boundary-restore
+```
+
+NODE-032BC must require fresh exact smoke approval and immediate hard-gate re-check. NODE-032BB approval must not be reused for smoke.

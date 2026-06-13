@@ -4503,3 +4503,78 @@ firewall_or_env_change=false
 ```
 
 No live runtime state was changed.
+
+## NODE-032BB Runtime Notes
+
+NODE-032BB restored the Asterisk-side future smoke prerequisites without running smoke.
+
+Runtime action summary:
+
+```text
+approval_phrase=APPROVE NODE-032BB RESTORE SMOKE HELPER AND TOKEN BOUNDARY ONLY
+smoke=false
+gateway_request=false
+phase_b=false
+call_run=false
+audio_generated=false
+audio_uploaded=false
+gateway_service_started=false
+service_enable_disable_restart_reload=false
+docker_mutation=false
+firewall_mutation=false
+business_dialog_config_mutation=false
+disk_image_touched=false
+```
+
+Pre-state:
+
+```text
+asterisk_ssh=ok
+hostname=tula
+ai_secretary_ari_service_active=active
+ai_secretary_ari_service_enabled=enabled
+gateway_ssh=ok
+gateway_hostname=ai-secretary-gateway-node023
+ai_secretary_gateway_service_active=inactive
+ai_secretary_gateway_service_enabled=disabled
+gateway_target_listeners_443_8080_8081=ABSENT
+gateway_runtime_process=ABSENT
+```
+
+Restore result:
+
+```text
+helper_path=/home/tulauser/AI-secrenar-with-Asterisk-node014/scripts/asterisk_gateway_smoke_helper.py
+helper_owner=tulauser:tulauser
+helper_mode=755
+helper_executable=true
+helper_source=repo_supported
+credential_boundary_path=/home/tulauser/AI-secrenar-with-Asterisk-node014/.runtime/gateway-smoke.env
+credential_boundary_owner=tulauser:tulauser
+credential_boundary_mode=600
+token_present_masked=true
+credential_value_printed=false
+raw_env_printed=false
+```
+
+Final state:
+
+```text
+ai_secretary_gateway_service_active=inactive
+ai_secretary_gateway_service_enabled=disabled
+target_listener_443=false
+target_listener_8080=false
+target_listener_8081=false
+gateway_runtime_process=false
+gateway_env_metadata=root:gateway:640
+service_OPENAI_API_KEY=ABSENT
+process_OPENAI_API_KEY=ABSENT
+business_dialog_transcript_enabled=false
+transcript_text_logging_enabled=false
+```
+
+Next recommendation:
+
+```text
+NODE-032BC / controlled-actual-speech-transcript-content-smoke-after-helper-and-token-boundary-restore
+```
