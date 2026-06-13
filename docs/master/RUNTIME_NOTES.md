@@ -4192,6 +4192,78 @@ docker_all_containers=none
 gateway_pre_smoke_baseline=PASS
 ```
 
+## NODE-032BA Runtime Notes
+
+NODE-032BA received exact approval for one controlled actual-speech transcript-content smoke, but stopped before Gateway service start and before smoke.
+
+Runtime action summary:
+
+```text
+approval_phrase=APPROVE NODE-032BA CONTROLLED ACTUAL SPEECH TRANSCRIPT CONTENT SMOKE
+hard_gate_result=NO_GO
+smoke_attempt_count=0
+gateway_http_request=false
+openai_request=false
+audio_generated=false
+audio_uploaded=false
+temp_env_created=false
+helper_deploy=false
+token_handling=false
+service_action=false
+service_start_stop_restart_reload_enable_disable=false
+apt_update_or_upgrade=false
+docker_mutation=false
+firewall_or_env_change=false
+server_file_change=false
+app_config_change=false
+transcript_text_or_delta_logged=false
+disk_image_touched=false
+```
+
+Asterisk pre-state:
+
+```text
+ssh_login=ok
+hostname=tula
+ai_secretary_ari_service_active=active
+ai_secretary_ari_service_enabled=enabled
+process_OPENAI_API_KEY=ABSENT
+service_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript_flag=NOT_ENABLED
+transcript_text_logging_flag=NOT_ENABLED
+project_repo_present=true
+project_venv_present=true
+runtime_modules_ok=true
+asterisk_smoke_helper_present=false
+asterisk_helper_bundle_present=false
+existing_gateway_token_runtime_env=ABSENT
+```
+
+Gateway pre-state:
+
+```text
+ssh_login=ok
+hostname=ai-secretary-gateway-node023
+ai_secretary_gateway_service_active=inactive
+ai_secretary_gateway_service_enabled=disabled
+target_listeners_443_8080_8081=ABSENT
+gateway_runtime_process=ABSENT
+docker_containers=NONE
+gateway_unit_exists=true
+runtime_markers_present=true
+```
+
+Blocker:
+
+```text
+primary_blocker=asterisk_smoke_helper_absent
+secondary_blocker=asterisk_gateway_token_runtime_env_absent
+approved_boundary_forbids_helper_deploy=true
+approved_boundary_forbids_temp_env_creation=true
+approved_boundary_forbids_token_handling=true
+next_node=NODE-032BB / restore-approved-asterisk-smoke-helper-and-token-boundary-before-transcript-smoke
+```
+
 ## NODE-032AR Runtime Notes
 
 NODE-032AR records coordinator-collected read-only Asterisk reachability recovery evidence. Codex did not access servers after evidence acceptance.

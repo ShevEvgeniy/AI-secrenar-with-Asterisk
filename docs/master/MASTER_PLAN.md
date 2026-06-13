@@ -1515,3 +1515,35 @@ NODE-032BA / controlled-actual-speech-transcript-content-smoke-after-readonly-re
 ```
 
 NODE-032BA must not inherit approval from NODE-032AZ. It must re-check Asterisk and Gateway gates before any service action, helper deploy, token handling, temp env creation, Gateway request, OpenAI request, smoke, call, or audio action.
+
+## NODE-032BA Smoke Blocked Before Start
+
+NODE-032BA received exact approval for one controlled actual-speech transcript-content smoke, but stopped before Gateway service start and before smoke.
+
+Result:
+
+```text
+hard_gate_result=NO_GO
+smoke_attempt_count=0
+primary_blocker=asterisk_smoke_helper_absent
+secondary_blocker=asterisk_gateway_token_runtime_env_absent
+gateway_service_started=false
+```
+
+The approved boundary did not allow helper deployment, temp env creation, or token handling. The Asterisk host had the project repo and venv with required modules, but did not have `scripts/asterisk_gateway_smoke_helper.py` or `scripts/asterisk_gateway_helper_bundle.py` present, and no existing Gateway token runtime env was present.
+
+Gateway remained safe and inactive:
+
+```text
+ai_secretary_gateway_service_active=inactive
+ai_secretary_gateway_service_enabled=disabled
+target_listeners_443_8080_8081=ABSENT
+gateway_runtime_process=ABSENT
+docker_containers=NONE
+```
+
+Next recommendation:
+
+```text
+NODE-032BB / restore-approved-asterisk-smoke-helper-and-token-boundary-before-transcript-smoke
+```

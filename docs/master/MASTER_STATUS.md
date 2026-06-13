@@ -5164,3 +5164,76 @@ Next recommendation:
 ```text
 NODE-032BA / controlled-actual-speech-transcript-content-smoke-after-readonly-resume-preflight
 ```
+
+## NODE-032BA Controlled Actual-Speech Transcript Smoke
+
+Result:
+
+```text
+node=NODE-032BA / controlled-actual-speech-transcript-content-smoke-after-readonly-resume-preflight
+branch=feat/node-032ba-controlled-actual-speech-transcript-content-smoke-after-readonly-resume-preflight
+approval_phrase=APPROVE NODE-032BA CONTROLLED ACTUAL SPEECH TRANSCRIPT CONTENT SMOKE
+hard_gate_result=NO_GO
+node_outcome=NO_GO_BEFORE_SMOKE
+smoke_attempt_count=0
+gateway_service_started=false
+```
+
+Asterisk pre-state:
+
+```text
+asterisk_ssh=ok
+ai_secretary_ari_service_active=active
+ai_secretary_ari_service_enabled=enabled
+process_OPENAI_API_KEY=ABSENT
+service_OPENAI_API_KEY=ABSENT
+business_dialog_gateway_transcript_flag=NOT_ENABLED
+transcript_text_logging_flag=NOT_ENABLED
+project_repo_present=true
+project_venv_present=true
+runtime_modules_ok=true
+asterisk_smoke_helper_present=false
+asterisk_helper_bundle_present=false
+existing_gateway_token_runtime_env=ABSENT
+```
+
+Gateway pre-state:
+
+```text
+gateway_ssh=ok
+ai_secretary_gateway_service_active=inactive
+ai_secretary_gateway_service_enabled=disabled
+target_listeners_443_8080_8081=ABSENT
+gateway_runtime_process=ABSENT
+docker_containers=NONE
+gateway_unit_exists=true
+runtime_markers_present=true
+```
+
+Blockers:
+
+```text
+primary_blocker=asterisk_smoke_helper_absent
+secondary_blocker=asterisk_gateway_token_runtime_env_absent
+approved_boundary_forbids_helper_deploy=true
+approved_boundary_forbids_temp_env_creation=true
+approved_boundary_forbids_token_handling=true
+```
+
+Safety:
+
+```text
+no_phase_b=true
+no_repeated_smoke_loop=true
+no_real_customer_audio=true
+no_raw_transcript_text_or_delta_committed=true
+no_token_values_printed=true
+no_docker_firewall_env_server_or_app_config_mutation=true
+disk_image_touched=false
+```
+
+Next recommendation:
+
+```text
+NODE-032BB / restore-approved-asterisk-smoke-helper-and-token-boundary-before-transcript-smoke
+```
