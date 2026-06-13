@@ -5237,3 +5237,73 @@ Next recommendation:
 ```text
 NODE-032BB / restore-approved-asterisk-smoke-helper-and-token-boundary-before-transcript-smoke
 ```
+
+## NODE-032BB Helper And Token Boundary Restore
+
+NODE-032BB restored the approved Asterisk-side smoke helper and safe Gateway credential boundary that blocked NODE-032BA. It did not run smoke, did not start Gateway for smoke, and did not send a Gateway request.
+
+Result:
+
+```text
+node=NODE-032BB / restore-approved-asterisk-smoke-helper-and-token-boundary-before-transcript-smoke
+branch=feat/node-032bb-restore-approved-asterisk-smoke-helper-and-token-boundary-before-transcript-smoke
+approval_phrase=APPROVE NODE-032BB RESTORE SMOKE HELPER AND TOKEN BOUNDARY ONLY
+node_outcome=RESTORE_COMPLETE_NO_SMOKE
+hard_gate_result=GO_FOR_FUTURE_APPROVAL_GATED_SMOKE
+smoke_attempt_count=0
+gateway_request=false
+phase_b=false
+gateway_service_started=false
+```
+
+Restore evidence:
+
+```text
+helper_present=true
+helper_path=/home/tulauser/AI-secrenar-with-Asterisk-node014/scripts/asterisk_gateway_smoke_helper.py
+helper_owner=tulauser:tulauser
+helper_mode=755
+helper_executable=true
+helper_source=repo_supported
+credential_boundary_present=true
+credential_boundary_path=/home/tulauser/AI-secrenar-with-Asterisk-node014/.runtime/gateway-smoke.env
+credential_boundary_owner=tulauser:tulauser
+credential_boundary_mode=600
+token_present_masked=true
+required_keys_present=true
+```
+
+Safety:
+
+```text
+token_values_printed=false
+raw_env_printed=false
+transcript_text_logged=false
+transcript_delta_logged=false
+business_dialog_transcript_enabled=false
+transcript_text_logging_enabled=false
+service_OPENAI_API_KEY=ABSENT
+process_OPENAI_API_KEY=ABSENT
+docker_mutation=false
+firewall_mutation=false
+service_enable_disable_restart_reload=false
+disk_image_touched=false
+```
+
+Gateway final baseline:
+
+```text
+ai_secretary_gateway_service_active=inactive
+ai_secretary_gateway_service_enabled=disabled
+target_listener_443=false
+target_listener_8080=false
+target_listener_8081=false
+gateway_runtime_process=false
+gateway_env_metadata=root:gateway:640
+```
+
+Next recommendation:
+
+```text
+NODE-032BC / controlled-actual-speech-transcript-content-smoke-after-helper-and-token-boundary-restore
+```
