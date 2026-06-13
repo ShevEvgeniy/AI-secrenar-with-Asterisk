@@ -2712,3 +2712,40 @@ Next decision boundary:
 ```text
 NODE-032BA / controlled-actual-speech-transcript-content-smoke-after-readonly-resume-preflight
 ```
+
+## NODE-032BA Smoke Blocker Decision
+
+Date: 2026-06-13
+
+Decision:
+
+```text
+approval_phrase=APPROVE NODE-032BA CONTROLLED ACTUAL SPEECH TRANSCRIPT CONTENT SMOKE
+hard_gate_result=NO_GO
+smoke_attempt_count=0
+gateway_service_started=false
+reason=asterisk_smoke_helper_absent_and_token_boundary_absent
+```
+
+NODE-032BA did not proceed to service start or smoke because the required Asterisk-side smoke helper was absent and no existing Gateway token runtime env was present. The approved scope forbade helper deploy, temp env creation, and token handling, so there was no safe in-scope way to run the smoke.
+
+Deferred boundaries:
+
+```text
+smoke=false
+gateway_request=false
+openai_request=false
+helper_deploy=false
+temp_env_creation=false
+token_handling=false
+service_action=false
+docker_mutation=false
+firewall_or_env_change=false
+server_or_app_config_mutation=false
+```
+
+Next decision boundary:
+
+```text
+NODE-032BB / restore-approved-asterisk-smoke-helper-and-token-boundary-before-transcript-smoke
+```
