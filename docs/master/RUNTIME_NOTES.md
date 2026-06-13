@@ -4131,6 +4131,67 @@ listener_8081_final=false
 hard_gate_result=GO_FOR_SERVICE_READINESS_ONLY
 ```
 
+## NODE-032AZ Runtime Notes
+
+NODE-032AZ ran read-only resume preflight checks after a pause.
+
+Runtime action summary:
+
+```text
+read_only=true
+live_smoke=false
+call_run=false
+phase_b=false
+gateway_http_request=false
+openai_request=false
+audio_generated=false
+audio_uploaded=false
+temp_env_created=false
+helper_deploy=false
+token_handling=false
+service_action=false
+service_start_stop_restart_reload_enable_disable=false
+apt_update_or_upgrade=false
+docker_mutation=false
+firewall_or_env_change=false
+server_file_change=false
+app_config_change=false
+transcript_text_or_delta_logged=false
+disk_image_touched=false
+```
+
+Asterisk read-only state:
+
+```text
+tcp_22_reachable=true
+ssh_login=ok
+hostname=tula
+os=Ubuntu_24.04.3_LTS
+ai_secretary_ari_service_active=active
+ai_secretary_ari_service_enabled=enabled
+asterisk_process_running=true
+ai_secretary_process_running=true
+ready_waiting_for_calls=true
+```
+
+Gateway read-only state:
+
+```text
+tcp_22_reachable=true
+ssh_login=ok
+hostname=ai-secretary-gateway-node023
+os=Ubuntu_24.04.4_LTS
+ai_secretary_gateway_service_active=inactive
+ai_secretary_gateway_service_enabled=disabled
+gateway_runtime_process_running=false
+listener_443=false
+listener_8080=false
+listener_8081=false
+docker_running_containers=none
+docker_all_containers=none
+gateway_pre_smoke_baseline=PASS
+```
+
 ## NODE-032AR Runtime Notes
 
 NODE-032AR records coordinator-collected read-only Asterisk reachability recovery evidence. Codex did not access servers after evidence acceptance.
