@@ -2672,3 +2672,43 @@ Next decision boundary:
 ```text
 NODE-032AZ / controlled-actual-speech-transcript-content-smoke-after-gateway-readiness
 ```
+
+## NODE-032AZ Resume Preflight Decision
+
+Date: 2026-06-13
+
+Decision:
+
+```text
+readonly_preflight_complete=true
+asterisk_reachable=true
+gateway_reachable=true
+gateway_pre_smoke_baseline=PASS
+smoke_allowed_in_node=false
+node_032ba_may_be_opened=true
+```
+
+NODE-032AZ confirms the post-pause infrastructure state is suitable for opening the next separately approved smoke node. Asterisk is reachable with `ai-secretary-ari.service` active/enabled and ready, while Gateway is reachable but inactive/disabled with no target listeners and no Gateway runtime process.
+
+Deferred boundaries:
+
+```text
+smoke=false
+calls=false
+phase_b=false
+gateway_request=false
+token_handling=false
+temp_env_creation=false
+helper_deploy=false
+openai_requests=false
+service_action=false
+docker_mutation=false
+firewall_or_env_change=false
+server_or_app_config_mutation=false
+```
+
+Next decision boundary:
+
+```text
+NODE-032BA / controlled-actual-speech-transcript-content-smoke-after-readonly-resume-preflight
+```

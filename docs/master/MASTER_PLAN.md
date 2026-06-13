@@ -1486,3 +1486,32 @@ Next recommendation:
 ```text
 NODE-032AZ / controlled-actual-speech-transcript-content-smoke-after-gateway-readiness
 ```
+
+## NODE-032AZ Read-Only Resume Preflight Result
+
+NODE-032AZ reran read-only resume checks after the pause. It did not run smoke or start the Gateway service.
+
+Result:
+
+```text
+asterisk_reachable=true
+gateway_reachable=true
+asterisk_ai_secretary_ready=true
+gateway_service_active=inactive
+gateway_service_enabled=disabled
+gateway_runtime_process=false
+gateway_listener_443=false
+gateway_listener_8080=false
+gateway_listener_8081=false
+gateway_pre_smoke_baseline=PASS
+```
+
+This restores confidence that the previous NODE-032AY safe final state persisted after pause: Gateway is inactive/disabled, no target listeners are present, and no Gateway runtime process is running.
+
+The next smoke candidate can be opened as a separate node with fresh approval and hard gates:
+
+```text
+NODE-032BA / controlled-actual-speech-transcript-content-smoke-after-readonly-resume-preflight
+```
+
+NODE-032BA must not inherit approval from NODE-032AZ. It must re-check Asterisk and Gateway gates before any service action, helper deploy, token handling, temp env creation, Gateway request, OpenAI request, smoke, call, or audio action.

@@ -5090,3 +5090,77 @@ Next recommendation:
 ```text
 NODE-032AZ / controlled-actual-speech-transcript-content-smoke-after-gateway-readiness
 ```
+
+## NODE-032AZ Resume Read-Only Preflight Before Transcript Smoke
+
+Result:
+
+```text
+node=NODE-032AZ / resume-after-pause-readonly-preflight-before-transcript-smoke
+branch=feat/node-032az-resume-after-pause-readonly-preflight-before-transcript-smoke
+scope=readonly_resume_preflight
+smoke=false
+call_run=false
+phase_b=false
+gateway_http_request=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+service_action=false
+docker_mutation=false
+firewall_or_env_change=false
+```
+
+Asterisk state:
+
+```text
+asterisk_tcp_22_reachable=true
+asterisk_ssh=ok
+hostname=tula
+ai_secretary_ari_service_active=active
+ai_secretary_ari_service_enabled=enabled
+asterisk_process_running=true
+ai_secretary_process_running=true
+ready_waiting_for_calls=true
+```
+
+Gateway state:
+
+```text
+gateway_tcp_22_reachable=true
+gateway_ssh=ok
+hostname=ai-secretary-gateway-node023
+ai_secretary_gateway_service_active=inactive
+ai_secretary_gateway_service_enabled=disabled
+gateway_runtime_process_running=false
+listener_443=false
+listener_8080=false
+listener_8081=false
+docker_running_containers=none
+docker_all_containers=none
+```
+
+Baseline result:
+
+```text
+gateway_pre_smoke_baseline=PASS
+blockers=none_for_readonly_resume_preflight
+node_032ba_may_be_opened=true
+```
+
+Safety:
+
+```text
+no_live_systems_mutated=true
+no_service_start_stop_restart_reload_enable_disable=true
+no_smoke_call_phase_b_gateway_request_or_audio=true
+no_token_values_printed=true
+no_docker_firewall_env_server_or_app_config_mutation=true
+disk_image_touched=false
+```
+
+Next recommendation:
+
+```text
+NODE-032BA / controlled-actual-speech-transcript-content-smoke-after-readonly-resume-preflight
+```
