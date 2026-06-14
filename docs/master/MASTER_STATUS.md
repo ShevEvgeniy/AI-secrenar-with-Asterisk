@@ -5453,3 +5453,64 @@ Next recommendation:
 ```text
 NODE-032BE / controlled-business-dialog-transcript-use-design-and-guardrails
 ```
+
+## NODE-032BE Business Dialog Transcript Guardrails
+
+NODE-032BE is a docs-only design node. It defines the future business-dialog transcript-use boundary after NODE-032BD accepted NODE-032BC as redacted transcript-content presence proof for the controlled prepared actual-speech smoke path only.
+
+Disabled-by-default decision:
+
+```text
+business_dialog_transcript_use_remains_disabled=true
+separate_implementation_node_required=true
+separate_live_validation_node_required=true
+runtime_enablement_in_NODE_032BE=false
+source_runtime_changed=false
+```
+
+Future flags reserved as design only:
+
+```text
+BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=false
+BUSINESS_DIALOG_TRANSCRIPT_MIN_CONFIDENCE
+BUSINESS_DIALOG_TRANSCRIPT_MAX_AGE_MS
+BUSINESS_DIALOG_TRANSCRIPT_REDACT_LOGS=true
+BUSINESS_DIALOG_TRANSCRIPT_FAIL_CLOSED=true
+```
+
+Future implementation gates:
+
+```text
+transcript_available_in_memory_through_controlled_interface=true
+transcript_not_logged=true
+transcript_not_used_when_flag_false=true
+flag_defaults_false=true
+stale_transcript_rejected=true
+low_confidence_transcript_fails_closed=true
+missing_transcript_fails_closed=true
+fallback_path_safe=true
+business_dialog_behavior_unchanged_when_flag_false=true
+```
+
+Stop gates:
+
+```text
+raw_transcript_text_would_be_logged=true
+token_or_env_material_would_be_printed=true
+second_smoke_needed_without_approval=true
+business_dialog_transcript_use_requires_unapproved_runtime_config_mutation=true
+real_caller_or_customer_audio_required_before_separate_approval=true
+service_enable_restart_or_reload_required_without_explicit_approval=true
+```
+
+Next recommendation:
+
+```text
+NODE-032BF / disabled-by-default-business-dialog-transcript-use-implementation
+```
+
+Future live validation after implementation:
+
+```text
+NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-default
+```

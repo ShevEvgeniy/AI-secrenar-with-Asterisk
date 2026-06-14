@@ -4716,3 +4716,51 @@ Next recommendation:
 ```text
 NODE-032BE / controlled-business-dialog-transcript-use-design-and-guardrails
 ```
+
+## NODE-032BE Runtime Notes
+
+NODE-032BE was docs-only and performed no runtime action.
+
+Runtime action summary:
+
+```text
+ssh_used=false
+provider_controls_used=false
+gateway_power_action=false
+smoke=false
+call_run=false
+phase_b=false
+gateway_request=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+openai_request=false
+source_runtime_implementation=false
+service_action=false
+docker_mutation=false
+firewall_or_env_mutation=false
+server_or_app_config_mutation=false
+business_dialog_transcript_enablement=false
+audio_artifact_added=false
+server_dump_or_log_artifact_added=false
+disk_image_touched=false
+```
+
+Design boundary:
+
+```text
+business_dialog_transcript_use_remains_disabled=true
+future_flags_design_only=true
+separate_implementation_node_required=true
+separate_live_validation_node_required=true
+raw_transcript_text_logging=false
+transcript_delta_logging=false
+token_value_logging=false
+raw_env_value_logging=false
+```
+
+Next recommendation:
+
+```text
+NODE-032BF / disabled-by-default-business-dialog-transcript-use-implementation
+```

@@ -1675,3 +1675,50 @@ NODE-032BE / controlled-business-dialog-transcript-use-design-and-guardrails
 ```
 
 Implementation should be deferred unless the coordinator explicitly selects a disabled-by-default implementation node.
+
+## NODE-032BE Design And Guardrails Plan
+
+NODE-032BE keeps business-dialog transcript use disabled while defining the safe implementation boundary.
+
+Design-only flags:
+
+```text
+BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=false
+BUSINESS_DIALOG_TRANSCRIPT_MIN_CONFIDENCE
+BUSINESS_DIALOG_TRANSCRIPT_MAX_AGE_MS
+BUSINESS_DIALOG_TRANSCRIPT_REDACT_LOGS=true
+BUSINESS_DIALOG_TRANSCRIPT_FAIL_CLOSED=true
+```
+
+Logging and evidence policy:
+
+```text
+raw_transcript_text_logging=false
+transcript_delta_logging=false
+token_value_logging=false
+raw_env_value_logging=false
+allowed_outputs=booleans_event_counts_length_buckets_hashes_redacted_markers_diagnostic_flags
+```
+
+Future implementation must prove:
+
+```text
+flag_defaults_false=true
+transcript_not_used_when_flag_false=true
+stale_transcript_rejected=true
+low_confidence_or_missing_transcript_fails_closed=true
+fallback_path_safe=true
+business_dialog_behavior_unchanged_when_flag_false=true
+```
+
+Next implementation recommendation:
+
+```text
+NODE-032BF / disabled-by-default-business-dialog-transcript-use-implementation
+```
+
+Future live validation:
+
+```text
+NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-default
+```
