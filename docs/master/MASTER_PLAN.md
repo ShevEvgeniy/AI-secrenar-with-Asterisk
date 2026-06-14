@@ -1587,3 +1587,47 @@ NODE-032BC / controlled-actual-speech-transcript-content-smoke-after-helper-and-
 ```
 
 NODE-032BC must require fresh exact smoke approval and immediate hard-gate re-check. NODE-032BB approval must not be reused for smoke.
+
+## NODE-032BC Transcript Content Smoke Result
+
+NODE-032BC received exact approval:
+
+```text
+APPROVE NODE-032BC CONTROLLED TRANSCRIPT CONTENT SMOKE ONLY
+```
+
+The node ran exactly one Asterisk-side smoke using the restored helper and credential boundary. Gateway was started only for the smoke readiness window, `8080` was observed, and Gateway was restored to inactive/disabled after the smoke.
+
+Accepted proof:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=28
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_present=true
+transcript_text_length_bucket=nonzero_redacted
+diagnostic_propagation_gap=false
+```
+
+Preserved boundaries:
+
+```text
+phase_b=false
+repeated_smoke_loop=false
+raw_transcript_text_printed=false
+transcript_delta_printed=false
+token_values_printed=false
+business_dialog_unchanged=true
+transcript_used_for_dialog=false
+service_enable_disable_restart_reload=false
+docker_firewall_env_server_app_mutation=false
+```
+
+Next recommendation:
+
+```text
+NODE-032BD / transcript-content-smoke-acceptance-and-business-dialog-boundary-decision
+```
