@@ -2834,3 +2834,23 @@ Next decision boundary:
 ```text
 NODE-032BD / transcript-content-smoke-acceptance-and-business-dialog-boundary-decision
 ```
+
+## NODE-032BD Acceptance And Business Dialog Boundary Decision
+
+Date: 2026-06-14
+
+Decision:
+
+```text
+accept_NODE_032BC_as_transcript_content_presence_proof=true
+accepted_scope=prepared_actual_speech_smoke_path_only
+enable_business_dialog_transcript_use_now=false
+next_live_or_runtime_work_requires_separate_approved_node=true
+preferred_next_node=NODE-032BE / controlled-business-dialog-transcript-use-design-and-guardrails
+```
+
+NODE-032BC is accepted as proof that the restored helper and credential boundary can produce redacted nonzero transcript-content presence in one controlled prepared actual-speech smoke.
+
+It is not accepted as proof of semantic transcript accuracy, production call handling, real customer audio, business-dialog transcript use, latency/SLA, repeated-run stability, load/error resilience, or production monitoring/alerting.
+
+The business-dialog transcript-use boundary remains closed until a separate design/guardrails node defines default-off configuration, explicit approval, fallback behavior, redaction/logging, acceptance criteria, and rollback.
