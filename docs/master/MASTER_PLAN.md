@@ -1631,3 +1631,47 @@ Next recommendation:
 ```text
 NODE-032BD / transcript-content-smoke-acceptance-and-business-dialog-boundary-decision
 ```
+
+## NODE-032BD Acceptance Boundary
+
+NODE-032BD accepts NODE-032BC as transcript-content presence proof for the prepared actual-speech smoke path only.
+
+Accepted:
+
+```text
+prepared_actual_speech_smoke_path=true
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+chunks_sent=28
+transcript_text_present=true
+transcript_text_length_bucket=nonzero_redacted
+diagnostic_propagation_gap=false
+```
+
+Not accepted:
+
+```text
+business_dialog_transcript_use=false
+transcript_semantic_accuracy=false
+production_call_path=false
+real_customer_audio=false
+latency_or_sla=false
+repeated_run_stability=false
+load_or_error_resilience=false
+production_monitoring_or_alerting=false
+```
+
+Plan decision:
+
+```text
+business_dialog_transcript_use_remains_disabled=true
+next_boundary_should_be_design_guardrails=true
+```
+
+Next recommendation:
+
+```text
+NODE-032BE / controlled-business-dialog-transcript-use-design-and-guardrails
+```
+
+Implementation should be deferred unless the coordinator explicitly selects a disabled-by-default implementation node.

@@ -4662,3 +4662,57 @@ Next recommendation:
 ```text
 NODE-032BD / transcript-content-smoke-acceptance-and-business-dialog-boundary-decision
 ```
+
+## NODE-032BD Runtime Notes
+
+NODE-032BD was docs-only and performed no runtime action.
+
+Runtime action summary:
+
+```text
+ssh_used=false
+provider_controls_used=false
+gateway_power_action=false
+smoke=false
+call_run=false
+phase_b=false
+gateway_request=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+openai_request=false
+service_action=false
+docker_mutation=false
+firewall_or_env_mutation=false
+server_or_app_config_mutation=false
+business_dialog_transcript_enablement=false
+audio_artifact_added=false
+server_dump_or_log_artifact_added=false
+disk_image_touched=false
+```
+
+Accepted prior proof from NODE-032BC:
+
+```text
+smoke_attempt_count=1
+gateway_http_status=200
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=28
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_present=true
+transcript_text_length_bucket=nonzero_redacted
+diagnostic_propagation_gap=false
+transcript_text_logged=false
+transcript_delta_logged=false
+transcript_used_for_dialog=false
+gateway_final_state=inactive_disabled
+```
+
+Next recommendation:
+
+```text
+NODE-032BE / controlled-business-dialog-transcript-use-design-and-guardrails
+```

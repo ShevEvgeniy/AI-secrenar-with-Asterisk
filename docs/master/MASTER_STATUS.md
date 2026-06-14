@@ -5399,3 +5399,57 @@ Next recommendation:
 ```text
 NODE-032BD / transcript-content-smoke-acceptance-and-business-dialog-boundary-decision
 ```
+
+## NODE-032BD Transcript Content Acceptance Decision
+
+NODE-032BD is a docs-only decision node after NODE-032BC. It accepts NODE-032BC as redacted transcript-content presence proof for the controlled prepared actual-speech smoke path only.
+
+Accepted proof:
+
+```text
+smoke_attempt_count=1
+gateway_http_status=200
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=28
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_present=true
+transcript_text_length_bucket=nonzero_redacted
+diagnostic_propagation_gap=false
+transcript_text_logged=false
+transcript_delta_logged=false
+transcript_used_for_dialog=false
+gateway_final_state=inactive_disabled
+target_listeners_after_stop=443_absent_8080_absent_8081_absent
+```
+
+Non-proofs:
+
+```text
+real_caller_or_customer_audio=false
+production_call_path=false
+business_dialog_transcript_use=false
+transcript_semantic_accuracy=false
+latency_or_sla=false
+repeated_run_stability=false
+load_or_error_resilience=false
+production_monitoring_or_alerting=false
+approval_to_enable_business_dialog_transcript_use=false
+```
+
+Decision:
+
+```text
+accept_NODE_032BC_as_transcript_content_presence_proof=true
+accepted_scope=prepared_actual_speech_smoke_path_only
+enable_business_dialog_transcript_use_now=false
+next_live_or_runtime_work_requires_separate_approved_node=true
+```
+
+Next recommendation:
+
+```text
+NODE-032BE / controlled-business-dialog-transcript-use-design-and-guardrails
+```
