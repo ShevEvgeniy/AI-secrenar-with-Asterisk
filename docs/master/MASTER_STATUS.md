@@ -5307,3 +5307,95 @@ Next recommendation:
 ```text
 NODE-032BC / controlled-actual-speech-transcript-content-smoke-after-helper-and-token-boundary-restore
 ```
+
+## NODE-032BC Controlled Transcript Content Smoke
+
+NODE-032BC ran exactly one approved Asterisk-side, non-business-dialog transcript-content smoke after NODE-032BB restored the helper and credential boundary.
+
+Result:
+
+```text
+node=NODE-032BC / controlled-transcript-content-smoke-after-helper-and-token-boundary-restore
+branch=feat/node-032bc-controlled-transcript-content-smoke-after-helper-and-token-boundary-restore
+approval_phrase=APPROVE NODE-032BC CONTROLLED TRANSCRIPT CONTENT SMOKE ONLY
+node_outcome=SUCCESSFUL_REDACTED_TRANSCRIPT_CONTENT_SMOKE
+hard_gate_result=GO
+smoke_attempt_count=1
+gateway_request=true
+phase_b=false
+repeated_smoke_loop=false
+```
+
+Pre-state:
+
+```text
+asterisk_ssh=ok
+ai_secretary_ari_service_active=active
+ai_secretary_ari_service_enabled=enabled
+helper_present=true
+helper_mode=755
+helper_executable=true
+credential_boundary_present=true
+credential_boundary_mode=600
+gateway_service_initial_state=inactive_disabled
+gateway_runtime_process_initial=absent
+target_listeners_initial=443_absent_8080_absent_8081_absent
+service_OPENAI_API_KEY=ABSENT
+process_OPENAI_API_KEY=ABSENT
+business_dialog_transcript_use=disabled
+transcript_text_logging=disabled
+```
+
+Gateway readiness:
+
+```text
+gateway_service_started_by_node=true
+gateway_service_active_after_start=active
+gateway_service_enabled_after_start=disabled
+listener_8080=present
+listener_443=absent
+listener_8081=absent
+```
+
+Smoke metrics:
+
+```text
+gateway_http_status=200
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=28
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_present=true
+transcript_text_length_bucket=nonzero_redacted
+diagnostic_propagation_gap=false
+diagnostic_classification=transcript_bearing_event_observed_text_redacted
+transcript_text_logged=false
+transcript_delta_logged=false
+transcript_used_for_dialog=false
+business_dialog_unchanged=true
+adapter_default_enabled_after_smoke=false
+fallback_reason=gateway_stt_dialog_use_disabled
+```
+
+Final state:
+
+```text
+gateway_service_final_state=inactive_disabled
+gateway_runtime_process_final=absent
+target_listeners_final=443_absent_8080_absent_8081_absent
+temporary_audio_removed=true
+token_values_printed=false
+raw_env_printed=false
+raw_transcript_text_printed=false
+disk_image_touched=false
+```
+
+Next recommendation:
+
+```text
+NODE-032BD / transcript-content-smoke-acceptance-and-business-dialog-boundary-decision
+```

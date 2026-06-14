@@ -4578,3 +4578,87 @@ Next recommendation:
 ```text
 NODE-032BC / controlled-actual-speech-transcript-content-smoke-after-helper-and-token-boundary-restore
 ```
+
+## NODE-032BC Runtime Notes
+
+NODE-032BC ran one approved controlled transcript-content smoke using the restored helper and credential boundary.
+
+Runtime action summary:
+
+```text
+approval_phrase=APPROVE NODE-032BC CONTROLLED TRANSCRIPT CONTENT SMOKE ONLY
+smoke_attempt_count=1
+gateway_request=true
+phase_b=false
+repeated_smoke_loop=false
+gateway_service_started_by_node=true
+gateway_service_stopped_by_node=true
+service_enable_disable_restart_reload=false
+helper_deploy=false
+credential_boundary_restore_or_recreate=false
+docker_mutation=false
+firewall_or_env_mutation=false
+disk_image_touched=false
+```
+
+Pre-state:
+
+```text
+asterisk_ssh=ok
+ai_secretary_ari_service_active=active
+ai_secretary_ari_service_enabled=enabled
+helper_present=true
+credential_boundary_present=true
+gateway_service_initial_state=inactive_disabled
+gateway_target_listeners_initial=443_absent_8080_absent_8081_absent
+service_OPENAI_API_KEY=ABSENT
+process_OPENAI_API_KEY=ABSENT
+business_dialog_transcript_use=disabled
+transcript_text_logging=disabled
+```
+
+Smoke evidence:
+
+```text
+audio_duration_ms=5512
+audio_sample_rate_hz=24000
+audio_channels=1
+audio_sample_width=2
+audio_quality_classification=valid_speech_candidate
+gateway_http_status=200
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=28
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+transcript_text_present=true
+transcript_text_length_bucket=nonzero_redacted
+diagnostic_propagation_gap=false
+diagnostic_classification=transcript_bearing_event_observed_text_redacted
+```
+
+Final state:
+
+```text
+ai_secretary_gateway_service_active=inactive
+ai_secretary_gateway_service_enabled=disabled
+target_listener_443=false
+target_listener_8080=false
+target_listener_8081=false
+gateway_runtime_process=false
+temporary_audio_removed=true
+credential_boundary_still_present=true
+token_values_printed=false
+raw_env_printed=false
+raw_transcript_text_printed=false
+transcript_delta_printed=false
+```
+
+Next recommendation:
+
+```text
+NODE-032BD / transcript-content-smoke-acceptance-and-business-dialog-boundary-decision
+```

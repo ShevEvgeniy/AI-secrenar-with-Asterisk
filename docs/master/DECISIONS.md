@@ -2787,3 +2787,50 @@ NODE-032BC / controlled-actual-speech-transcript-content-smoke-after-helper-and-
 ```
 
 NODE-032BC requires fresh exact smoke approval and immediate hard-gate re-check.
+
+## NODE-032BC Transcript Content Smoke Decision
+
+Date: 2026-06-13
+
+Decision:
+
+```text
+approval_phrase=APPROVE NODE-032BC CONTROLLED TRANSCRIPT CONTENT SMOKE ONLY
+run_one_smoke=true
+smoke_attempt_count=1
+accept_redacted_transcript_content_proof=true
+phase_b=false
+repeated_smoke_loop=false
+```
+
+NODE-032BC proves the restored helper and credential-boundary path can run a controlled Asterisk-origin Gateway transcript-content smoke with Gateway HTTP 200, OpenAI Realtime OK, event diagnostics present, transcript event flags true, and `transcript_text_length_bucket=nonzero_redacted`.
+
+Non-accepted boundaries:
+
+```text
+raw_transcript_text_correctness=false
+business_dialog_integration=false
+production_autostart=false
+live_customer_call=false
+dual_channel_recording=false
+```
+
+Safety:
+
+```text
+raw_transcript_text_printed=false
+transcript_delta_printed=false
+token_values_printed=false
+raw_env_printed=false
+business_dialog_config_mutation=false
+docker_mutation=false
+firewall_or_env_mutation=false
+service_enable_disable_restart_reload=false
+disk_image_touched=false
+```
+
+Next decision boundary:
+
+```text
+NODE-032BD / transcript-content-smoke-acceptance-and-business-dialog-boundary-decision
+```
