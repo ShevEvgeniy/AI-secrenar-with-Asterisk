@@ -2854,3 +2854,40 @@ NODE-032BC is accepted as proof that the restored helper and credential boundary
 It is not accepted as proof of semantic transcript accuracy, production call handling, real customer audio, business-dialog transcript use, latency/SLA, repeated-run stability, load/error resilience, or production monitoring/alerting.
 
 The business-dialog transcript-use boundary remains closed until a separate design/guardrails node defines default-off configuration, explicit approval, fallback behavior, redaction/logging, acceptance criteria, and rollback.
+
+## NODE-032BE Business Dialog Transcript Use Guardrails Decision
+
+Date: 2026-06-14
+
+Decision:
+
+```text
+business_dialog_transcript_use_remains_disabled=true
+future_flags_design_only=true
+separate_implementation_node_required=true
+separate_live_validation_node_required=true
+preferred_next_node=NODE-032BF / disabled-by-default-business-dialog-transcript-use-implementation
+future_live_node=NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-default
+```
+
+Reserved design-only flags:
+
+```text
+BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=false
+BUSINESS_DIALOG_TRANSCRIPT_MIN_CONFIDENCE
+BUSINESS_DIALOG_TRANSCRIPT_MAX_AGE_MS
+BUSINESS_DIALOG_TRANSCRIPT_REDACT_LOGS=true
+BUSINESS_DIALOG_TRANSCRIPT_FAIL_CLOSED=true
+```
+
+Logging decision:
+
+```text
+raw_transcript_text_logging=false
+transcript_delta_logging=false
+token_value_logging=false
+raw_env_value_logging=false
+diagnostic_outputs_only=true
+```
+
+NODE-032BE does not implement runtime behavior, enable business-dialog transcript use, run smoke, access servers, handle tokens, create temp env files, or change service/firewall/env/server/app state.
