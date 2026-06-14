@@ -1,5 +1,27 @@
 # Decisions
 
+## NODE-032BG Decision
+
+NODE-032BG is accepted as a single controlled live smoke proving the Gateway/Auth/OpenAI Realtime path still behaves safely while dialog transcript use is disabled:
+
+```text
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+diagnostic_propagation_gap=false
+transcript_text_logged=false
+transcript_delta_logged=false
+transcript_used_for_dialog=false
+dialog_transcript_used=false
+fallback_reason=gateway_stt_dialog_use_disabled
+gateway_restored_inactive_disabled=true
+```
+
+NODE-032BG is not accepted as a complete live proof of NODE-032BF policy reporting because the deployed Asterisk helper/runtime report did not include the new `business_dialog_transcript_*` fields. Business-dialog transcript use remains disabled. The next node should refresh or validate the deployed helper/runtime policy-field boundary before any enabled-use validation.
+
 ## Accepted
 
 ### Master-Driven Workflow

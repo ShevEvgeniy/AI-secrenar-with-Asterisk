@@ -4810,3 +4810,64 @@ Next recommendation:
 ```text
 NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-default
 ```
+
+## NODE-032BG Runtime Notes
+
+NODE-032BG performed one approved controlled live smoke and then restored runtime state.
+
+Runtime action summary:
+
+```text
+ssh_used=true
+provider_controls_used=false
+gateway_power_action=false
+smoke_attempt_count=1
+gateway_service_start=performed_for_smoke_window
+gateway_service_stop=performed
+gateway_service_final=inactive_disabled
+gateway_request=true
+openai_request=via_gateway_smoke_only
+helper_deploy=false
+token_values_printed=false
+env_values_printed=false
+temp_env_created=false
+credential_boundary_recreated=false
+docker_mutation=false
+firewall_or_env_mutation=false
+server_or_app_config_mutation=false
+audio_artifact_committed=false
+disk_image_touched=false
+```
+
+Smoke result:
+
+```text
+gateway_http_status=200
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+diagnostic_propagation_gap=false
+transcript_text_present=false
+transcript_text_length_bucket=zero
+transcript_text_logged=false
+transcript_delta_logged=false
+transcript_used_for_dialog=false
+dialog_transcript_used=false
+fallback_reason=gateway_stt_dialog_use_disabled
+```
+
+Gap:
+
+```text
+node032bf_policy_runtime_reporting_proven=false
+reason=deployed_Asterisk_helper_report_did_not_include_business_dialog_transcript_policy_fields
+```
+
+Next recommendation:
+
+```text
+NODE-032BH / controlled-asterisk-helper-runtime-refresh-for-business-transcript-policy-fields
+```

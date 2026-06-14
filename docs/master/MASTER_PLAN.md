@@ -3,6 +3,8 @@
 ## Project Baseline
 
 - Repository root: `C:\Projects\AI-secrenar-with-Asterisk`
+- Current NODE-032 recommendation: `NODE-032BH / controlled-asterisk-helper-runtime-refresh-for-business-transcript-policy-fields`
+- Rationale: NODE-032BG proved the live Gateway/Auth/OpenAI Realtime path still fails safely with dialog transcript use disabled, but the deployed Asterisk helper/runtime did not expose the NODE-032BF `business_dialog_transcript_*` policy fields. Refresh or validate that deployed helper/runtime boundary before any enabled business-dialog transcript-use validation.
 - Source-of-truth branch: `master`
 - Source-of-truth commit: `990dc59`
 - Source-of-truth commit message: `Merge pull request #11 from ShevEvgeniy/feat/node-032i-controlled-persistent-gateway-service-install-start-smoke`

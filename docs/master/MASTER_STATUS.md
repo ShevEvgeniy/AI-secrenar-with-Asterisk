@@ -3,6 +3,9 @@
 ## Current State
 
 - Branch: `master`
+- Latest NODE-032 update: `NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-default`
+- NODE-032BG result: one approved controlled smoke reached Gateway/Auth/OpenAI Realtime with HTTP 200 and preserved disabled dialog transcript use; however the deployed Asterisk helper/runtime did not report the new NODE-032BF `business_dialog_transcript_*` policy fields, so NODE-032BF policy-runtime reporting remains unproven.
+- Planned next technical node: `NODE-032BH / controlled-asterisk-helper-runtime-refresh-for-business-transcript-policy-fields`
 - Source-of-truth commit: `990dc59`
 - Source-of-truth commit message: `Merge pull request #11 from ShevEvgeniy/feat/node-032i-controlled-persistent-gateway-service-install-start-smoke`
 - Repository location: `C:\Projects\AI-secrenar-with-Asterisk`
