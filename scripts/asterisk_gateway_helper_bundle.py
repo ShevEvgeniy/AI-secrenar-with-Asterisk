@@ -31,6 +31,8 @@ BUNDLE_FILES = (
     "src/ai_secretary/stt/gateway_adapter_smoke.py",
     "src/ai_secretary/stt/realtime_gateway.py",
     "src/ai_secretary/stt/realtime_measurement.py",
+    "src/ai_secretary/telephony/__init__.py",
+    "src/ai_secretary/telephony/transcript_policy.py",
 )
 
 RUNTIME_MODULES = (

@@ -28,6 +28,7 @@ def test_bundle_create_includes_required_import_dependencies(tmp_path: Path) -> 
     assert (bundle_root / "src/ai_secretary/config/__init__.py").is_file()
     assert (bundle_root / "src/ai_secretary/config/settings.py").is_file()
     assert (bundle_root / "src/ai_secretary/stt/gateway_adapter_smoke.py").is_file()
+    assert (bundle_root / "src/ai_secretary/telephony/transcript_policy.py").is_file()
     assert (bundle_root / "scripts/gateway_smoke_temp_env_guard.py").is_file()
 
 

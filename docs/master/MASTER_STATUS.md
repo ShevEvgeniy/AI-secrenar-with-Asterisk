@@ -5514,3 +5514,62 @@ Future live validation after implementation:
 ```text
 NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-default
 ```
+
+## NODE-032BF Disabled-By-Default Business Dialog Transcript Implementation
+
+NODE-032BF implemented a local disabled-by-default business-dialog transcript-use policy boundary.
+
+Implementation:
+
+```text
+src/ai_secretary/telephony/transcript_policy.py
+src/ai_secretary/stt/gateway_adapter.py
+```
+
+Tests:
+
+```text
+tests/test_business_dialog_transcript_policy.py
+tests/test_gateway_stt_adapter.py
+```
+
+Feature defaults:
+
+```text
+BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=false
+BUSINESS_DIALOG_TRANSCRIPT_REDACT_LOGS=true
+BUSINESS_DIALOG_TRANSCRIPT_FAIL_CLOSED=true
+BUSINESS_DIALOG_TRANSCRIPT_MAX_AGE_MS=30000
+```
+
+Fail-closed behavior:
+
+```text
+missing_transcript_rejected=true
+stale_transcript_rejected=true
+low_confidence_transcript_rejected=true
+incomplete_metadata_rejected=true
+redaction_guard_inactive_rejected=true
+fallback_preserved=true
+```
+
+Adapter acceptance now requires:
+
+```text
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true
+BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=true
+```
+
+Validation:
+
+```text
+focused_policy_and_adapter_tests=26_passed
+```
+
+No live smoke, server access, provider controls, token handling, temp env, OpenAI request, service action, Docker mutation, firewall/env/server/app config mutation, runtime enablement, audio artifact, or disk image action occurred.
+
+Next recommendation:
+
+```text
+NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-default
+```

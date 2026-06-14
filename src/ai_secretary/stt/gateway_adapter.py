@@ -13,6 +13,12 @@ import httpx
 
 from .realtime_gateway import GATEWAY_ENDPOINT
 from .realtime_measurement import DEFAULT_LANGUAGE, redact_secrets
+from ..telephony.transcript_policy import (
+    TranscriptCandidate,
+    TranscriptUsePolicy,
+    evaluate_business_dialog_transcript_use,
+    transcript_use_policy_from_env,
+)
 
 
 DEFAULT_GATEWAY_TIMEOUT_MS = 10_000
@@ -30,6 +36,7 @@ class GatewaySttAdapterConfig:
     log_transcript: bool = False
     language: str = DEFAULT_LANGUAGE
     min_confidence: float | None = None
+    business_dialog_transcript_policy: TranscriptUsePolicy = TranscriptUsePolicy()
 
 
 @dataclass(frozen=True)
@@ -57,6 +64,7 @@ def config_from_env(environ: dict[str, str] | None = None) -> GatewaySttAdapterC
         log_transcript=_env_bool(env, "STT_GATEWAY_LOG_TRANSCRIPT", False),
         language=env.get("STT_GATEWAY_LANGUAGE", DEFAULT_LANGUAGE).strip() or DEFAULT_LANGUAGE,
         min_confidence=_env_optional_float(env, "STT_GATEWAY_MIN_CONFIDENCE"),
+        business_dialog_transcript_policy=transcript_use_policy_from_env(env),
     )
 
 
@@ -81,7 +89,13 @@ async def transcribe_via_gateway(
         "stt_gateway_max_retries": config.max_retries,
         "stt_gateway_log_transcript": config.log_transcript,
         "stt_gateway_language": config.language,
+        "business_dialog_transcript_policy_enabled": config.business_dialog_transcript_policy.enabled,
+        "business_dialog_transcript_redact_logs": config.business_dialog_transcript_policy.redact_logs,
+        "business_dialog_transcript_fail_closed": config.business_dialog_transcript_policy.fail_closed,
+        "business_dialog_transcript_max_age_ms": config.business_dialog_transcript_policy.max_age_ms,
     }
+    if config.business_dialog_transcript_policy.min_confidence is not None:
+        base_details["business_dialog_transcript_min_confidence"] = config.business_dialog_transcript_policy.min_confidence
     if not config.enabled:
         return _result("", False, False, "gateway_stt_disabled", base_details)
     if not config.use_transcript_for_dialog and not allow_request_without_dialog_use:
@@ -145,21 +159,36 @@ async def transcribe_via_gateway(
             continue
 
         transcript = str(payload.get("transcript_text") or "").strip()
+        transcript_age_ms = _payload_optional_int(payload, "transcript_age_ms", 0)
+        metadata_complete = bool(payload.get("transcript_metadata_complete", True))
+        confidence = _payload_optional_float(payload, "confidence")
         candidate_details = {
             **last_details,
             "transcript_text_present": bool(transcript or payload.get("transcript_text_present")),
             "transcript_text_length": len(transcript),
-            "transcript_text_logged": config.log_transcript and bool(transcript),
-            "redaction_applied": not config.log_transcript,
+            "transcript_text_logged": False,
+            "redaction_applied": True,
             "dialog_transcript_used": False,
+            "transcript_metadata_complete": metadata_complete,
         }
-        if config.log_transcript and transcript:
-            candidate_details["transcript_text"] = transcript
         _log(log_event, "gateway_stt_transcript_candidate", "ok", None, candidate_details)
 
         reject_reason = _transcript_reject_reason(transcript, payload, config)
         if not config.use_transcript_for_dialog:
             reject_reason = "gateway_stt_dialog_use_disabled"
+        policy_decision = evaluate_business_dialog_transcript_use(
+            TranscriptCandidate(
+                text=transcript,
+                confidence=confidence,
+                age_ms=transcript_age_ms,
+                metadata_complete=metadata_complete,
+                redaction_active=not config.log_transcript,
+            ),
+            policy=config.business_dialog_transcript_policy,
+        )
+        candidate_details = {**candidate_details, **policy_decision.to_safe_details()}
+        if not reject_reason and not policy_decision.allowed:
+            reject_reason = policy_decision.reason
         if reject_reason:
             rejected_details = {**candidate_details, "fallback_reason": reject_reason}
             _log(log_event, "gateway_stt_transcript_rejected", "handled", reject_reason, rejected_details)
@@ -221,9 +250,7 @@ def _safe_gateway_payload(payload: Any, *, log_transcript: bool) -> dict[str, An
         safe["transcript_text_present"] = bool(stripped) or bool(safe.get("transcript_text_present"))
         safe["transcript_text_length"] = len(stripped)
         safe["transcript_text_length_bucket"] = "nonzero_redacted" if stripped else "zero"
-        safe["transcript_text_logged"] = log_transcript
-        if log_transcript:
-            safe["transcript_text"] = transcript
+        safe["transcript_text_logged"] = False
     else:
         if "transcript_text_length_bucket" not in safe:
             safe["transcript_text_length_bucket"] = "unknown"
@@ -306,3 +333,19 @@ def _env_optional_float(env: dict[str, str], name: str) -> float | None:
         return float(raw)
     except ValueError:
         return None
+
+
+def _payload_optional_float(payload: dict[str, Any], name: str) -> float | None:
+    value = payload.get(name)
+    if isinstance(value, int | float):
+        return float(value)
+    return None
+
+
+def _payload_optional_int(payload: dict[str, Any], name: str, default: int | None) -> int | None:
+    value = payload.get(name)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return default
