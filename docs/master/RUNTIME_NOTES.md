@@ -4764,3 +4764,49 @@ Next recommendation:
 ```text
 NODE-032BF / disabled-by-default-business-dialog-transcript-use-implementation
 ```
+
+## NODE-032BF Runtime Notes
+
+NODE-032BF changed local source/tests only and performed no live runtime action.
+
+Runtime action summary:
+
+```text
+ssh_used=false
+provider_controls_used=false
+gateway_power_action=false
+smoke=false
+call_run=false
+phase_b=false
+gateway_request=false
+helper_deploy=false
+token_handling=false
+temp_env_created=false
+openai_request=false
+service_action=false
+docker_mutation=false
+firewall_or_env_mutation=false
+server_or_app_config_mutation=false
+business_dialog_transcript_runtime_enablement=false
+audio_artifact_added=false
+server_dump_or_log_artifact_added=false
+disk_image_touched=false
+```
+
+Local implementation boundary:
+
+```text
+policy_module=src/ai_secretary/telephony/transcript_policy.py
+adapter_enforcement=src/ai_secretary/stt/gateway_adapter.py
+BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=false_by_default
+BUSINESS_DIALOG_TRANSCRIPT_REDACT_LOGS=true_by_default
+BUSINESS_DIALOG_TRANSCRIPT_FAIL_CLOSED=true_by_default
+raw_transcript_text_logged=false
+transcript_delta_logged=false
+```
+
+Next recommendation:
+
+```text
+NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-default
+```

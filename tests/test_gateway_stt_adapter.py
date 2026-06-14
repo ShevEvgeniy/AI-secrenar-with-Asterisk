@@ -16,6 +16,7 @@ from ai_secretary.stt.gateway_adapter_smoke import run_smoke
 from ai_secretary.stt.realtime_gateway import GATEWAY_ENDPOINT
 from ai_secretary.telephony import ari_app
 from ai_secretary.telephony.call_session import CallSession, DialogStage
+from ai_secretary.telephony.transcript_policy import TranscriptUsePolicy
 
 
 def _write_audio(path: Path) -> Path:
@@ -121,6 +122,27 @@ def test_config_is_disabled_by_default() -> None:
     assert config.timeout_ms == 10_000
     assert config.max_retries == 0
     assert config.log_transcript is False
+    assert config.business_dialog_transcript_policy.enabled is False
+    assert config.business_dialog_transcript_policy.redact_logs is True
+    assert config.business_dialog_transcript_policy.fail_closed is True
+
+
+def test_config_reads_business_dialog_transcript_flags() -> None:
+    config = config_from_env(
+        {
+            "BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED": "true",
+            "BUSINESS_DIALOG_TRANSCRIPT_MIN_CONFIDENCE": "0.75",
+            "BUSINESS_DIALOG_TRANSCRIPT_MAX_AGE_MS": "2500",
+            "BUSINESS_DIALOG_TRANSCRIPT_REDACT_LOGS": "true",
+            "BUSINESS_DIALOG_TRANSCRIPT_FAIL_CLOSED": "true",
+        }
+    )
+
+    assert config.business_dialog_transcript_policy.enabled is True
+    assert config.business_dialog_transcript_policy.min_confidence == 0.75
+    assert config.business_dialog_transcript_policy.max_age_ms == 2500
+    assert config.business_dialog_transcript_policy.redact_logs is True
+    assert config.business_dialog_transcript_policy.fail_closed is True
 
 
 def test_disabled_adapter_makes_no_gateway_call(tmp_path: Path) -> None:
@@ -187,7 +209,7 @@ def test_gateway_failures_fall_back_safely(tmp_path: Path) -> None:
     )
 
     async def _auth_failed(_config: GatewaySttAdapterConfig, _audio: bytes) -> tuple[int, dict]:
-        return 401, {"ok": False, "error_type": "gateway_auth_failed", "transcript_text": "secret text"}
+        return 401, {"ok": False, "error_type": "gateway_auth_failed", "transcript_text": "__FAKE_TRANSCRIPT_PLACEHOLDER__"}
 
     async def _timeout(_config: GatewaySttAdapterConfig, _audio: bytes) -> tuple[int, dict]:
         raise TimeoutError("timed out")
@@ -219,11 +241,19 @@ def test_gateway_failures_fall_back_safely(tmp_path: Path) -> None:
 
 def test_local_fake_gateway_http_dry_run_accepts_without_real_secrets(tmp_path: Path, monkeypatch) -> None:
     audio_path = _write_audio(tmp_path / "audio.wav")
-    transcript = "local fake transcript"
+    transcript = "__FAKE_TRANSCRIPT_PLACEHOLDER__"
     lines: list[dict] = []
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-    with _FakeGatewayServer({"ok": True, "transcript_text_present": True, "transcript_text": transcript}) as gateway:
+    with _FakeGatewayServer(
+        {
+            "ok": True,
+            "transcript_text_present": True,
+            "transcript_text": transcript,
+            "confidence": 0.95,
+            "transcript_age_ms": 0,
+        }
+    ) as gateway:
         config = config_from_env(
             {
                 "STT_GATEWAY_STT_ENABLED": "true",
@@ -232,6 +262,8 @@ def test_local_fake_gateway_http_dry_run_accepts_without_real_secrets(tmp_path: 
                 "STT_GATEWAY_TOKEN": "fake-token",
                 "STT_GATEWAY_TIMEOUT_MS": "1000",
                 "STT_GATEWAY_LOG_TRANSCRIPT": "false",
+                "BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED": "true",
+                "BUSINESS_DIALOG_TRANSCRIPT_MIN_CONFIDENCE": "0.7",
             }
         )
 
@@ -253,6 +285,8 @@ def test_local_fake_gateway_http_dry_run_accepts_without_real_secrets(tmp_path: 
     assert result.details["transcript_text_present"] is True
     assert result.details["transcript_text_logged"] is False
     assert result.details["redaction_applied"] is True
+    assert result.details["business_dialog_transcript_allowed"] is True
+    assert result.details["business_dialog_transcript_length_bucket"] == "nonzero_redacted"
     assert transcript not in serialized_logs
     assert len(gateway.requests) == 1
     assert gateway.requests[0]["path"].startswith(GATEWAY_ENDPOINT)
@@ -263,13 +297,15 @@ def test_local_fake_gateway_http_dry_run_accepts_without_real_secrets(tmp_path: 
 def test_transcript_text_not_logged_by_default(tmp_path: Path) -> None:
     audio_path = _write_audio(tmp_path / "audio.wav")
     lines: list[dict] = []
+    transcript = "__FAKE_TRANSCRIPT_PLACEHOLDER__"
 
     async def _post(_config: GatewaySttAdapterConfig, _audio: bytes) -> tuple[int, dict]:
         return 200, {
             "ok": True,
             "gateway_request_id": "gw_test",
             "transcript_text_present": True,
-            "transcript_text": "секретный текст",
+            "transcript_text": transcript,
+            "transcript_age_ms": 0,
         }
 
     result = asyncio.run(
@@ -281,6 +317,7 @@ def test_transcript_text_not_logged_by_default(tmp_path: Path) -> None:
                 gateway_url="https://gateway.example.test",
                 gateway_token="gateway-token",
                 log_transcript=False,
+                business_dialog_transcript_policy=TranscriptUsePolicy(enabled=True),
             ),
             post=_post,
             log_event=lambda action, status, reason, details: lines.append(
@@ -291,9 +328,52 @@ def test_transcript_text_not_logged_by_default(tmp_path: Path) -> None:
 
     serialized_logs = json.dumps(lines, ensure_ascii=False)
     assert result.accepted is True
-    assert result.text == "секретный текст"
-    assert "секретный текст" not in serialized_logs
+    assert result.text == transcript
+    assert transcript not in serialized_logs
     assert result.details["transcript_text_logged"] is False
+
+
+def test_missing_age_metadata_fails_closed_in_adapter_path(tmp_path: Path) -> None:
+    audio_path = _write_audio(tmp_path / "audio.wav")
+    transcript = "__FAKE_TRANSCRIPT_PLACEHOLDER__"
+    lines: list[dict] = []
+
+    async def _post(_config: GatewaySttAdapterConfig, _audio: bytes) -> tuple[int, dict]:
+        return 200, {
+            "ok": True,
+            "gateway_request_id": "gw_test",
+            "transcript_text_present": True,
+            "transcript_text": transcript,
+            "confidence": 0.95,
+        }
+
+    result = asyncio.run(
+        transcribe_via_gateway(
+            audio_path,
+            config=GatewaySttAdapterConfig(
+                enabled=True,
+                use_transcript_for_dialog=True,
+                gateway_url="https://gateway.example.test",
+                gateway_token="gateway-token",
+                log_transcript=False,
+                business_dialog_transcript_policy=TranscriptUsePolicy(enabled=True, min_confidence=0.7),
+            ),
+            post=_post,
+            log_event=lambda action, status, reason, details: lines.append(
+                {"action": action, "status": status, "reason": reason, "details": details}
+            ),
+        )
+    )
+
+    serialized_logs = json.dumps(lines, ensure_ascii=False)
+    assert result.accepted is False
+    assert result.text == ""
+    assert result.reason == "incomplete_transcript_metadata"
+    assert result.details["business_dialog_transcript_allowed"] is False
+    assert result.details["business_dialog_transcript_reason"] == "incomplete_transcript_metadata"
+    assert result.details["business_dialog_transcript_age_bucket"] == "unknown"
+    assert result.details["dialog_transcript_used"] is False
+    assert transcript not in serialized_logs
 
 
 def test_business_path_gateway_flag_enabled_but_dialog_use_disabled_falls_back_to_batch(
@@ -332,7 +412,7 @@ def test_business_path_gateway_flag_enabled_but_dialog_use_disabled_falls_back_t
 
 def test_smoke_can_request_gateway_without_using_transcript_for_dialog(tmp_path: Path, monkeypatch, capsys) -> None:
     audio_path = _write_audio(tmp_path / "audio.wav")
-    transcript = "secret smoke transcript"
+    transcript = "__FAKE_TRANSCRIPT_PLACEHOLDER__"
 
     with _FakeGatewayServer(
         {
@@ -377,16 +457,26 @@ def test_business_path_explicit_local_gateway_transcript_can_drive_boundary(
         channel_id="ch-local-gateway",
         artifact_dir=tmp_path / "artifacts",
     )
-    transcript = "explicit fake gateway transcript"
+    transcript = "__FAKE_TRANSCRIPT_PLACEHOLDER__"
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-    with _FakeGatewayServer({"ok": True, "transcript_text_present": True, "transcript_text": transcript}) as gateway:
+    with _FakeGatewayServer(
+        {
+            "ok": True,
+            "transcript_text_present": True,
+            "transcript_text": transcript,
+            "confidence": 0.95,
+            "transcript_age_ms": 0,
+        }
+    ) as gateway:
         monkeypatch.setenv("STT_GATEWAY_STT_ENABLED", "true")
         monkeypatch.setenv("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG", "true")
         monkeypatch.setenv("STT_GATEWAY_URL", gateway.url)
         monkeypatch.setenv("STT_GATEWAY_TOKEN", "fake-token")
         monkeypatch.setenv("STT_GATEWAY_TIMEOUT_MS", "1000")
         monkeypatch.setenv("STT_GATEWAY_LOG_TRANSCRIPT", "false")
+        monkeypatch.setenv("BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED", "true")
+        monkeypatch.setenv("BUSINESS_DIALOG_TRANSCRIPT_MIN_CONFIDENCE", "0.7")
         monkeypatch.setenv("TELEPHONY_STT_BACKEND", "fixture")
         monkeypatch.setenv("TELEPHONY_STT_FIXTURE_NAME", "batch fallback text")
 
@@ -402,6 +492,7 @@ def test_business_path_explicit_local_gateway_transcript_can_drive_boundary(
     assert text == transcript
     assert details["stt_backend"] == "gateway_stt"
     assert details["stt_gateway_transcript_accepted"] is True
+    assert details["business_dialog_transcript_allowed"] is True
     assert "stt_gateway_fallback_to_batch" not in details
     assert transcript not in serialized_events
     assert len(gateway.requests) == 1
@@ -435,7 +526,7 @@ def test_business_transcription_path_keeps_gateway_disabled_by_default(monkeypat
 
 def test_gateway_adapter_smoke_reports_redacted_metadata(tmp_path: Path, monkeypatch, capsys) -> None:
     audio_path = _write_audio(tmp_path / "audio.wav")
-    transcript = "secret smoke transcript"
+    transcript = "__FAKE_TRANSCRIPT_PLACEHOLDER__"
 
     with _FakeGatewayServer(
         {

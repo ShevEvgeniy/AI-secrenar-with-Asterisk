@@ -2891,3 +2891,24 @@ diagnostic_outputs_only=true
 ```
 
 NODE-032BE does not implement runtime behavior, enable business-dialog transcript use, run smoke, access servers, handle tokens, create temp env files, or change service/firewall/env/server/app state.
+
+## NODE-032BF Disabled-By-Default Transcript Use Implementation Decision
+
+Date: 2026-06-14
+
+Decision:
+
+```text
+implement_disabled_by_default_business_dialog_transcript_policy=true
+default_enabled=false
+adapter_requires_business_policy_opt_in=true
+raw_transcript_logging=false
+future_live_validation_required=true
+next_node=NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-default
+```
+
+The implementation adds a pure local policy boundary and adapter enforcement. `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true` is no longer sufficient by itself for accepted business-dialog transcript use; `BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=true` must also allow the transcript candidate.
+
+The policy fails closed for missing, stale, low-confidence, incomplete-metadata, or redaction-guard-inactive transcripts and preserves fallback behavior.
+
+NODE-032BF did not run smoke, access servers, send Gateway/OpenAI requests, handle tokens, create temp env files, deploy helpers, change services, mutate Docker, change firewall/env/server/app config, enable runtime transcript use, generate audio, or touch the disk image.

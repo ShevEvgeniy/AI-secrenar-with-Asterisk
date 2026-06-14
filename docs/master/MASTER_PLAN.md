@@ -1722,3 +1722,31 @@ Future live validation:
 ```text
 NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-default
 ```
+
+## NODE-032BF Implementation Plan Result
+
+NODE-032BF adds the disabled-by-default implementation boundary for future business-dialog transcript use.
+
+Implemented boundary:
+
+```text
+policy_module=src/ai_secretary/telephony/transcript_policy.py
+adapter_enforcement=src/ai_secretary/stt/gateway_adapter.py
+default_enabled=false
+raw_transcript_logging=false
+```
+
+The adapter may accept transcript text for dialog only when both legacy gateway dialog use and the new business-dialog transcript-use policy are explicitly enabled:
+
+```text
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true
+BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=true
+```
+
+Future live validation remains separate:
+
+```text
+NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-default
+```
+
+NODE-032BG must prove disabled-by-default behavior under controlled live conditions before any broader runtime use.
