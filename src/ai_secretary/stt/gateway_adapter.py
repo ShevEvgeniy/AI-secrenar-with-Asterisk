@@ -159,7 +159,7 @@ async def transcribe_via_gateway(
             continue
 
         transcript = str(payload.get("transcript_text") or "").strip()
-        transcript_age_ms = _payload_optional_int(payload, "transcript_age_ms", 0)
+        transcript_age_ms = _payload_optional_int(payload, "transcript_age_ms")
         metadata_complete = bool(payload.get("transcript_metadata_complete", True))
         confidence = _payload_optional_float(payload, "confidence")
         candidate_details = {
@@ -342,7 +342,7 @@ def _payload_optional_float(payload: dict[str, Any], name: str) -> float | None:
     return None
 
 
-def _payload_optional_int(payload: dict[str, Any], name: str, default: int | None) -> int | None:
+def _payload_optional_int(payload: dict[str, Any], name: str, default: int | None = None) -> int | None:
     value = payload.get(name)
     if isinstance(value, int):
         return value

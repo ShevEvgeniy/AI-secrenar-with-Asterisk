@@ -246,7 +246,13 @@ def test_local_fake_gateway_http_dry_run_accepts_without_real_secrets(tmp_path: 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     with _FakeGatewayServer(
-        {"ok": True, "transcript_text_present": True, "transcript_text": transcript, "confidence": 0.95}
+        {
+            "ok": True,
+            "transcript_text_present": True,
+            "transcript_text": transcript,
+            "confidence": 0.95,
+            "transcript_age_ms": 0,
+        }
     ) as gateway:
         config = config_from_env(
             {
@@ -299,6 +305,7 @@ def test_transcript_text_not_logged_by_default(tmp_path: Path) -> None:
             "gateway_request_id": "gw_test",
             "transcript_text_present": True,
             "transcript_text": transcript,
+            "transcript_age_ms": 0,
         }
 
     result = asyncio.run(
@@ -324,6 +331,49 @@ def test_transcript_text_not_logged_by_default(tmp_path: Path) -> None:
     assert result.text == transcript
     assert transcript not in serialized_logs
     assert result.details["transcript_text_logged"] is False
+
+
+def test_missing_age_metadata_fails_closed_in_adapter_path(tmp_path: Path) -> None:
+    audio_path = _write_audio(tmp_path / "audio.wav")
+    transcript = "__FAKE_TRANSCRIPT_PLACEHOLDER__"
+    lines: list[dict] = []
+
+    async def _post(_config: GatewaySttAdapterConfig, _audio: bytes) -> tuple[int, dict]:
+        return 200, {
+            "ok": True,
+            "gateway_request_id": "gw_test",
+            "transcript_text_present": True,
+            "transcript_text": transcript,
+            "confidence": 0.95,
+        }
+
+    result = asyncio.run(
+        transcribe_via_gateway(
+            audio_path,
+            config=GatewaySttAdapterConfig(
+                enabled=True,
+                use_transcript_for_dialog=True,
+                gateway_url="https://gateway.example.test",
+                gateway_token="gateway-token",
+                log_transcript=False,
+                business_dialog_transcript_policy=TranscriptUsePolicy(enabled=True, min_confidence=0.7),
+            ),
+            post=_post,
+            log_event=lambda action, status, reason, details: lines.append(
+                {"action": action, "status": status, "reason": reason, "details": details}
+            ),
+        )
+    )
+
+    serialized_logs = json.dumps(lines, ensure_ascii=False)
+    assert result.accepted is False
+    assert result.text == ""
+    assert result.reason == "incomplete_transcript_metadata"
+    assert result.details["business_dialog_transcript_allowed"] is False
+    assert result.details["business_dialog_transcript_reason"] == "incomplete_transcript_metadata"
+    assert result.details["business_dialog_transcript_age_bucket"] == "unknown"
+    assert result.details["dialog_transcript_used"] is False
+    assert transcript not in serialized_logs
 
 
 def test_business_path_gateway_flag_enabled_but_dialog_use_disabled_falls_back_to_batch(
@@ -411,7 +461,13 @@ def test_business_path_explicit_local_gateway_transcript_can_drive_boundary(
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     with _FakeGatewayServer(
-        {"ok": True, "transcript_text_present": True, "transcript_text": transcript, "confidence": 0.95}
+        {
+            "ok": True,
+            "transcript_text_present": True,
+            "transcript_text": transcript,
+            "confidence": 0.95,
+            "transcript_age_ms": 0,
+        }
     ) as gateway:
         monkeypatch.setenv("STT_GATEWAY_STT_ENABLED", "true")
         monkeypatch.setenv("STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG", "true")
