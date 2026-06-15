@@ -3040,3 +3040,40 @@ next_node=NODE-032BM / controlled-enabled-live-smoke-retry-with-safe-env-loader
 ```
 
 NODE-032BL chooses a helper-owned env-file parser and explicit dialog transcript-use mode instead of remote shell `source`/`set -a` command construction. Future live retry still requires separate exact approval.
+
+## NODE-032BM Safe Env Loader Retry Gate Decision
+
+Date: 2026-06-15
+
+Decision:
+
+```text
+prepare_enabled_live_smoke_retry_package=true
+use_NODE_032BL_quote_safe_env_loader=true
+live_approval_received=false
+enabled_live_dialog_use_proven=false
+classification=blocked_pending_exact_live_approval
+```
+
+Phase 2 decision after exact approval:
+
+```text
+approval_phrase_received=true
+read_only_live_preflight_allowed=true
+asterisk_read_only_gates_passed=true
+gateway_ssh_reachable=false
+hard_gate_result=NO_GO
+smoke_count=0
+enabled_live_dialog_use_proven=false
+classification=blocked_pending_kamatera_gateway_power_on
+```
+
+No live action is approved until this exact phrase is received in a separate coordinator message:
+
+```text
+APPROVE NODE-032BM CONTROLLED ENABLED LIVE SMOKE WITH SAFE ENV LOADER
+```
+
+The future retry must use helper-owned `--env-file`, `--dialog-transcript-use enabled`, and `--dry-run-env-check` before smoke. It must not use shell `source`, `set -a`, nested shell quoting, shell environment dumps, token/env value output, Authorization header output, raw transcript text, or transcript deltas.
+
+NODE-032BM Phase 2 stopped before dry-run env validation and before smoke because Gateway SSH timed out. Coordinator later clarified that Kamatera/Gateway had not yet been powered on, so the timeout is now classified as `blocked_pending_kamatera_gateway_power_on` rather than an unexplained Gateway failure. It did not start Gateway, run smoke, send a Gateway request, enable transcript-use flags, handle tokens or real env values, mutate service/Docker/firewall/env/server/app config, generate/upload live audio, touch the disk image, write Notion, or write Runtime/Evidence.
