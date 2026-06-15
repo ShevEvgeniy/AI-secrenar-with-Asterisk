@@ -5651,3 +5651,25 @@ Next recommendation:
 ```text
 NODE-032BK / controlled-enabled-business-dialog-transcript-use-live-smoke
 ```
+
+## NODE-032BK Controlled Enabled Business Dialog Transcript Use Live Smoke
+
+NODE-032BK Phase 2 received the exact approval phrase and ran read-only preflight. Hard gates passed, then exactly one controlled enabled adapter smoke command was attempted.
+
+The smoke command failed closed before any Gateway request because remote shell quoting prevented `.runtime/gateway-smoke.env` from loading, leaving `STT_GATEWAY_URL` and `STT_GATEWAY_TOKEN` missing. The same quoting issue printed a non-secret shell environment dump, so NODE-032BK is blocked and no retry was run.
+
+```text
+approval_phrase_received=true
+required_approval_phrase=APPROVE NODE-032BK CONTROLLED ENABLED LIVE SMOKE
+live_preflight_run=true
+hard_gates_passed=true
+smoke_invocation_count=1
+gateway_request_sent=false
+transcript_enablement_used=attempted_temporary_process_flags_only
+enabled_live_dialog_use_proven=false
+classification=blocked_command_quoting_env_dump_missing_gateway_flags
+```
+
+Cleanup restored Gateway inactive/disabled with no target listeners, removed temporary audio, kept firewall source-restricted, kept Asterisk `OPENAI_API_KEY` absent, and kept transcript logging disabled.
+
+No second smoke, Gateway request, real call, real caller/customer audio, token value output, Authorization header output, transcript text output, transcript delta output, Docker mutation, firewall broadening, persistent transcript-use enablement, or disk image action occurred.

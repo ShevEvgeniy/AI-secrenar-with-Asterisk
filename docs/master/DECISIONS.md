@@ -2995,3 +2995,30 @@ BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=true
 ```
 
 NODE-032BJ requires fail-closed behavior, redacted logs, no raw transcript text, no transcript deltas, no token/env output, one-smoke limit, Gateway restore, temporary-flag cleanup, and separate approval before any live enabled smoke.
+
+## NODE-032BK Approval Gate And Blocker Decision
+
+Date: 2026-06-15
+
+Decision:
+
+```text
+open_enabled_live_smoke_node=true
+approval_phrase_received=true
+live_preflight_completed=true
+hard_gates_passed=true
+enabled_smoke_invocation_attempted_once=true
+gateway_request_sent=false
+enabled_live_dialog_use_proven=false
+classification=blocked_command_quoting_env_dump_missing_gateway_flags
+```
+
+NODE-032BK must not run a second smoke without coordinator review and new explicit approval. The next decision should address a quote-safe env-loading and enabled adapter smoke command path.
+
+The exact approval phrase used for NODE-032BK was:
+
+```text
+APPROVE NODE-032BK CONTROLLED ENABLED LIVE SMOKE
+```
+
+No Gateway request, real call, real caller/customer audio, token value output, Authorization header output, transcript text output, transcript delta output, Docker mutation, firewall broadening, persistent transcript-use enablement, or disk image action occurred.
