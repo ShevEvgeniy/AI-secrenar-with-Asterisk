@@ -5578,3 +5578,44 @@ Next recommendation:
 ```text
 NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-default
 ```
+
+## NODE-032BI Disabled Live Smoke With Business Policy Fields
+
+NODE-032BI ran one controlled disabled-by-default live smoke after the NODE-032BH helper/runtime refresh.
+
+Result:
+
+```text
+exactly_one_smoke_ran=true
+gateway_http_status=200
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+diagnostic_propagation_gap=false
+business_dialog_transcript_policy_fields_visible=true
+```
+
+Business-dialog transcript use remained disabled:
+
+```text
+business_dialog_transcript_policy_enabled=false
+business_dialog_transcript_allowed=false
+business_dialog_transcript_used_for_dialog=false
+dialog_transcript_used=false
+fallback_reason=gateway_stt_dialog_use_disabled
+transcript_text_logged=false
+transcript_delta_logged=false
+```
+
+Cleanup restored Gateway inactive/disabled with no listeners on `443`, `8080`, or `8081`; temporary Asterisk audio was removed; Asterisk still had no `OPENAI_API_KEY`.
+
+No second smoke, real call, real caller/customer audio, token/env value output, raw transcript text/delta output, business-dialog transcript enablement, Docker mutation, firewall/env/server/app config mutation, audio commit, or disk image action occurred.
+
+Next recommendation:
+
+```text
+NODE-032BJ / controlled-business-dialog-transcript-use-enablement-boundary-decision
+```

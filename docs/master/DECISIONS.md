@@ -2953,3 +2953,21 @@ The implementation adds a pure local policy boundary and adapter enforcement. `S
 The policy fails closed for missing, stale, low-confidence, incomplete-metadata, or redaction-guard-inactive transcripts and preserves fallback behavior.
 
 NODE-032BF did not run smoke, access servers, send Gateway/OpenAI requests, handle tokens, create temp env files, deploy helpers, change services, mutate Docker, change firewall/env/server/app config, enable runtime transcript use, generate audio, or touch the disk image.
+
+## NODE-032BI Disabled Live Smoke Policy Field Decision
+
+Date: 2026-06-15
+
+Decision:
+
+```text
+accept_disabled_live_smoke_policy_field_proof=true
+business_dialog_transcript_policy_fields_visible_in_live_smoke=true
+business_dialog_transcript_use_remains_disabled=true
+enabled_business_dialog_transcript_use_requires_separate_node=true
+next_node=NODE-032BJ / controlled-business-dialog-transcript-use-enablement-boundary-decision
+```
+
+NODE-032BI is accepted as proof that the disabled live smoke path exposes the `business_dialog_transcript_*` policy fields after the NODE-032BH refresh.
+
+It does not approve business-dialog transcript use enablement, production call-path use, real caller/customer audio, raw transcript logging, transcript delta logging, token/env output, service enablement, Docker mutation, firewall/env/server/app config mutation, or any disk image action.
