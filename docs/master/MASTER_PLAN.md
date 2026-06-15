@@ -1779,3 +1779,37 @@ Next recommendation:
 ```text
 NODE-032BJ / controlled-business-dialog-transcript-use-enablement-boundary-decision
 ```
+
+## NODE-032BJ Enabled Transcript Use Validation Design
+
+NODE-032BJ defines the future enabled business-dialog transcript-use validation boundary without running it.
+
+Future temporary flags:
+
+```text
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true
+BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=true
+BUSINESS_DIALOG_TRANSCRIPT_REDACT_LOGS=true
+BUSINESS_DIALOG_TRANSCRIPT_FAIL_CLOSED=true
+STT_GATEWAY_LOG_TRANSCRIPT=false
+```
+
+Future validation must prove only redacted/bucketed evidence:
+
+```text
+business_dialog_transcript_policy_enabled=true
+business_dialog_transcript_allowed=true
+business_dialog_transcript_used_for_dialog=true
+dialog_transcript_used=true
+transcript_text_logged=false
+transcript_delta_logged=false
+token_values_printed=false
+temporary_flags_removed=true
+gateway_restored_to_safe_state=true
+```
+
+The next live node must be separate and approval-gated:
+
+```text
+NODE-032BK / controlled-enabled-business-dialog-transcript-use-live-smoke
+```

@@ -2971,3 +2971,27 @@ next_node=NODE-032BJ / controlled-business-dialog-transcript-use-enablement-boun
 NODE-032BI is accepted as proof that the disabled live smoke path exposes the `business_dialog_transcript_*` policy fields after the NODE-032BH refresh.
 
 It does not approve business-dialog transcript use enablement, production call-path use, real caller/customer audio, raw transcript logging, transcript delta logging, token/env output, service enablement, Docker mutation, firewall/env/server/app config mutation, or any disk image action.
+
+## NODE-032BJ Enabled Transcript Use Validation Design Decision
+
+Date: 2026-06-15
+
+Decision:
+
+```text
+repo_only_design_for_enabled_validation=true
+enable_business_dialog_transcript_use_now=false
+live_validation_performed=false
+enabled_live_dialog_use_proven=false
+future_enabled_validation_requires_separate_approval=true
+next_node=NODE-032BK / controlled-enabled-business-dialog-transcript-use-live-smoke
+```
+
+The future enabled-validation node must use temporary explicit flags only:
+
+```text
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true
+BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=true
+```
+
+NODE-032BJ requires fail-closed behavior, redacted logs, no raw transcript text, no transcript deltas, no token/env output, one-smoke limit, Gateway restore, temporary-flag cleanup, and separate approval before any live enabled smoke.

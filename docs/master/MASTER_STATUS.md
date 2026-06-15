@@ -5619,3 +5619,35 @@ Next recommendation:
 ```text
 NODE-032BJ / controlled-business-dialog-transcript-use-enablement-boundary-decision
 ```
+
+## NODE-032BJ Enabled Business Dialog Transcript Use Validation Design
+
+NODE-032BJ is a repo-only design/preflight node for future enabled business-dialog transcript-use validation.
+
+Current truth:
+
+```text
+NODE_032BF_policy_code_exists=true
+NODE_032BG_disabled_live_path_safe=true
+NODE_032BH_safe_runtime_policy_fields_visible=true
+NODE_032BI_policy_fields_visible_in_disabled_smoke=true
+business_dialog_transcript_use_enabled=false
+enabled_live_dialog_use_proven=false
+```
+
+Future enabled validation requires explicit temporary flags:
+
+```text
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true
+BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=true
+```
+
+NODE-032BJ records future hard gates, stop gates, one-smoke limit, rollback, diagnostics, redaction guarantees, and Runtime/Evidence format. It does not run live validation and does not prove enabled transcript use.
+
+No SSH, server access, Gateway action, smoke, transcript enablement, token handling, service action, Docker/firewall/env/server/app config change, audio action, disk image action, Notion write, or Runtime/Evidence write occurred.
+
+Next recommendation:
+
+```text
+NODE-032BK / controlled-enabled-business-dialog-transcript-use-live-smoke
+```
