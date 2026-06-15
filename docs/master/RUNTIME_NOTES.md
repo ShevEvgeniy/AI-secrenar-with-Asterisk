@@ -3949,6 +3949,48 @@ app_config_change=false
 disk_image_touched=false
 ```
 
+## NODE-032BJ Runtime Notes
+
+NODE-032BJ is repo-only and did not touch runtime systems.
+
+```text
+ssh_used=false
+server_access=false
+provider_controls=false
+gateway_action=false
+gateway_start=false
+smoke_run=false
+call_run=false
+transcript_enablement=false
+token_handling=false
+temp_env_created=false
+service_action=false
+docker_mutation=false
+firewall_or_env_mutation=false
+server_or_app_config_mutation=false
+audio_generated_or_uploaded=false
+disk_image_touched=false
+notion_write=false
+runtime_evidence_write=false
+```
+
+Future enabled validation must capture only safe runtime evidence:
+
+```text
+booleans=true
+counts=true
+length_buckets=true
+age_buckets=true
+confidence_buckets=true
+redacted_markers=true
+raw_transcript_text=false
+transcript_delta_content=false
+token_values=false
+raw_env_values=false
+audio_payload=false
+server_dump_or_log_artifact=false
+```
+
 ## NODE-032BI Runtime Notes
 
 NODE-032BI started Gateway only for the approved smoke window, ran exactly one disabled Asterisk-side smoke, then restored Gateway inactive/disabled.
