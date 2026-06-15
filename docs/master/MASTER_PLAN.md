@@ -1813,3 +1813,39 @@ The next live node must be separate and approval-gated:
 ```text
 NODE-032BK / controlled-enabled-business-dialog-transcript-use-live-smoke
 ```
+
+## NODE-032BK Controlled Enabled Live Smoke Gate
+
+NODE-032BK is the approval-gated enabled business-dialog transcript-use live smoke node.
+
+Current status:
+
+```text
+approval_phrase_received=true
+phase_2_read_only_live_preflight_completed=true
+hard_gates_passed=true
+smoke_invocation_count=1
+gateway_request_sent=false
+enabled_live_dialog_use_proven=false
+classification=blocked_command_quoting_env_dump_missing_gateway_flags
+```
+
+Required approval before any live action:
+
+```text
+APPROVE NODE-032BK CONTROLLED ENABLED LIVE SMOKE
+```
+
+Future temporary flags remain planned but unused:
+
+```text
+STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true
+BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=true
+BUSINESS_DIALOG_TRANSCRIPT_REDACT_LOGS=true
+BUSINESS_DIALOG_TRANSCRIPT_FAIL_CLOSED=true
+STT_GATEWAY_LOG_TRANSCRIPT=false
+```
+
+The temporary flags were attempted only as process env for the single smoke command. They were not persisted. The command failed before Gateway request because the Gateway smoke env did not load.
+
+Next plan decision should address a quote-safe enabled smoke invocation path before any retry.

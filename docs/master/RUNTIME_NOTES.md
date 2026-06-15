@@ -3991,6 +3991,47 @@ audio_payload=false
 server_dump_or_log_artifact=false
 ```
 
+## NODE-032BK Runtime Notes
+
+NODE-032BK Phase 2 touched runtime systems only within the approved bounded preflight/smoke-window/cleanup scope.
+
+```text
+approval_phrase_received=true
+ssh_used=true
+server_access=true
+provider_controls=false
+gateway_action=start_stop_for_smoke_window
+gateway_state_inspection=true
+gateway_start=true
+smoke_run=attempted_once_before_gateway_request
+transcript_enablement=attempted_temporary_process_flags_only
+token_handling=false
+temp_env_created=false
+service_action=false
+docker_mutation=false
+firewall_or_env_mutation=false
+server_or_app_config_mutation=false
+audio_generated_or_uploaded=temporary_synthetic_audio_created_removed
+disk_image_touched=false
+raw_transcript_text_exposed=false
+transcript_delta_exposed=false
+authorization_header_exposed=false
+raw_shell_environment_dump_printed=true
+token_values_exposed=false
+```
+
+Runtime blocker:
+
+```text
+gateway_request_sent=false
+missing_required_flags=STT_GATEWAY_URL,STT_GATEWAY_TOKEN
+blocker=remote_command_quoting_prevented_gateway_smoke_env_load
+gateway_service_final_state=inactive_disabled
+target_listeners_absent_final=true
+firewall_unchanged_source_restricted=true
+temporary_audio_removed=true
+```
+
 ## NODE-032BI Runtime Notes
 
 NODE-032BI started Gateway only for the approved smoke window, ran exactly one disabled Asterisk-side smoke, then restored Gateway inactive/disabled.
