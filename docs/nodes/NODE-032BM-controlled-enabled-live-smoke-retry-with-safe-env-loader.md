@@ -34,10 +34,12 @@ smoke_count=0
 gateway_request_sent=false
 enabled_live_dialog_use_proven=false
 final_proof_classification=blocked
-classification=blocked_gateway_ssh_timeout_before_dry_run_env_check
+classification=blocked_pending_kamatera_gateway_power_on
 ```
 
 No smoke, Gateway start, Gateway request, token handling, transcript enablement, or temp env creation occurred.
+
+Coordinator clarification: Kamatera/Gateway host had not been powered on by the operator before the Phase 2 Gateway SSH check. Therefore the observed Gateway SSH timeout is treated as an expected infrastructure precondition, not as an unexplained Gateway failure.
 
 ## Branch
 
@@ -59,7 +61,7 @@ The exact approval phrase was provided for Phase 2:
 APPROVE NODE-032BM CONTROLLED ENABLED LIVE SMOKE WITH SAFE ENV LOADER
 ```
 
-Approval allowed read-only live preflight first. The Gateway SSH gate timed out, so NODE-032BM stopped before quote-safe env dry-run and before smoke.
+Approval allowed read-only live preflight first. The Gateway SSH gate timed out, so NODE-032BM stopped before quote-safe env dry-run and before smoke. Coordinator later clarified that Kamatera/Gateway had not yet been powered on, so the timeout is now classified as `blocked_pending_kamatera_gateway_power_on` rather than an unexplained Gateway failure.
 
 Forbidden before approval:
 
@@ -260,6 +262,8 @@ Gateway read-only gates:
 ```text
 gateway_ssh_reachable=false
 gateway_ssh_result=timeout
+operator_clarification=kamatera_gateway_not_powered_on_before_check
+timeout_interpretation=expected_infrastructure_precondition
 gateway_service_initial_state=not_checked_due_ssh_timeout
 gateway_listeners=not_checked_due_ssh_timeout
 firewall_source_restriction=not_checked_due_ssh_timeout
@@ -272,6 +276,7 @@ Stop result:
 ```text
 hard_gate_result=NO_GO
 blocker=gateway_ssh_timeout
+classification=blocked_pending_kamatera_gateway_power_on
 quote_safe_dry_run_env_check_run=false
 gateway_start=false
 smoke_count=0
@@ -357,5 +362,5 @@ node014-server.tar
 ```text
 enabled_live_dialog_use_proven=false
 final_proof_classification=blocked
-classification=blocked_gateway_ssh_timeout_before_dry_run_env_check
+classification=blocked_pending_kamatera_gateway_power_on
 ```

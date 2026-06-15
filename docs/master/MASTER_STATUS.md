@@ -5725,7 +5725,7 @@ quote_safe_dry_run_env_check_run=false
 smoke_count=0
 gateway_request_sent=false
 enabled_live_dialog_use_proven=false
-classification=blocked_gateway_ssh_timeout_before_dry_run_env_check
+classification=blocked_pending_kamatera_gateway_power_on
 ```
 
 Required future approval phrase:
@@ -5736,4 +5736,4 @@ APPROVE NODE-032BM CONTROLLED ENABLED LIVE SMOKE WITH SAFE ENV LOADER
 
 The prepared retry path must use the NODE-032BL helper-owned allowlist env parser with `--env-file`, `--dialog-transcript-use enabled`, and `--dry-run-env-check` before any smoke.
 
-Phase 2 read-only preflight reached Asterisk gates successfully, then stopped because Gateway SSH timed out. No quote-safe dry-run env check, Gateway start, smoke, Gateway request, transcript enablement, token handling, real env value handling, service/Docker/firewall/env/server/app config mutation, live audio generation/upload, disk image action, Notion write, or Runtime/Evidence write occurred.
+Phase 2 read-only preflight reached Asterisk gates successfully, then stopped because Gateway SSH timed out. Coordinator later clarified that Kamatera/Gateway had not yet been powered on, so the timeout is now classified as `blocked_pending_kamatera_gateway_power_on` rather than an unexplained Gateway failure. No quote-safe dry-run env check, Gateway start, smoke, Gateway request, transcript enablement, token handling, real env value handling, service/Docker/firewall/env/server/app config mutation, live audio generation/upload, disk image action, Notion write, or Runtime/Evidence write occurred.

@@ -3065,7 +3065,7 @@ gateway_ssh_reachable=false
 hard_gate_result=NO_GO
 smoke_count=0
 enabled_live_dialog_use_proven=false
-classification=blocked_gateway_ssh_timeout_before_dry_run_env_check
+classification=blocked_pending_kamatera_gateway_power_on
 ```
 
 No live action is approved until this exact phrase is received in a separate coordinator message:
@@ -3076,4 +3076,4 @@ APPROVE NODE-032BM CONTROLLED ENABLED LIVE SMOKE WITH SAFE ENV LOADER
 
 The future retry must use helper-owned `--env-file`, `--dialog-transcript-use enabled`, and `--dry-run-env-check` before smoke. It must not use shell `source`, `set -a`, nested shell quoting, shell environment dumps, token/env value output, Authorization header output, raw transcript text, or transcript deltas.
 
-NODE-032BM Phase 2 stopped before dry-run env validation and before smoke because Gateway SSH timed out. It did not start Gateway, run smoke, send a Gateway request, enable transcript-use flags, handle tokens or real env values, mutate service/Docker/firewall/env/server/app config, generate/upload live audio, touch the disk image, write Notion, or write Runtime/Evidence.
+NODE-032BM Phase 2 stopped before dry-run env validation and before smoke because Gateway SSH timed out. Coordinator later clarified that Kamatera/Gateway had not yet been powered on, so the timeout is now classified as `blocked_pending_kamatera_gateway_power_on` rather than an unexplained Gateway failure. It did not start Gateway, run smoke, send a Gateway request, enable transcript-use flags, handle tokens or real env values, mutate service/Docker/firewall/env/server/app config, generate/upload live audio, touch the disk image, write Notion, or write Runtime/Evidence.

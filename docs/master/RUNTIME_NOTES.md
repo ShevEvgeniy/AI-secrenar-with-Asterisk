@@ -3987,7 +3987,7 @@ Approval status:
 required_approval_phrase=APPROVE NODE-032BM CONTROLLED ENABLED LIVE SMOKE WITH SAFE ENV LOADER
 approval_phrase_received=true
 enabled_live_dialog_use_proven=false
-classification=blocked_gateway_ssh_timeout_before_dry_run_env_check
+classification=blocked_pending_kamatera_gateway_power_on
 ```
 
 Phase 2 read-only preflight:
@@ -3997,6 +3997,7 @@ asterisk_ssh_reachable=true
 asterisk_read_only_gates_passed=true
 gateway_ssh_reachable=false
 gateway_ssh_result=timeout
+operator_clarification=kamatera_gateway_not_powered_on_before_check
 hard_gate_result=NO_GO
 quote_safe_dry_run_env_check_run=false
 smoke_attempt_count=0

@@ -1904,7 +1904,7 @@ dry_run_env_check_run=false
 smoke_count=0
 gateway_request_sent=false
 enabled_live_dialog_use_proven=false
-classification=blocked_gateway_ssh_timeout_before_dry_run_env_check
+classification=blocked_pending_kamatera_gateway_power_on
 ```
 
 Future live/server action requires this exact approval phrase:
@@ -1925,4 +1925,4 @@ Only after hard gates and dry-run pass may the future smoke use:
 python scripts/asterisk_gateway_smoke_helper.py --env-file <approved_remote_env_path> --dialog-transcript-use enabled --audio <approved_audio_path>
 ```
 
-Phase 2 stopped at the Gateway SSH hard gate before dry-run env validation or smoke. Future retry still requires coordinator review because no enabled live dialog use was proven.
+Phase 2 stopped at the Gateway SSH hard gate before dry-run env validation or smoke. Coordinator later clarified that Kamatera/Gateway had not yet been powered on, so the timeout is now classified as `blocked_pending_kamatera_gateway_power_on` rather than an unexplained Gateway failure. Future retry still requires coordinator review because no enabled live dialog use was proven.

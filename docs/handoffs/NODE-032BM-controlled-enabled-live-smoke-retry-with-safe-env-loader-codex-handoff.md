@@ -31,8 +31,10 @@ smoke_count=0
 gateway_request_sent=false
 enabled_live_dialog_use_proven=false
 final_proof_classification=blocked
-classification=blocked_gateway_ssh_timeout_before_dry_run_env_check
+classification=blocked_pending_kamatera_gateway_power_on
 ```
+
+Coordinator clarification: Kamatera/Gateway host had not been powered on by the operator before the Phase 2 Gateway SSH check. Therefore the Gateway SSH timeout is treated as an expected infrastructure precondition, not as an unexplained Gateway failure.
 
 ## Approval Gate
 
@@ -127,6 +129,8 @@ Fail closed before smoke if any future hard gate fails, including missing env sh
 
 ```text
 stop_gate=gateway_ssh_timeout
+operator_clarification=kamatera_gateway_not_powered_on_before_check
+classification=blocked_pending_kamatera_gateway_power_on
 quote_safe_dry_run_env_check_result=not_run_due_hard_gate
 hard_gate_result=NO_GO
 smoke_count=0
