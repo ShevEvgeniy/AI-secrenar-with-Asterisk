@@ -3949,6 +3949,59 @@ app_config_change=false
 disk_image_touched=false
 ```
 
+## NODE-032BI Runtime Notes
+
+NODE-032BI started Gateway only for the approved smoke window, ran exactly one disabled Asterisk-side smoke, then restored Gateway inactive/disabled.
+
+Smoke evidence:
+
+```text
+gateway_service_started_for_smoke=true
+gateway_service_enabled_after_start=disabled
+gateway_http_status=200
+gateway_auth=ok
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+openai_event_type_counts_available=true
+openai_event_type_counts_present=true
+diagnostic_propagation_gap=false
+transcript_event_seen=true
+transcript_bearing_event_seen=true
+```
+
+Business policy fields:
+
+```text
+business_dialog_transcript_policy_enabled=false
+business_dialog_transcript_allowed=false
+business_dialog_transcript_used_for_dialog=false
+business_dialog_transcript_reason=business_dialog_transcript_disabled
+business_dialog_transcript_fail_closed=true
+business_dialog_transcript_redact_logs=true
+business_dialog_transcript_redaction_required=true
+business_dialog_transcript_length_bucket=zero
+dialog_transcript_used=false
+fallback_reason=gateway_stt_dialog_use_disabled
+```
+
+Final state:
+
+```text
+gateway_service_active_final=inactive
+gateway_service_enabled_final=disabled
+target_listeners_absent_final=true
+temporary_audio_removed=true
+asterisk_OPENAI_API_KEY_absent_final=true
+business_dialog_transcript_policy_env_disabled_final=true
+transcript_logging_disabled_final=true
+raw_token_values_printed=false
+raw_env_values_printed=false
+raw_transcript_text_printed=false
+transcript_delta_printed=false
+disk_image_touched=false
+```
+
 Service cycle result:
 
 ```text

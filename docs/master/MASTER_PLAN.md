@@ -1752,3 +1752,30 @@ NODE-032BG / controlled-business-dialog-transcript-use-live-smoke-disabled-by-de
 ```
 
 NODE-032BG must prove disabled-by-default behavior under controlled live conditions before any broader runtime use.
+
+## NODE-032BI Disabled Live Smoke With Business Policy Fields
+
+NODE-032BI proved the refreshed Asterisk helper/runtime reports business-dialog transcript policy fields during the disabled live smoke path.
+
+Accepted proof:
+
+```text
+exactly_one_smoke_ran=true
+gateway_http_status=200
+openai_realtime_from_gateway=ok
+openai_session_created=true
+chunks_sent=5
+business_dialog_transcript_policy_fields_visible=true
+business_dialog_transcript_policy_enabled=false
+business_dialog_transcript_allowed=false
+business_dialog_transcript_used_for_dialog=false
+dialog_transcript_used=false
+```
+
+Business-dialog transcript use remains disabled. The next step should not enable runtime transcript use implicitly.
+
+Next recommendation:
+
+```text
+NODE-032BJ / controlled-business-dialog-transcript-use-enablement-boundary-decision
+```
