@@ -22,6 +22,25 @@ gateway_restored_inactive_disabled=true
 
 NODE-032BG is not accepted as a complete live proof of NODE-032BF policy reporting because the deployed Asterisk helper/runtime report did not include the new `business_dialog_transcript_*` fields. Business-dialog transcript use remains disabled. The next node should refresh or validate the deployed helper/runtime policy-field boundary before any enabled-use validation.
 
+## NODE-032BH Decision
+
+NODE-032BH is accepted as a controlled Asterisk helper/runtime reporting refresh.
+
+Pre-refresh, the Asterisk project lacked `src/ai_secretary/telephony/transcript_policy.py`, and safe no-network adapter diagnostics returned `FIELD_MISSING` for the NODE-032BF `business_dialog_transcript_*` fields.
+
+After copying the validated helper bundle files to `/home/tulauser/AI-secrenar-with-Asterisk-node014`, safe diagnostics exposed:
+
+```text
+business_dialog_transcript_policy_enabled=false
+business_dialog_transcript_allowed=false
+business_dialog_transcript_used_for_dialog=false
+business_dialog_transcript_reason=business_dialog_transcript_disabled
+transcript_text_logged=false
+dialog_transcript_used=false
+```
+
+No Gateway start, Gateway request, smoke, call, OpenAI request, service action, Docker mutation, firewall/env/server/app config mutation, business-dialog transcript enablement, raw token/env output, raw transcript output, transcript delta output, audio artifact, or disk image action occurred.
+
 ## Accepted
 
 ### Master-Driven Workflow
