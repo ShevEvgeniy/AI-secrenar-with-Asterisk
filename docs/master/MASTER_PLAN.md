@@ -1849,3 +1849,27 @@ STT_GATEWAY_LOG_TRANSCRIPT=false
 The temporary flags were attempted only as process env for the single smoke command. They were not persisted. The command failed before Gateway request because the Gateway smoke env did not load.
 
 Next plan decision should address a quote-safe enabled smoke invocation path before any retry.
+
+## NODE-032BL Quote-Safe Env Loading Plan Result
+
+NODE-032BL implements the quote-safe preflight path needed before any enabled smoke retry.
+
+Future command shape:
+
+```text
+python scripts/asterisk_gateway_smoke_helper.py --env-file <approved_remote_env_path> --dialog-transcript-use enabled --audio <approved_audio_path>
+```
+
+Future dry-run shape:
+
+```text
+python scripts/asterisk_gateway_smoke_helper.py --env-file <approved_remote_env_path> --dialog-transcript-use enabled --dry-run-env-check
+```
+
+The helper parses env files through an allowlist and reports missing required flags by name only. It avoids shell `source`, `set -a`, nested shell quoting, and shell environment dumps.
+
+Next live retry remains separate and approval-gated:
+
+```text
+NODE-032BM / controlled-enabled-live-smoke-retry-with-safe-env-loader
+```

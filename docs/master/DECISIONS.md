@@ -3022,3 +3022,21 @@ APPROVE NODE-032BK CONTROLLED ENABLED LIVE SMOKE
 ```
 
 No Gateway request, real call, real caller/customer audio, token value output, Authorization header output, transcript text output, transcript delta output, Docker mutation, firewall broadening, persistent transcript-use enablement, or disk image action occurred.
+
+## NODE-032BL Quote-Safe Env Loading Decision
+
+Date: 2026-06-15
+
+Decision:
+
+```text
+implement_quote_safe_helper_env_file_loading=true
+avoid_ad_hoc_inline_shell_source=true
+missing_required_flags_by_name_only=true
+shell_environment_dump_printed=false
+gateway_request_sent=false
+enabled_live_dialog_use_proven=false
+next_node=NODE-032BM / controlled-enabled-live-smoke-retry-with-safe-env-loader
+```
+
+NODE-032BL chooses a helper-owned env-file parser and explicit dialog transcript-use mode instead of remote shell `source`/`set -a` command construction. Future live retry still requires separate exact approval.

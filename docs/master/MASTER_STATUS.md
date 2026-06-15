@@ -5673,3 +5673,38 @@ classification=blocked_command_quoting_env_dump_missing_gateway_flags
 Cleanup restored Gateway inactive/disabled with no target listeners, removed temporary audio, kept firewall source-restricted, kept Asterisk `OPENAI_API_KEY` absent, and kept transcript logging disabled.
 
 No second smoke, Gateway request, real call, real caller/customer audio, token value output, Authorization header output, transcript text output, transcript delta output, Docker mutation, firewall broadening, persistent transcript-use enablement, or disk image action occurred.
+
+## NODE-032BL Safe Remote Env Loading And Command Quoting Preflight
+
+NODE-032BL hardens the repo helper path that blocked NODE-032BK.
+
+Implementation:
+
+```text
+script=scripts/asterisk_gateway_smoke_helper.py
+tests=tests/test_asterisk_gateway_smoke_helper.py
+quote_safe_env_loading_preflight_ready=true
+enabled_live_dialog_use_proven=false
+live_smoke_run=false
+gateway_request_sent=false
+```
+
+The helper now supports an allowlist-parsed `--env-file`, explicit `--dialog-transcript-use enabled|disabled`, and `--dry-run-env-check`.
+
+Required missing-flag behavior is covered locally:
+
+```text
+missing_required_flags=STT_GATEWAY_URL,STT_GATEWAY_TOKEN
+token_values_printed=false
+raw_env_values_printed=false
+shell_environment_dump_printed=false
+gateway_request_sent=false
+```
+
+No SSH, server access, Gateway action, smoke, transcript enablement, token handling, real env value handling, service action, Docker/firewall/env/server/app config change, live audio action, disk image action, Notion write, or Runtime/Evidence write occurred.
+
+Next recommendation:
+
+```text
+NODE-032BM / controlled-enabled-live-smoke-retry-with-safe-env-loader
+```
