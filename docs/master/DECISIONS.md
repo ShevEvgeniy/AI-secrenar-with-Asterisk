@@ -3077,3 +3077,20 @@ APPROVE NODE-032BM CONTROLLED ENABLED LIVE SMOKE WITH SAFE ENV LOADER
 The future retry must use helper-owned `--env-file`, `--dialog-transcript-use enabled`, and `--dry-run-env-check` before smoke. It must not use shell `source`, `set -a`, nested shell quoting, shell environment dumps, token/env value output, Authorization header output, raw transcript text, or transcript deltas.
 
 NODE-032BM Phase 2 stopped before dry-run env validation and before smoke because Gateway SSH timed out. Coordinator later clarified that Kamatera/Gateway had not yet been powered on, so the timeout is now classified as `blocked_pending_kamatera_gateway_power_on` rather than an unexplained Gateway failure. It did not start Gateway, run smoke, send a Gateway request, enable transcript-use flags, handle tokens or real env values, mutate service/Docker/firewall/env/server/app config, generate/upload live audio, touch the disk image, write Notion, or write Runtime/Evidence.
+
+## NODE-032BN Server Power-On Readiness Decision
+
+Date: 2026-06-15
+
+Decision:
+
+```text
+accept_operator_power_on_confirmation=true
+run_read_only_power_on_preflight=true
+asterisk_ssh_reachable=true
+gateway_ssh_reachable=true
+gateway_ready_for_future_approval_gated_checks=true
+final_classification=readiness_passed
+```
+
+NODE-032BN confirms the prior NODE-032BM Gateway SSH timeout was resolved after operator power-on. It does not approve smoke, quote-safe dry-run env validation, Gateway start, Gateway request, transcript-use enablement, token/env value handling, service/Docker/firewall/env/server/app mutation, live audio action, disk image action, Notion write, or Runtime/Evidence write.

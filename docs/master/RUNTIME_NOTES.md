@@ -4008,6 +4008,41 @@ temporary_env_created=false
 temporary_audio_created=false
 ```
 
+## NODE-032BN Runtime Notes
+
+NODE-032BN performed read-only SSH inspection only after operator power-on confirmation.
+
+```text
+ssh_read_only_asterisk=true
+ssh_read_only_gateway=true
+asterisk_ssh_reachable=true
+gateway_ssh_reachable=true
+gateway_service_active=inactive
+gateway_service_enabled=disabled
+gateway_listener_443_present=false
+gateway_listener_8080_present=false
+gateway_listener_8081_present=false
+gateway_runtime_process_present=false
+gateway_env_file_present=true
+gateway_env_mode=640
+gateway_env_owner_group=root:gateway
+gateway_secret_presence_masked=true
+gateway_start=false
+gateway_stop=false
+gateway_restart=false
+quote_safe_dry_run_env_check=false
+smoke=false
+gateway_request=false
+token_or_real_env_value_output=false
+service_mutation=false
+docker_mutation=false
+firewall_mutation=false
+server_or_app_config_mutation=false
+live_audio_generation_or_upload=false
+disk_image_touched=false
+final_classification=readiness_passed
+```
+
 ## NODE-032BJ Runtime Notes
 
 NODE-032BJ is repo-only and did not touch runtime systems.
