@@ -3949,6 +3949,64 @@ app_config_change=false
 disk_image_touched=false
 ```
 
+## NODE-032BM Runtime Notes
+
+NODE-032BM Phase 1 performed repository readiness only. No live/server runtime action was approved or performed.
+
+Runtime action summary:
+
+```text
+ssh_used=false
+provider_controls_used=false
+gateway_power_action=false
+server_access=false
+asterisk_inspection=false
+gateway_inspection=false
+gateway_start=false
+smoke_attempt_count=0
+call_run=false
+phase_b=false
+gateway_request=false
+helper_deploy=false
+token_handling=false
+real_env_value_handling=false
+temp_env_created=false
+openai_request=false
+service_action=false
+docker_mutation=false
+firewall_or_env_mutation=false
+server_or_app_config_mutation=false
+business_dialog_transcript_runtime_enablement=false
+live_audio_generation_or_upload=false
+disk_image_touched=false
+```
+
+Approval status:
+
+```text
+required_approval_phrase=APPROVE NODE-032BM CONTROLLED ENABLED LIVE SMOKE WITH SAFE ENV LOADER
+approval_phrase_received=true
+enabled_live_dialog_use_proven=false
+classification=blocked_gateway_ssh_timeout_before_dry_run_env_check
+```
+
+Phase 2 read-only preflight:
+
+```text
+asterisk_ssh_reachable=true
+asterisk_read_only_gates_passed=true
+gateway_ssh_reachable=false
+gateway_ssh_result=timeout
+hard_gate_result=NO_GO
+quote_safe_dry_run_env_check_run=false
+smoke_attempt_count=0
+gateway_request=false
+gateway_start=false
+temporary_flags_created=false
+temporary_env_created=false
+temporary_audio_created=false
+```
+
 ## NODE-032BJ Runtime Notes
 
 NODE-032BJ is repo-only and did not touch runtime systems.

@@ -5708,3 +5708,32 @@ Next recommendation:
 ```text
 NODE-032BM / controlled-enabled-live-smoke-retry-with-safe-env-loader
 ```
+
+## NODE-032BM Safe Env Loader Retry Readiness
+
+NODE-032BM prepares the next approval-gated enabled business-dialog transcript-use retry using the NODE-032BL quote-safe helper path.
+
+Phase 1 and Phase 2 result:
+
+```text
+node=NODE-032BM / controlled-enabled-live-smoke-retry-with-safe-env-loader
+branch=feat/node-032bm-controlled-enabled-live-smoke-retry-with-safe-env-loader
+repo_readiness_prepared=true
+live_approval_received=true
+live_preflight_run=true
+quote_safe_dry_run_env_check_run=false
+smoke_count=0
+gateway_request_sent=false
+enabled_live_dialog_use_proven=false
+classification=blocked_gateway_ssh_timeout_before_dry_run_env_check
+```
+
+Required future approval phrase:
+
+```text
+APPROVE NODE-032BM CONTROLLED ENABLED LIVE SMOKE WITH SAFE ENV LOADER
+```
+
+The prepared retry path must use the NODE-032BL helper-owned allowlist env parser with `--env-file`, `--dialog-transcript-use enabled`, and `--dry-run-env-check` before any smoke.
+
+Phase 2 read-only preflight reached Asterisk gates successfully, then stopped because Gateway SSH timed out. No quote-safe dry-run env check, Gateway start, smoke, Gateway request, transcript enablement, token handling, real env value handling, service/Docker/firewall/env/server/app config mutation, live audio generation/upload, disk image action, Notion write, or Runtime/Evidence write occurred.

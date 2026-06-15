@@ -1873,3 +1873,56 @@ Next live retry remains separate and approval-gated:
 ```text
 NODE-032BM / controlled-enabled-live-smoke-retry-with-safe-env-loader
 ```
+
+## NODE-032BM Safe Env Loader Retry Plan
+
+NODE-032BM prepares the approval-gated retry package for enabled business-dialog transcript-use live smoke using the NODE-032BL helper path.
+
+Current Phase 1 status:
+
+```text
+repo_readiness_prepared=true
+live_approval_received=false
+live_preflight_run=false
+dry_run_env_check_run=false
+smoke_count=0
+gateway_request_sent=false
+enabled_live_dialog_use_proven=false
+classification=blocked_pending_exact_live_approval
+```
+
+Phase 2 status after exact approval:
+
+```text
+approval_phrase_received=true
+read_only_live_preflight_started=true
+asterisk_read_only_gates_passed=true
+gateway_ssh_reachable=false
+gateway_ssh_result=timeout
+hard_gate_result=NO_GO
+dry_run_env_check_run=false
+smoke_count=0
+gateway_request_sent=false
+enabled_live_dialog_use_proven=false
+classification=blocked_gateway_ssh_timeout_before_dry_run_env_check
+```
+
+Future live/server action requires this exact approval phrase:
+
+```text
+APPROVE NODE-032BM CONTROLLED ENABLED LIVE SMOKE WITH SAFE ENV LOADER
+```
+
+Future execution must first use the quote-safe dry-run gate:
+
+```text
+python scripts/asterisk_gateway_smoke_helper.py --env-file <approved_remote_env_path> --dialog-transcript-use enabled --dry-run-env-check
+```
+
+Only after hard gates and dry-run pass may the future smoke use:
+
+```text
+python scripts/asterisk_gateway_smoke_helper.py --env-file <approved_remote_env_path> --dialog-transcript-use enabled --audio <approved_audio_path>
+```
+
+Phase 2 stopped at the Gateway SSH hard gate before dry-run env validation or smoke. Future retry still requires coordinator review because no enabled live dialog use was proven.
