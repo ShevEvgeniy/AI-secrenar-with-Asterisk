@@ -4871,3 +4871,64 @@ Next recommendation:
 ```text
 NODE-032BH / controlled-asterisk-helper-runtime-refresh-for-business-transcript-policy-fields
 ```
+
+## NODE-032BH Runtime Notes
+
+NODE-032BH refreshed the deployed Asterisk helper/runtime reporting files only.
+
+Pre-refresh:
+
+```text
+policy_module_present=false
+business_dialog_transcript_policy_enabled=FIELD_MISSING
+business_dialog_transcript_allowed=FIELD_MISSING
+business_dialog_transcript_reason=FIELD_MISSING
+business_dialog_transcript_used_for_dialog=FIELD_MISSING
+safe_diagnostic_ok=false
+```
+
+Refresh:
+
+```text
+target=/home/tulauser/AI-secrenar-with-Asterisk-node014
+backup_path=/home/tulauser/AI-secrenar-with-Asterisk-node014/.runtime/node032bh-backup-20260615091729
+files_backed_up_count=11
+files_copied_count=12
+policy_module_deployed=true
+helper_executable=true
+service_action_used=false
+gateway_action_used=false
+```
+
+Post-refresh safe diagnostic:
+
+```text
+business_dialog_transcript_policy_enabled=false
+business_dialog_transcript_allowed=false
+business_dialog_transcript_used_for_dialog=false
+business_dialog_transcript_reason=business_dialog_transcript_disabled
+transcript_text_logged=false
+dialog_transcript_used=false
+safe_diagnostic_ok=true
+```
+
+Runtime action summary:
+
+```text
+gateway_start=false
+gateway_smoke=false
+gateway_request=false
+call_run=false
+openai_request=false
+service_action=false
+docker_mutation=false
+firewall_or_env_mutation=false
+server_or_app_config_mutation=false
+business_dialog_transcript_enablement=false
+raw_token_values_printed=false
+raw_env_values_printed=false
+raw_transcript_text_printed=false
+transcript_delta_printed=false
+temp_env_created=false
+disk_image_touched=false
+```
