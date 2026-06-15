@@ -4032,6 +4032,44 @@ firewall_unchanged_source_restricted=true
 temporary_audio_removed=true
 ```
 
+## NODE-032BL Runtime Notes
+
+NODE-032BL did not touch runtime systems.
+
+```text
+ssh_used=false
+server_access=false
+provider_controls=false
+gateway_action=false
+gateway_state_inspection=false
+gateway_start=false
+smoke_run=false
+transcript_enablement=false
+token_handling=false
+real_env_value_handling=false
+service_action=false
+docker_mutation=false
+firewall_mutation=false
+server_or_app_config_mutation=false
+audio_generated_or_uploaded_for_live_use=false
+disk_image_touched=false
+notion_write=false
+runtime_evidence_write=false
+```
+
+Repo-local helper behavior:
+
+```text
+quote_safe_env_loading_preflight_ready=true
+shell_environment_dump_printed=false
+token_values_printed=false
+raw_env_values_printed=false
+authorization_header_printed=false
+transcript_text_printed=false
+transcript_delta_printed=false
+gateway_request_sent=false
+```
+
 ## NODE-032BI Runtime Notes
 
 NODE-032BI started Gateway only for the approved smoke window, ran exactly one disabled Asterisk-side smoke, then restored Gateway inactive/disabled.

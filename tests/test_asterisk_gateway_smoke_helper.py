@@ -45,7 +45,10 @@ def test_helper_fails_closed_without_runtime_env(tmp_path: Path, monkeypatch, ca
     assert payload["secret_values_printed"] is False
     assert payload["transcript_text_logged"] is False
     assert payload["business_dialog_unchanged"] is True
-    assert "STT_GATEWAY_URL or REALTIME_GATEWAY_URL" in payload["missing_required_flags"]
+    assert "STT_GATEWAY_URL" in payload["missing_required_flags"]
+    assert "STT_GATEWAY_TOKEN" in payload["missing_required_flags"]
+    assert payload["shell_environment_dump_printed"] is False
+    assert payload["gateway_request_sent"] is False
 
 
 def test_helper_refuses_asterisk_openai_key_without_printing_value(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -108,7 +111,119 @@ def test_helper_requires_business_dialog_transcript_use_to_stay_false(
 
     payload = json.loads(capsys.readouterr().out)
     assert code == 2
-    assert "STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG must remain false" in payload["missing_required_flags"]
+    assert "STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG must be false" in payload["missing_required_flags"]
+
+
+def test_helper_dry_run_env_file_fails_closed_without_env_dump(tmp_path: Path, capsys) -> None:
+    helper = _load_helper()
+    env_file = tmp_path / "gateway-smoke.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "STT_GATEWAY_STT_ENABLED=true",
+                "STT_GATEWAY_ADAPTER_ENABLED=true",
+                "STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true",
+                "STT_GATEWAY_LOG_TRANSCRIPT=false",
+                "BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=true",
+                "BUSINESS_DIALOG_TRANSCRIPT_REDACT_LOGS=true",
+                "BUSINESS_DIALOG_TRANSCRIPT_FAIL_CLOSED=true",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    code = helper.main(
+        [
+            "--env-file",
+            str(env_file),
+            "--dialog-transcript-use",
+            "enabled",
+            "--dry-run-env-check",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+    assert code == 2
+    assert payload["ok"] is False
+    assert "STT_GATEWAY_URL" in payload["missing_required_flags"]
+    assert "STT_GATEWAY_TOKEN" in payload["missing_required_flags"]
+    assert payload["secret_values_printed"] is False
+    assert payload["raw_env_values_printed"] is False
+    assert payload["shell_environment_dump_printed"] is False
+    assert payload["gateway_request_sent"] is False
+
+
+def test_helper_dry_run_env_file_accepts_enabled_allowlist_without_printing_values(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    helper = _load_helper()
+    env_file = tmp_path / "gateway-smoke.env"
+    token = "a" * 32
+    env_file.write_text(
+        "\n".join(
+            [
+                "STT_GATEWAY_STT_ENABLED=true",
+                "STT_GATEWAY_ADAPTER_ENABLED=true",
+                "STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true",
+                "STT_GATEWAY_LOG_TRANSCRIPT=false",
+                "STT_GATEWAY_URL=http://gateway.example.test:8080",
+                f"STT_GATEWAY_TOKEN={token}",
+                "BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=true",
+                "BUSINESS_DIALOG_TRANSCRIPT_REDACT_LOGS=true",
+                "BUSINESS_DIALOG_TRANSCRIPT_FAIL_CLOSED=true",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    code = helper.main(
+        [
+            "--env-file",
+            str(env_file),
+            "--dialog-transcript-use",
+            "enabled",
+            "--dry-run-env-check",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+    assert code == 0
+    assert payload["ok"] is True
+    assert payload["missing_required_flags"] == []
+    assert token not in output
+    assert "gateway.example" not in output
+    assert payload["shell_environment_dump_printed"] is False
+    assert payload["gateway_request_sent"] is False
+
+
+def test_helper_env_file_rejects_unapproved_keys_without_values(tmp_path: Path, capsys) -> None:
+    helper = _load_helper()
+    env_file = tmp_path / "gateway-smoke.env"
+    secret = "secret-value-that-must-not-print"
+    env_file.write_text(
+        "\n".join(
+            [
+                "STT_GATEWAY_STT_ENABLED=true",
+                "UNAPPROVED_SECRET=" + secret,
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    code = helper.main(["--env-file", str(env_file), "--dry-run-env-check"])
+
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+    assert code == 2
+    assert "UNAPPROVED_SECRET is not an allowed smoke env key" in payload["missing_required_flags"]
+    assert secret not in output
+    assert payload["shell_environment_dump_printed"] is False
 
 
 def test_helper_delegates_to_existing_smoke_module_when_safe(tmp_path: Path, monkeypatch) -> None:
@@ -128,6 +243,68 @@ def test_helper_delegates_to_existing_smoke_module_when_safe(tmp_path: Path, mon
 
     assert code == 0
     assert calls == [["--audio", str(audio_path), "--require-explicit-flags"]]
+
+
+def test_helper_delegates_enabled_mode_from_env_file_without_shell_source(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    helper = _load_helper()
+    audio_path = tmp_path / "smoke.wav"
+    env_file = tmp_path / "gateway-smoke.env"
+    token = "a" * 32
+    helper.create_smoke_wav(audio_path)
+    env_file.write_text(
+        "\n".join(
+            [
+                "STT_GATEWAY_STT_ENABLED=true",
+                "STT_GATEWAY_ADAPTER_ENABLED=true",
+                "STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true",
+                "STT_GATEWAY_LOG_TRANSCRIPT=false",
+                "STT_GATEWAY_URL=http://gateway.example.test:8080",
+                f"STT_GATEWAY_TOKEN={token}",
+                "BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=true",
+                "BUSINESS_DIALOG_TRANSCRIPT_REDACT_LOGS=true",
+                "BUSINESS_DIALOG_TRANSCRIPT_FAIL_CLOSED=true",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    calls: list[list[str]] = []
+    observed: dict[str, str | None] = {}
+
+    def _fake_smoke(argv: list[str]) -> int:
+        calls.append(argv)
+        observed["STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG"] = helper.os.environ.get(
+            "STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG"
+        )
+        observed["BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED"] = helper.os.environ.get(
+            "BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED"
+        )
+        observed["STT_GATEWAY_TOKEN"] = helper.os.environ.get("STT_GATEWAY_TOKEN")
+        return 0
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(helper.gateway_adapter_smoke, "main", _fake_smoke)
+
+    code = helper.main(
+        [
+            "--env-file",
+            str(env_file),
+            "--dialog-transcript-use",
+            "enabled",
+            "--audio",
+            str(audio_path),
+        ]
+    )
+
+    assert code == 0
+    assert calls == [["--audio", str(audio_path), "--require-explicit-flags"]]
+    assert observed["STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG"] == "true"
+    assert observed["BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED"] == "true"
+    assert observed["STT_GATEWAY_TOKEN"] == token
+    assert helper.os.environ.get("STT_GATEWAY_TOKEN") != token
 
 
 def test_helper_creates_24khz_mono_16bit_pcm_smoke_audio(tmp_path: Path, capsys) -> None:
