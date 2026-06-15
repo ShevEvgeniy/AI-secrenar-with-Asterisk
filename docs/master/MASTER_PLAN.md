@@ -1926,3 +1926,20 @@ python scripts/asterisk_gateway_smoke_helper.py --env-file <approved_remote_env_
 ```
 
 Phase 2 stopped at the Gateway SSH hard gate before dry-run env validation or smoke. Coordinator later clarified that Kamatera/Gateway had not yet been powered on, so the timeout is now classified as `blocked_pending_kamatera_gateway_power_on` rather than an unexplained Gateway failure. Future retry still requires coordinator review because no enabled live dialog use was proven.
+
+## NODE-032BN Power-On Readiness Plan Result
+
+NODE-032BN confirms both servers are reachable after operator power-on and records safe baseline readiness before any future enabled smoke retry.
+
+```text
+operator_power_on_confirmation=true
+asterisk_readiness_passed=true
+gateway_readiness_passed=true
+readiness_passed=true
+smoke_allowed=false
+quote_safe_dry_run_env_check_run=false
+gateway_start=false
+gateway_request=false
+```
+
+Future smoke or quote-safe env dry-run remains a separate coordinator-approved action.
