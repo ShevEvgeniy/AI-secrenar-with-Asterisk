@@ -3094,3 +3094,20 @@ final_classification=readiness_passed
 ```
 
 NODE-032BN confirms the prior NODE-032BM Gateway SSH timeout was resolved after operator power-on. It does not approve smoke, quote-safe dry-run env validation, Gateway start, Gateway request, transcript-use enablement, token/env value handling, service/Docker/firewall/env/server/app mutation, live audio action, disk image action, Notion write, or Runtime/Evidence write.
+
+## NODE-032BO Enabled Retry Planning Decision
+
+Date: 2026-06-29
+
+Decision:
+
+```text
+prepare_next_enabled_live_smoke_retry_plan=true
+phase1_repo_planning_only=true
+server_power_on_requested=false
+live_server_action=false
+enabled_live_dialog_use_proven=false
+final_classification=phase1_repo_planning_ready_pending_server_power_on
+```
+
+Future live work requires a fresh coordinator instruction, explicit operator power-on confirmations for Asterisk and Gateway, read-only quick preflight, quote-safe dry-run env check, Gateway start only after all hard gates pass, exactly one controlled enabled smoke, safe diagnostics only, cleanup/rollback, and coordinator review.

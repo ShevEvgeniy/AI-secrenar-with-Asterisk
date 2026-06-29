@@ -5758,3 +5758,25 @@ final_classification=readiness_passed
 ```
 
 No Gateway start, stop, restart, smoke, quote-safe dry-run env check, Gateway request, transcript-use enablement, token/env value output, service/Docker/firewall/env/server/app config mutation, live audio action, disk image action, Notion write, or Runtime/Evidence write occurred.
+
+## NODE-032BO Enabled Live Smoke Retry Planning
+
+NODE-032BO is Phase 1 repo/planning only for a future enabled live smoke retry after NODE-032BN readiness passed.
+
+```text
+node=NODE-032BO / controlled-enabled-live-smoke-retry-after-readiness-passed
+branch=feat/node-032bo-controlled-enabled-live-smoke-retry-after-readiness-passed
+phase=phase1_repo_planning_only
+server_power_on_requested=false
+live_server_action=false
+ssh_used=false
+preflight_run=false
+quote_safe_dry_run_env_check_run=false
+gateway_started=false
+smoke_run=false
+gateway_request_sent=false
+enabled_live_dialog_use_proven=false
+final_classification=phase1_repo_planning_ready_pending_server_power_on
+```
+
+Future live work requires coordinator instruction to power on Asterisk and Kamatera Gateway, operator confirmation for both hosts, and a new explicit NODE-032BO live/server instruction.
