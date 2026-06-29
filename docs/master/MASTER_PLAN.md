@@ -1943,3 +1943,18 @@ gateway_request=false
 ```
 
 Future smoke or quote-safe env dry-run remains a separate coordinator-approved action.
+
+## NODE-032BO Enabled Retry Phase 1 Plan
+
+NODE-032BO records the next retry sequence without touching servers.
+
+```text
+phase=phase1_repo_planning_only
+server_power_on_requested=false
+live_server_action=false
+future_gate_requires_operator_power_on_confirmation=true
+future_sequence=preflight_then_dry_run_then_gateway_start_then_one_smoke_then_cleanup
+final_classification=phase1_repo_planning_ready_pending_server_power_on
+```
+
+Future live phase must not begin until coordinator tells the operator which servers to power on, the operator confirms Asterisk `92.118.85.117` and Kamatera Gateway `45.61.48.199` are powered on, and coordinator issues a new explicit live/server instruction for NODE-032BO.
