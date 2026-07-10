@@ -9,6 +9,8 @@
 - [ ] Screenshot/video guidance exists in `screenshots/README_screenshots.md`.
 - [ ] Final Drive/Yandex/Google folder link is ready for submission.
 - [ ] No API keys, tokens, Authorization headers, private env dumps, server logs, or real customer data are included.
+- [ ] No API keys are included anywhere in the final submission folder.
 - [ ] Demo can run without Asterisk, Gateway, SSH, telephony infrastructure, or server credentials.
 - [ ] Demo can run without OpenAI/API keys.
 - [ ] Optional real GPT demo, if used later by the coordinator, is documented separately and is not required for the basic package.
+- [ ] Optional GPT screenshot is included only if the coordinator runs `--use-gpt`, and it does not show API keys or environment values.

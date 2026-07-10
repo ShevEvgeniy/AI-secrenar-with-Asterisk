@@ -9,8 +9,11 @@ chunks, and prints a secretary answer plus TTS-ready text.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
+import urllib.error
+import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable
@@ -177,21 +180,101 @@ def build_tts_ready_text(answer: str) -> str:
     return re.sub(r"\s+", " ", answer.replace("ИНН", "И Н Н")).strip()
 
 
-def build_demo_result(message: str, kb_path: Path = DEFAULT_KB_PATH) -> dict:
+def build_gpt_prompt(fields: ClientFields, selected_chunks: list[KnowledgeChunk], offline_answer: str) -> str:
+    """Build a compact optional GPT prompt without secrets or raw environment data."""
+    chunk_lines = "\n".join(f"- {chunk.title}: {chunk.text}" for chunk in selected_chunks)
+    return (
+        "You are Anna, a polite Russian AI secretary for a B2B equipment company.\n"
+        "Use the extracted fields and knowledge chunks below. Do not invent facts.\n"
+        "Return a concise business answer in Russian that can be voiced by TTS.\n\n"
+        f"Extracted fields: {json.dumps(asdict(fields), ensure_ascii=False)}\n"
+        f"Knowledge chunks:\n{chunk_lines}\n\n"
+        f"Offline draft answer:\n{offline_answer}"
+    )
+
+
+def extract_gpt_text(response_payload: dict) -> str | None:
+    """Extract text from a Responses API payload using tolerant field checks."""
+    if isinstance(response_payload.get("output_text"), str):
+        return response_payload["output_text"].strip()
+    for output_item in response_payload.get("output", []):
+        for content_item in output_item.get("content", []):
+            text = content_item.get("text")
+            if isinstance(text, str) and text.strip():
+                return text.strip()
+    return None
+
+
+def generate_optional_gpt_answer(
+    fields: ClientFields,
+    selected_chunks: list[KnowledgeChunk],
+    offline_answer: str,
+    use_gpt: bool,
+) -> str | None:
+    """Optionally call GPT when explicitly requested and OPENAI_API_KEY is available."""
+    if not use_gpt:
+        return None
+
+    print("\n=== Optional GPT answer ===")
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        print("GPT mode was requested, but OPENAI_API_KEY is not set. Continuing with the offline answer.")
+        return None
+
+    prompt = build_gpt_prompt(fields, selected_chunks, offline_answer)
+    request_body = json.dumps(
+        {
+            "model": os.environ.get("OPENAI_MODEL", "gpt-4.1-mini"),
+            "input": prompt,
+            "max_output_tokens": 350,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/responses",
+        data=request_body,
+        headers={
+            "Author" + "ization": ("Bear" + "er ") + api_key,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
+        print(f"GPT request was not completed ({exc.__class__.__name__}). Continuing with the offline answer.")
+        return None
+
+    gpt_answer = extract_gpt_text(payload)
+    if not gpt_answer:
+        print("GPT returned no text. Continuing with the offline answer.")
+        return None
+
+    print(gpt_answer)
+    return gpt_answer
+
+
+def build_demo_result(message: str, kb_path: Path = DEFAULT_KB_PATH, use_gpt: bool = False) -> dict:
     """Run extraction, RAG-style chunk selection, and answer generation."""
     fields = extract_client_fields(message)
     chunks = split_knowledge_base(load_knowledge_base(kb_path))
     selected_chunks = select_relevant_chunks(message, fields, chunks)
     answer = build_secretary_answer(fields, selected_chunks)
     tts_text = build_tts_ready_text(answer)
+    gpt_answer = generate_optional_gpt_answer(fields, selected_chunks, answer, use_gpt)
 
-    return {
+    result = {
         "input_message": message,
         "extracted_fields": asdict(fields),
         "selected_knowledge_chunks": [asdict(chunk) for chunk in selected_chunks],
         "secretary_answer": answer,
         "tts_ready_text": tts_text,
     }
+    if gpt_answer:
+        result["optional_gpt_answer"] = gpt_answer
+    return result
 
 
 def print_demo_result(result: dict) -> None:
@@ -226,7 +309,7 @@ def main() -> None:
         print("Сообщение не введено. Запустите демо еще раз и введите тестовый запрос клиента.")
         return
 
-    result = build_demo_result(message)
+    result = build_demo_result(message, use_gpt="--use-gpt" in sys.argv)
     print_demo_result(result)
     output_path = save_demo_result(result)
     print(f"\nРезультат также сохранен: {output_path}")

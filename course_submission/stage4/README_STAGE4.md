@@ -20,7 +20,7 @@ This solves the course task of showing the full neuro-employee algorithm: client
 
 The broader repository contains production-oriented Asterisk, Gateway, and live-call work. That integration is not required for this course demo. The Stage 4 demo is intentionally local and offline-friendly so a reviewer can run it without Asterisk, Gateway, SSH, telephony infrastructure, server credentials, or API keys.
 
-The basic demo does not require OpenAI or any other API key. Optional real GPT usage can be demonstrated separately by the coordinator, but it is not required for this package.
+The basic demo does not require OpenAI or any other API key. Optional GPT usage is available with `--use-gpt` only when `OPENAI_API_KEY` is present, but it is not required for this package.
 
 ## Final Algorithm
 
@@ -49,6 +49,14 @@ For a deterministic built-in reviewer example, run:
 ```powershell
 python course_submission/stage4/final_demo.py --sample
 ```
+
+Optional GPT mode is available only when the coordinator explicitly wants to show a real GPT-backed variant:
+
+```powershell
+python course_submission/stage4/final_demo.py --sample --use-gpt
+```
+
+GPT mode is optional and requires `OPENAI_API_KEY` in the local environment. If `--use-gpt` is provided but `OPENAI_API_KEY` is absent, the script prints a friendly fallback message and continues with the offline answer. The basic course demo can be checked without API keys.
 
 Then enter a sample client request, for example:
 
