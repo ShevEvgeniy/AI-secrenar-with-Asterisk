@@ -5780,3 +5780,23 @@ final_classification=phase1_repo_planning_ready_pending_server_power_on
 ```
 
 Future live work requires coordinator instruction to power on Asterisk and Kamatera Gateway, operator confirmation for both hosts, and a new explicit NODE-032BO live/server instruction.
+
+## AI-Secretary Reproducible Pause Checkpoint (2026-07-11)
+
+AI-secrenar-with-Asterisk is paused at a reproducible checkpoint after the timeboxed viability sprint.
+
+```text
+checkpoint=NODE-032BO / NODE-032BP / NODE-032BQ
+helper_sha256=ddc7edd64b3231d1611ef3e94eed2d0c32880d0121d227fb495a0a6ee1efe0ff
+backup_path=/home/tulauser/AI-secrenar-with-Asterisk-node014/backups/node032bp-20260711T174823Z/scripts/asterisk_gateway_smoke_helper.py
+backup_sha256=cfe131e51e7e8299ddb28b960ebd6f8a297a333640ef6369a587742bdffa342a
+dry_run_attempt_count=1
+blocker_1=STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG must be true
+blocker_2=BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED must be true
+gateway_requests=0
+openai_requests=0
+enabled_smoke_runs=0
+operator_confirmed_both_servers_powered_off=true
+```
+
+Enabled dialog use is not proven and the project is not production ready. Resume only after reprioritization, beginning with the suggested `NODE-032BR` temporary credential-boundary design.

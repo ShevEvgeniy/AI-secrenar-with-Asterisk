@@ -5226,3 +5226,19 @@ notion_write=false
 runtime_evidence_write=false
 final_classification=phase1_repo_planning_ready_pending_server_power_on
 ```
+
+## NODE-032BP Pause Checkpoint Runtime Note
+
+```text
+date=2026-07-11
+node=NODE-032BP
+event=helper refresh plus quote-safe dry-run
+helper_sha256=ddc7edd64b3231d1611ef3e94eed2d0c32880d0121d227fb495a0a6ee1efe0ff
+backup_sha256=cfe131e51e7e8299ddb28b960ebd6f8a297a333640ef6369a587742bdffa342a
+dry_run_exit_code=2
+gateway_request_sent=false
+smoke_run=false
+credential_boundary_modified=false
+servers_confirmed_powered_off=true
+final_classification=PROJECT_PAUSED_AT_REPRODUCIBLE_CHECKPOINT
+```

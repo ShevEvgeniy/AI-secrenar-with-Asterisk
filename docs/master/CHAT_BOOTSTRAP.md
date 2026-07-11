@@ -110,3 +110,7 @@ Existing `NODE-001` through `NODE-030` are historical commit-based nodes. Do not
 - Staging or committing `data/storage/`.
 - Staging or committing `node014-server.tar`.
 - Deleting or cleaning historical untracked artifacts.
+
+## AI-Secretary Pause Pointer
+
+AI-secretary is paused. Resume from NODE-032BQ checkpoint and open a separate temporary-enabled-credential-boundary design node before any live work.
