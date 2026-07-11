@@ -240,3 +240,14 @@ node014-server.tar
 final_classification=phase1_repo_planning_ready_pending_server_power_on
 ```
 
+
+## Pause Handoff (2026-07-11)
+
+```text
+status=Paused, reproducible checkpoint
+enabled_live_dialog_use_proven=false
+```
+
+The repository-approved helper is deployed and validated, but the existing credential boundary does not satisfy `STT_GATEWAY_USE_TRANSCRIPT_FOR_DIALOG=true` and `BUSINESS_DIALOG_TRANSCRIPT_USE_ENABLED=true`. The project was intentionally paused after the agreed two-day decision sprint. No credential mutation, retry, Gateway start, or enabled smoke is approved.
+
+Resume after reprioritization through a separate temporary-enabled-credential-boundary node. One quote-safe dry-run must pass before any Gateway start or controlled enabled smoke.

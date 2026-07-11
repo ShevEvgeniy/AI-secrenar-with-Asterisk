@@ -3111,3 +3111,11 @@ final_classification=phase1_repo_planning_ready_pending_server_power_on
 ```
 
 Future live work requires a fresh coordinator instruction, explicit operator power-on confirmations for Asterisk and Gateway, read-only quick preflight, quote-safe dry-run env check, Gateway start only after all hard gates pass, exactly one controlled enabled smoke, safe diagnostics only, cleanup/rollback, and coordinator review.
+
+## Pause AI-Secretary at Reproducible Checkpoint
+
+Date: 2026-07-11
+
+Decision: pause AI-secrenar-with-Asterisk after the two-day viability sprint. Core transport, redaction, and helper boundaries are technically viable; the remaining blocker is narrow, but continuation requires a controlled temporary credential-boundary mutation and a later separately approved live smoke. Operations Control Plane Closed Loop becomes the higher-priority development direction, while this complete resume package is preserved.
+
+Constraints: no persistent transcript-use enablement, no inherited live approval, servers remain off, and future work begins with a separate temporary credential-boundary node.

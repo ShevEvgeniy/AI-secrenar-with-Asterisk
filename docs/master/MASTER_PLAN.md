@@ -1958,3 +1958,9 @@ final_classification=phase1_repo_planning_ready_pending_server_power_on
 ```
 
 Future live phase must not begin until coordinator tells the operator which servers to power on, the operator confirms Asterisk `92.118.85.117` and Kamatera Gateway `45.61.48.199` are powered on, and coordinator issues a new explicit live/server instruction for NODE-032BO.
+
+## Paused AI-Secretary Checkpoint
+
+`NODE-032BO / NODE-032BP / NODE-032BQ` is paused/backlog work. No schedule or live approval is currently active.
+
+Resume order: temporary credential-boundary design → one quote-safe dry-run → Gateway readiness → one controlled enabled smoke → go/no-go.
